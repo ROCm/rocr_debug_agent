@@ -1,0 +1,152 @@
+////////////////////////////////////////////////////////////////////////////////
+//
+// The University of Illinois/NCSA
+// Open Source License (NCSA)
+//
+// Copyright (c) 2018, Advanced Micro Devices, Inc. All rights reserved.
+//
+// Permission is hereby granted, free of charge, to any person obtaining a copy
+// of this software and associated documentation files (the "Software"), to
+// deal with the Software without restriction, including without limitation
+// the rights to use, copy, modify, merge, publish, distribute, sublicense,
+// and/or sell copies of the Software, and to permit persons to whom the
+// Software is furnished to do so, subject to the following conditions:
+//
+//  - Redistributions of source code must retain the above copyright notice,
+//    this list of conditions and the following disclaimers.
+//  - Redistributions in binary form must reproduce the above copyright
+//    notice, this list of conditions and the following disclaimers in
+//    the documentation and/or other materials provided with the distribution.
+//  - Neither the names of Advanced Micro Devices, Inc,
+//    nor the names of its contributors may be used to endorse or promote
+//    products derived from this Software without specific prior written
+//    permission.
+//
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL
+// THE CONTRIBUTORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR
+// OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,
+// ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
+// DEALINGS WITH THE SOFTWARE.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+#ifndef HSA_PROCESS_WAVE_H_
+#define HSA_PROCESS_WAVE_H_
+
+#include <map>
+#include <mutex>
+
+// Debug Agent Headers
+#include "HSADebugAgent.h"
+
+// forward declaration.
+typedef struct _WaveStateInfo WaveStateInfo;
+typedef struct _GPUAgentInfo GPUAgentInfo;
+typedef struct _QueueInfo QueueInfo;
+typedef struct _CodeObjectInfo CodeObjectInfo;
+
+#define COMPUTE_RELAUNCH_PAYLOAD_VGPRS(x) (((x) >> 0x0) & 0x3F)
+#define COMPUTE_RELAUNCH_PAYLOAD_SGPRS(x) (((x) >> 0x6) & 0x7)
+#define COMPUTE_RELAUNCH_PAYLOAD_LDS_SIZE(x) (((x) >> 0x9) & 0x1FF)
+#define COMPUTE_RELAUNCH_PAYLOAD_FIRST_WAVE(x) (((x) >> 0x11) & 0x1)
+#define COMPUTE_RELAUNCH_IS_EVENT(x) (((x) >> 0x1E) & 0x1)
+#define COMPUTE_RELAUNCH_IS_STATE(x) (((x) >> 0x1F) & 0x1)
+#define SQ_WAVE_TRAPSTS_XNACK_ERROR(x) (((x) >> 0x1C) & 0x1)
+
+// lock for updating agent/queue/wave info
+extern std::mutex debugInfoLock;
+
+// lock for updating code object info
+extern std::mutex codeObjectInfoLock;
+
+// Get the wave states of a queue from context save area,
+// decode and update wave info in the queue.
+DebugAgentStatus ProcessQueueWaveStates(uint32_t nodeId, uint32_t queueId);
+
+// Preempt queues of all agents and process the waves.
+DebugAgentStatus PreemptAllQueues();
+
+// Preempt queues of an agent.
+DebugAgentStatus PreemptAgentQueues(GPUAgentInfo* pAgent);
+
+// Preempt queues of all agent that are not in error state.
+DebugAgentStatus ResumeAllQueues();
+
+// Resume queues of an agent.
+DebugAgentStatus ResumeAgentQueues(GPUAgentInfo* pAgent);
+
+// Print waves based on its PC.
+void PrintWaves(std::map<uint64_t, std::pair<uint64_t, WaveStateInfo*>> waves);
+
+// Get the pointer of specified agent info by node from the agent link list.
+GPUAgentInfo* GetAgentFromList(uint64_t node);
+
+// Get the pointer of specified agent info by agent handle from the agent link list.
+GPUAgentInfo* GetAgentFromList(hsa_agent_t agentHandle);
+
+// Get the pointer of specified agent info by a queue id of it.
+GPUAgentInfo* GetAgentByQueueID(uint64_t queueId);
+
+// Add queue info to the link list.
+DebugAgentStatus addQueueToList(uint64_t nodeId, QueueInfo* pQueue);
+
+// Get the pointer of specified queue info by node and queue id from the link list.
+QueueInfo* GetQueueFromList(uint64_t node, uint64_t queueId);
+QueueInfo* GetQueueFromList(uint64_t queueId);
+
+// Remove the code object info by its loaded address from link list.
+void RemoveCodeObjectFromList(uint64_t addrLoaded);
+
+// Add code object info to the link list.
+DebugAgentStatus AddCodeObjectToList(CodeObjectInfo* pCodeObject);
+
+// Remove the queue info by its queue id from link list.
+void RemoveQueueFromList(uint64_t queueId);
+
+// Delete the wave states of a queue.
+void CleanUpQueueWaveState(uint64_t node, uint64_t queueId);
+
+// Return pointer to the end element of a link list
+template <class listType>
+listType* GetLinkListEnd(listType* pList)
+{
+    if (pList == nullptr)
+    {
+      return nullptr;
+    }
+    while(pList->pNext != nullptr)
+    {
+      pList = pList->pNext;
+    }
+    return pList;
+};
+
+// Add element to the end of a link list
+template <class listType>
+DebugAgentStatus AddToLinkListEnd(listType* pAddItem, listType** ppList)
+{
+    if (ppList == nullptr)
+    {
+       return DEBUG_AGENT_STATUS_FAILURE;
+    }
+
+    if (*ppList == nullptr)
+    {
+        *ppList = pAddItem;
+    }
+    else
+    {
+        listType* pList = *ppList;
+        while(pList->pNext != nullptr)
+        {
+            pList = pList->pNext;
+        }
+        pList->pNext = pAddItem;
+        pAddItem->pPrev = pList;
+    }
+    return DEBUG_AGENT_STATUS_SUCCESS;
+};
+
+#endif // HSA_PROCESS_WAVE_H_

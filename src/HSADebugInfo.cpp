@@ -1,0 +1,707 @@
+////////////////////////////////////////////////////////////////////////////////
+//
+// The University of Illinois/NCSA
+// Open Source License (NCSA)
+//
+// Copyright (c) 2018, Advanced Micro Devices, Inc. All rights reserved.
+//
+// Permission is hereby granted, free of charge, to any person obtaining a copy
+// of this software and associated documentation files (the "Software"), to
+// deal with the Software without restriction, including without limitation
+// the rights to use, copy, modify, merge, publish, distribute, sublicense,
+// and/or sell copies of the Software, and to permit persons to whom the
+// Software is furnished to do so, subject to the following conditions:
+//
+//  - Redistributions of source code must retain the above copyright notice,
+//    this list of conditions and the following disclaimers.
+//  - Redistributions in binary form must reproduce the above copyright
+//    notice, this list of conditions and the following disclaimers in
+//    the documentation and/or other materials provided with the distribution.
+//  - Neither the names of Advanced Micro Devices, Inc,
+//    nor the names of its contributors may be used to endorse or promote
+//    products derived from this Software without specific prior written
+//    permission.
+//
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL
+// THE CONTRIBUTORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR
+// OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,
+// ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
+// DEALINGS WITH THE SOFTWARE.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+#include <cstdlib>
+#include <cstring>
+#include <fstream>
+#include <iomanip>
+#include <iostream>
+#include <sstream>
+#include <string>
+#include <sys/wait.h>
+#include <unistd.h>
+
+// HSA headers
+#include <hsakmt.h>
+
+// Debug Agent Headers
+#include "AgentLogging.h"
+#include "AgentUtils.h"
+#include "HSADebugAgentGDBInterface.h"
+#include "HSADebugAgent.h"
+#include "HSADebugInfo.h"
+
+// lock for updating agent/queue/wave info
+std::mutex debugInfoLock;
+
+// lock for updating code object info
+std::mutex codeObjectInfoLock;
+
+// Total number of loaded code object during execution (only increase)
+static uint32_t gs_numCodeObject = 0;
+
+DebugAgentStatus ProcessQueueWaveStates(uint32_t nodeId, uint32_t queueId)
+{
+    HsaQueueInfo queue_info;
+
+    // Retrieve the control stack and context save area for the queue.
+    HSAKMT_STATUS status = hsaKmtGetQueueInfo(queueId, &queue_info);
+
+    if (status != HSAKMT_STATUS_SUCCESS)
+    {
+        AGENT_ERROR("Cannot get queue info from KMT.");
+        return DEBUG_AGENT_STATUS_FAILURE;
+    }
+
+    // The control stack is processed from start to end.
+    // The save area is processed from end to start.
+    uint32_t *ctl_stack = reinterpret_cast<uint32_t *>(queue_info.ControlStackTop);
+    uint32_t *wave_area = reinterpret_cast<uint32_t *>(uintptr_t(queue_info.UserContextSaveArea) +
+                                                       queue_info.SaveAreaSizeInBytes);
+    uint32_t ctl_stack_ndw = uint32_t(queue_info.ControlStackUsedInBytes / sizeof(uint32_t));
+
+    // Control stack persists resource allocation until changed by a command.
+    uint32_t n_vgprs = 0;
+    uint32_t n_sgprs = 0;
+    uint32_t lds_size_dw = 0;
+
+    // LDS is saved per-workgroup but the stack is parsed per-wavefront.
+    // Track the LDS save area for the current workgroup.
+    uint32_t *lds = nullptr;
+
+    // Parse each write to COMPUTE_RELAUNCH in sequence.
+    // First two dwords are SET_SH_REG leader.
+    for (uint32_t idx = 2; idx < ctl_stack_ndw; ++idx)
+    {
+        uint32_t relaunch = ctl_stack[idx];
+        bool is_event = COMPUTE_RELAUNCH_IS_EVENT(relaunch);
+        bool is_state = COMPUTE_RELAUNCH_IS_STATE(relaunch);
+
+        if (is_state && !is_event)
+        {
+            // Resource allocation state change, update tracked state.
+            n_vgprs = (0x1 + COMPUTE_RELAUNCH_PAYLOAD_VGPRS(relaunch)) * 0x4;
+            n_sgprs = ((0x1 + COMPUTE_RELAUNCH_PAYLOAD_SGPRS(relaunch)) - 0x1 /* no trap SGPRs */) * 0x10;
+            lds_size_dw = COMPUTE_RELAUNCH_PAYLOAD_LDS_SIZE(relaunch) * 0x80;
+        }
+        else if (!is_state && !is_event)
+        {
+            // Reference to one wavefront in the save area.
+            bool first_wave_in_group = COMPUTE_RELAUNCH_PAYLOAD_FIRST_WAVE(relaunch);
+
+            // Save area layout is fixed by context save trap handler and SPI.
+            uint32_t vgprs_offset = 0x0;
+            uint32_t sgprs_offset = vgprs_offset + n_vgprs * 0x40;
+            uint32_t hwregs_offset = sgprs_offset + n_sgprs;
+            uint32_t lds_offset = hwregs_offset + 0x20;
+            uint32_t unused_offset = lds_offset + (first_wave_in_group ? lds_size_dw : 0x0);
+            uint32_t wave_area_size = unused_offset + 0x10; // trap SGPRs were allocated but not saved
+            uint32_t hwreg_m0_offset = hwregs_offset + 0x0;
+            uint32_t hwreg_pc_lo_offset = hwregs_offset + 0x1;
+            uint32_t hwreg_pc_hi_offset = hwregs_offset + 0x2;
+            uint32_t hwreg_exec_lo_offset = hwregs_offset + 0x3;
+            uint32_t hwreg_exec_hi_offset = hwregs_offset + 0x4;
+            uint32_t hwreg_status_offset = hwregs_offset + 0x5;
+            uint32_t hwreg_trapsts_offset = hwregs_offset + 0x6;
+
+            // Find beginning of wavefront state in the save area.
+            wave_area -= wave_area_size;
+
+            if (first_wave_in_group)
+            {
+                // Track the LDS save area for this workgroup.
+                if (lds_size_dw > 0)
+                {
+                    lds = wave_area + lds_offset;
+                }
+                else
+                {
+                    lds = nullptr;
+                }
+            }
+
+            // Save wave state in debug agent.
+            WaveStateInfo *pWaveList = new WaveStateInfo;
+            pWaveList->pPrev = nullptr;
+            pWaveList->pNext = nullptr;
+
+            pWaveList->numSgprs = n_sgprs;
+            pWaveList->sgprs = wave_area + sgprs_offset;
+            pWaveList->numVgprs = n_vgprs;
+            pWaveList->numVgprLanes = 0x40;
+            pWaveList->vgprs = wave_area + vgprs_offset;
+            pWaveList->regs.pc = (uint64_t(wave_area[hwreg_pc_lo_offset]) |
+                                  (uint64_t(wave_area[hwreg_pc_hi_offset]) << 0x20));
+            pWaveList->regs.exec = (uint64_t(wave_area[hwreg_exec_lo_offset]) |
+                                    (uint64_t(wave_area[hwreg_exec_hi_offset]) << 0x20));
+            pWaveList->regs.status = wave_area[hwreg_status_offset];
+            pWaveList->regs.trapsts = wave_area[hwreg_trapsts_offset];
+            pWaveList->regs.m0 = wave_area[hwreg_m0_offset];
+            pWaveList->ldsSizeDw = lds_size_dw;
+            pWaveList->lds = lds;
+
+            QueueInfo *pQueue = GetQueueFromList(nodeId, queueId);
+            DebugAgentStatus statusAddToList = AddToLinkListEnd<WaveStateInfo>(pWaveList,
+                                                                               &(pQueue->pWaveList));
+
+            if (SQ_WAVE_TRAPSTS_XNACK_ERROR(pWaveList->regs.trapsts))
+            {
+                pQueue->queueStatus = QUEUE_STATUS_FAILURE;
+            }
+
+            if (statusAddToList != DEBUG_AGENT_STATUS_SUCCESS)
+            {
+                AGENT_ERROR("Cannot add wave state to link list.");
+                return statusAddToList;
+            }
+        }
+    }
+    return DEBUG_AGENT_STATUS_SUCCESS;
+}
+
+DebugAgentStatus PreemptAgentQueues(GPUAgentInfo* pAgent)
+{
+    HSAKMT_STATUS kmt_status = HSAKMT_STATUS_SUCCESS;
+    QueueInfo *pQueue = pAgent->pQueueList;
+    while (pQueue != nullptr)
+    {
+        // preempt the queue
+        kmt_status = hsaKmtUpdateQueue(pQueue->queue->id,
+                                       0,
+                                       HSA_QUEUE_PRIORITY_NORMAL,
+                                       NULL,
+                                       pQueue->queue->size,
+                                       NULL);
+        if (kmt_status != HSAKMT_STATUS_SUCCESS)
+        {
+            AGENT_ERROR("Cannot preempt queues.");
+            return DEBUG_AGENT_STATUS_FAILURE;
+        }
+
+        // get the queue wave state
+        DebugAgentStatus status = DEBUG_AGENT_STATUS_SUCCESS;
+        CleanUpQueueWaveState(pAgent->nodeId, pQueue->queueId);
+        status = ProcessQueueWaveStates(pAgent->nodeId, pQueue->queueId);
+        if (status != DEBUG_AGENT_STATUS_SUCCESS)
+        {
+            AGENT_ERROR("Cannot get queue preemption.");
+            return DEBUG_AGENT_STATUS_FAILURE;
+        }
+        pQueue = pQueue->pNext;
+    }
+    return DEBUG_AGENT_STATUS_SUCCESS;
+}
+
+DebugAgentStatus PreemptAllQueues()
+{
+    GPUAgentInfo *pAgent = _r_amd_gpu_debug.pAgentList;
+    while (pAgent != nullptr)
+    {
+        DebugAgentStatus status = DEBUG_AGENT_STATUS_SUCCESS;
+        status = PreemptAgentQueues(pAgent);
+        if (status != DEBUG_AGENT_STATUS_SUCCESS)
+        {
+            AGENT_ERROR("Cannot get queue preemption.");
+            return DEBUG_AGENT_STATUS_FAILURE;
+        }
+        pAgent = pAgent->pNext;
+    }
+    return DEBUG_AGENT_STATUS_SUCCESS;
+}
+
+DebugAgentStatus ResumeAgentQueues(GPUAgentInfo* pAgent)
+{
+    HSAKMT_STATUS kmt_status = HSAKMT_STATUS_SUCCESS;
+    QueueInfo *pQueue = pAgent->pQueueList;
+    while (pQueue != nullptr)
+    {
+        if (pQueue->queueStatus != HSA_STATUS_SUCCESS)
+        {
+            break;
+        }
+
+        kmt_status = hsaKmtUpdateQueue(pQueue->queue->id,
+                                       100,
+                                       HSA_QUEUE_PRIORITY_NORMAL,
+                                       pQueue->queue->base_address,
+                                       pQueue->queue->size,
+                                       NULL);
+        if (kmt_status != HSAKMT_STATUS_SUCCESS)
+        {
+            AGENT_ERROR("Cannot resume queues.");
+            return DEBUG_AGENT_STATUS_FAILURE;
+        }
+        pQueue = pQueue->pNext;
+    }
+    return DEBUG_AGENT_STATUS_SUCCESS;
+}
+
+DebugAgentStatus ResumeAllQueues()
+{
+    GPUAgentInfo *pAgent = _r_amd_gpu_debug.pAgentList;
+    while (pAgent != nullptr)
+    {
+        DebugAgentStatus status = DEBUG_AGENT_STATUS_SUCCESS;
+        status = ResumeAgentQueues(pAgent);
+        if (status != DEBUG_AGENT_STATUS_SUCCESS)
+        {
+            AGENT_ERROR("Cannot resume queues.");
+            return DEBUG_AGENT_STATUS_FAILURE;
+        }
+        pAgent = pAgent->pNext;
+    }
+    return DEBUG_AGENT_STATUS_SUCCESS;
+}
+
+void PrintWaves(std::map<uint64_t, std::pair<uint64_t, WaveStateInfo *>> waves)
+{
+    std::stringstream err;
+
+    for (auto it = waves.begin(); it != waves.end(); it++)
+    {
+        uint64_t numFautlyWaveByPC = it->second.first;
+        WaveStateInfo *pWaveState = it->second.second;
+
+        err << std::dec << numFautlyWaveByPC << " wavefront(s) found in @PC: 0x"
+            << std::setw(0x10) << std::setfill('0') << std::hex << std::uppercase << pWaveState->regs.pc << "\n";
+        err << "printing the first one: "
+            << "\n\n";
+        err << "   EXEC: 0x" << std::setw(0x10) << std::setfill('0') << std::hex << std::uppercase << pWaveState->regs.exec << "\n";
+        err << " STATUS: 0x" << std::setw(0x8) << std::setfill('0') << std::hex << std::uppercase << pWaveState->regs.status << "\n";
+        err << "TRAPSTS: 0x" << std::setw(0x8) << std::setfill('0') << std::hex << std::uppercase << pWaveState->regs.trapsts << "\n";
+        err << "     M0: 0x" << std::setw(0x8) << std::setfill('0') << std::hex << std::uppercase << pWaveState->regs.m0 << "\n\n";
+
+        uint32_t n_sgpr_cols = 4;
+        uint32_t n_sgpr_rows = pWaveState->numSgprs / n_sgpr_cols;
+
+        for (uint32_t sgpr_row = 0; sgpr_row < n_sgpr_rows; ++sgpr_row)
+        {
+            err << " ";
+            for (uint32_t sgpr_col = 0; sgpr_col < n_sgpr_cols; ++sgpr_col)
+            {
+                uint32_t sgpr_idx = (sgpr_row * n_sgpr_cols) + sgpr_col;
+                uint32_t sgpr_val = pWaveState->sgprs[sgpr_idx];
+
+                std::stringstream sgpr_str;
+                sgpr_str << "s" << sgpr_idx;
+
+                err << std::setw(6) << std::setfill(' ') << sgpr_str.str();
+                err << ": 0x" << std::setw(8) << std::setfill('0') << std::hex << std::uppercase << sgpr_val;
+            }
+            err << "\n";
+        }
+
+        err << "\n";
+
+        uint32_t n_vgpr_cols = 4;
+        uint32_t n_vgpr_rows = pWaveState->numVgprs / n_vgpr_cols;
+
+        for (uint32_t lane_idx = 0; lane_idx < pWaveState->numVgprLanes; ++lane_idx)
+        {
+            err << "Lane 0x" << std::hex << std::uppercase << lane_idx << "\n";
+            for (uint32_t vgpr_row = 0; vgpr_row < n_vgpr_rows; ++vgpr_row)
+            {
+                err << " ";
+                for (uint32_t vgpr_col = 0; vgpr_col < n_vgpr_cols; ++vgpr_col)
+                {
+                    uint32_t vgpr_idx = (vgpr_row * n_vgpr_cols) + vgpr_col;
+                    uint32_t vgpr_val = pWaveState->vgprs[(vgpr_idx * pWaveState->numVgprLanes) + lane_idx];
+
+                    std::stringstream vgpr_str;
+                    vgpr_str << "v" << vgpr_idx;
+
+                    err << std::setw(6) << std::setfill(' ') << vgpr_str.str();
+                    err << ": 0x" << std::setw(8) << std::setfill('0') << std::hex << std::uppercase << vgpr_val;
+                }
+                err << "\n";
+            }
+        }
+        err << "\n";
+
+        if (pWaveState->lds)
+        {
+            err << "LDS:\n\n";
+
+            uint32_t n_lds_cols = 4;
+            uint32_t n_lds_rows = pWaveState->ldsSizeDw / n_lds_cols;
+
+            for (uint32_t lds_row = 0; lds_row < n_lds_rows; ++lds_row)
+            {
+                uint32_t lds_addr = lds_row * n_lds_cols * 4;
+                err << "0x" << std::setw(4) << std::setfill('0') << std::hex << std::uppercase << lds_addr << ":";
+                for (uint32_t lds_col = 0; lds_col < n_lds_cols; ++lds_col)
+                {
+                    uint32_t lds_idx = (lds_row * n_lds_cols) + lds_col;
+                    uint32_t lds_val = pWaveState->lds[lds_idx];
+                    err << "  0x" << std::setw(8) << std::setfill('0') << std::hex << std::uppercase << lds_val;
+                }
+                err << "\n";
+            }
+            err << "\n";
+        }
+
+        char *code_obj_path = nullptr;
+        uint64_t pc_code_obj_offset = 0;
+        CodeObjectInfo *pList = _r_amd_gpu_debug.pCodeObjectList;
+        while (pList)
+        {
+            if ((pWaveState->regs.pc >= pList->addrLoaded) &&
+                (pWaveState->regs.pc < (pList->addrLoaded + pList->sizeLoaded)))
+            {
+                code_obj_path = &(pList->path[0]);
+                pc_code_obj_offset = pWaveState->regs.pc - pList->addrLoaded;
+                break;
+            }
+            pList = pList->pNext;
+        }
+
+        if (code_obj_path != nullptr)
+        {
+            // Invoke binutils objdump on the code object.
+            int pipe_fd[2];
+            if (::pipe(pipe_fd) != 0)
+            {
+                AGENT_ERROR("Cannot create pipe for llvm-objdump.");
+                return;
+            }
+
+            pid_t pid = ::fork();
+
+            if (pid == 0)
+            {
+                ::dup2(pipe_fd[1], STDOUT_FILENO);
+                ::dup2(pipe_fd[1], STDERR_FILENO);
+                ::close(pipe_fd[0]);
+                ::close(pipe_fd[1]);
+
+                // Disassemble X bytes before/after the PC.
+                uint32_t disasm_context = 0x20;
+
+                std::stringstream arg_start_addr, arg_stop_addr;
+                arg_start_addr << "--start-address=0x" << std::hex << std::uppercase << (pc_code_obj_offset - disasm_context);
+                arg_stop_addr << "--stop-address=0x" << std::hex << std::uppercase << (pc_code_obj_offset + disasm_context);
+
+                std::exit(execlp("llvm-objdump", "llvm-objdump", "-triple=amdgcn-amd-amdhsa",
+                                 "-mcpu=gfx900", "-disassemble", "-source", "-line-numbers", (char *)(arg_start_addr.str().c_str()),
+                                 (char *)(arg_stop_addr.str().c_str()), (char *)code_obj_path, (char *)NULL));
+            }
+
+            // Collect the output of objdump.
+            ::close(pipe_fd[1]);
+
+            std::vector<char> objdump_out_buf;
+            std::vector<char> buf(0x1000);
+            ssize_t n_read_b;
+
+            while ((n_read_b = read(pipe_fd[0], buf.data(), buf.size())) > 0)
+            {
+                objdump_out_buf.insert(objdump_out_buf.end(), &buf[0], &buf[n_read_b]);
+            }
+
+            ::close(pipe_fd[0]);
+
+            int child_status = 0;
+            int ret = ::waitpid(pid, &child_status, 0);
+
+            if (ret != -1 && child_status == 0)
+            {
+                std::string objdump_out(objdump_out_buf.begin(), objdump_out_buf.end());
+                err << "Code Object:\n";
+                err << objdump_out;
+                err << "\nPC offset: " << std::hex << std::uppercase << pc_code_obj_offset << "\n\n";
+            }
+            else
+            {
+                err << "Code Object:\n"
+                    << code_obj_path << "\n\n";
+                err << "(Disassembly unavailable - is amdgcn-capable llvm-objdump in PATH?)\n\n";
+            }
+        }
+        else
+        {
+            err << "(Cannot match PC to a loaded code object)\n\n";
+        }
+    }
+
+    char *pDumpNameEnvVar;
+    pDumpNameEnvVar = std::getenv("ROCM_DEBUG_WAVE_STATE_DUMP");
+
+    if (pDumpNameEnvVar == nullptr)
+    {
+        std::cerr << err.str();
+    }
+    else
+    {
+        std::string envName(pDumpNameEnvVar);
+        if (envName == "stdout")
+        {
+            std::cerr << err.str();
+        }
+        else if (envName == "file")
+        {
+            SaveWaveStateDumpToFile(err);
+        }
+        else
+        {
+            AGENT_WARNING("Invalid value for ROCM_DEBUG_WAVE_STATE_DUMP, printing dump to stdout.");
+            std::cerr << err.str();
+        }
+    }
+}
+
+GPUAgentInfo *GetAgentFromList(uint64_t nodeId)
+{
+    GPUAgentInfo *pList = _r_amd_gpu_debug.pAgentList;
+    while (pList != nullptr)
+    {
+        if (pList->nodeId == nodeId)
+        {
+            return pList;
+            break;
+        }
+        pList = pList->pNext;
+    }
+    return nullptr;
+}
+
+GPUAgentInfo *GetAgentFromList(hsa_agent_t agentHandle)
+{
+    GPUAgentInfo *pList = _r_amd_gpu_debug.pAgentList;
+    while (pList != nullptr)
+    {
+        if (pList->agent.handle == agentHandle.handle)
+        {
+            return pList;
+            break;
+        }
+        pList = pList->pNext;
+    }
+    return nullptr;
+}
+
+GPUAgentInfo *GetAgentByQueueID(uint64_t queueId)
+{
+    GPUAgentInfo *pAgentList = _r_amd_gpu_debug.pAgentList;
+    QueueInfo *pQueueList = nullptr;
+    while (pAgentList != nullptr)
+    {
+        pQueueList = pAgentList->pQueueList;
+        while (pQueueList != nullptr)
+        {
+            if (pQueueList->queueId == queueId)
+            {
+                return pAgentList;
+            }
+            pQueueList = pQueueList->pNext;
+        }
+        pAgentList = pAgentList->pNext;
+    }
+    return nullptr;
+}
+
+DebugAgentStatus addQueueToList(uint64_t nodeId, QueueInfo *pQueue)
+{
+    GPUAgentInfo *pAgent = GetAgentFromList(nodeId);
+    DebugAgentStatus statusAddToList = AddToLinkListEnd<QueueInfo>(pQueue, &(pAgent->pQueueList));
+    return statusAddToList;
+}
+
+QueueInfo *GetQueueFromList(uint64_t nodeId, uint64_t queueId)
+{
+    QueueInfo *pList = (GetAgentFromList(nodeId))->pQueueList;
+    while (pList != nullptr)
+    {
+        if (pList->queueId == queueId)
+        {
+            return pList;
+        }
+        pList = pList->pNext;
+    }
+    return nullptr;
+}
+
+QueueInfo *GetQueueFromList(uint64_t queueId)
+{
+    GPUAgentInfo *pAgentList = _r_amd_gpu_debug.pAgentList;
+    QueueInfo *pQueueList = nullptr;
+    while (pAgentList != nullptr)
+    {
+        pQueueList = pAgentList->pQueueList;
+        while (pQueueList != nullptr)
+        {
+            if (pQueueList->queueId == queueId)
+            {
+                return pQueueList;
+            }
+            pQueueList = pQueueList->pNext;
+        }
+        pAgentList = pAgentList->pNext;
+    }
+    return nullptr;
+}
+
+void CleanUpQueueWaveState(uint64_t nodeId, uint64_t queueId)
+{
+    QueueInfo *pQueueList = GetQueueFromList(nodeId, queueId);
+    WaveStateInfo *pWaveListCurrent = pQueueList->pWaveList;
+    WaveStateInfo *pWaveListNext = nullptr;
+    while (pWaveListCurrent != nullptr)
+    {
+        pWaveListNext = pWaveListCurrent->pNext;
+        delete pWaveListCurrent;
+        pWaveListCurrent = pWaveListNext;
+    }
+    pQueueList->pWaveList = nullptr;
+}
+
+void RemoveQueueFromList(uint64_t queueId)
+{
+    GPUAgentInfo *pAgentList = _r_amd_gpu_debug.pAgentList;
+    QueueInfo *pQueueList = nullptr;
+    while (pAgentList != nullptr)
+    {
+        pQueueList = pAgentList->pQueueList;
+        while (pQueueList != nullptr)
+        {
+            if (pQueueList->queueId == queueId)
+            {
+                goto FinishSearch;
+            }
+            pQueueList = pQueueList->pNext;
+        }
+        pAgentList = pAgentList->pNext;
+    }
+
+FinishSearch:
+    if (pQueueList == nullptr)
+    {
+        AGENT_ERROR("Unable to delete queue in _r_amd_gpu_debug: queue not found");
+    }
+    else
+    {
+        if (pQueueList->pPrev != nullptr)
+        {
+            pQueueList->pPrev->pNext = pQueueList->pNext;
+        }
+        else
+        {
+            pAgentList->pQueueList = pQueueList->pNext;
+        }
+
+        if (pQueueList->pNext != nullptr)
+        {
+            pQueueList->pNext->pPrev = pQueueList->pPrev;
+        }
+
+        // Clean wave states before delete the queue
+        WaveStateInfo *pWave = pQueueList->pWaveList;
+        WaveStateInfo *pWaveNext = nullptr;
+        while (pWave != nullptr)
+        {
+            pWaveNext = pWave->pNext;
+            delete pWave;
+            pWave = pWaveNext;
+        }
+        pQueueList->pWaveList = nullptr;
+
+        delete pQueueList;
+    }
+}
+
+DebugAgentStatus AddCodeObjectToList(CodeObjectInfo *pCodeObject)
+{
+    codeObjectInfoLock.lock();
+
+    // Create temp file for the loaded code object
+    char codeObjPath[AGENT_MAX_FILE_PATH_LEN];
+    char sessionID[64];
+    DebugAgentStatus agentStatus = DEBUG_AGENT_STATUS_SUCCESS;
+
+    agentStatus = AgentGetDebugSessionID(&sessionID[0]);
+    if (agentStatus != DEBUG_AGENT_STATUS_SUCCESS)
+    {
+        AGENT_ERROR("Cannot get debug session id");
+        return agentStatus;
+    }
+
+    sprintf(codeObjPath, "%s/ROCm_Code_Object_%d", g_codeObjDir, gs_numCodeObject);
+    strncpy(&(pCodeObject->path[0]), codeObjPath, sizeof(codeObjPath));
+
+    agentStatus = AddToLinkListEnd<CodeObjectInfo>(pCodeObject, &(_r_amd_gpu_debug.pCodeObjectList));
+    if (agentStatus != DEBUG_AGENT_STATUS_SUCCESS)
+    {
+        AGENT_ERROR("Cannot add code object info to link list");
+        return agentStatus;
+    }
+
+    gs_numCodeObject++;
+    codeObjectInfoLock.unlock();
+
+    return agentStatus;
+}
+
+void RemoveCodeObjectFromList(uint64_t addrLoaded)
+{
+    codeObjectInfoLock.lock();
+    CodeObjectInfo *pListCurrent = _r_amd_gpu_debug.pCodeObjectList;
+    while (pListCurrent != nullptr)
+    {
+        if (pListCurrent->addrLoaded == addrLoaded)
+        {
+            break;
+        }
+        else
+        {
+            pListCurrent = pListCurrent->pNext;
+        }
+    }
+
+    if (pListCurrent == nullptr)
+    {
+        AGENT_ERROR("Unable to delete code object in _r_amd_gpu_debug: code object not found");
+    }
+    else
+    {
+        if (pListCurrent->pPrev != nullptr)
+        {
+            pListCurrent->pPrev->pNext = pListCurrent->pNext;
+        }
+        else
+        {
+            _r_amd_gpu_debug.pCodeObjectList = pListCurrent->pNext;
+        }
+
+        if (pListCurrent->pNext != nullptr)
+        {
+            pListCurrent->pNext->pPrev = pListCurrent->pPrev;
+        }
+
+        if (g_deleteTmpFile)
+        {
+            AgentDeleteFile(pListCurrent->path);
+        }
+        delete pListCurrent;
+    }
+    codeObjectInfoLock.unlock();
+}

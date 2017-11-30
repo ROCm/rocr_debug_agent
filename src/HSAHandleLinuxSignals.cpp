@@ -1,0 +1,134 @@
+////////////////////////////////////////////////////////////////////////////////
+//
+// The University of Illinois/NCSA
+// Open Source License (NCSA)
+//
+// Copyright (c) 2018, Advanced Micro Devices, Inc. All rights reserved.
+//
+// Permission is hereby granted, free of charge, to any person obtaining a copy
+// of this software and associated documentation files (the "Software"), to
+// deal with the Software without restriction, including without limitation
+// the rights to use, copy, modify, merge, publish, distribute, sublicense,
+// and/or sell copies of the Software, and to permit persons to whom the
+// Software is furnished to do so, subject to the following conditions:
+//
+//  - Redistributions of source code must retain the above copyright notice,
+//    this list of conditions and the following disclaimers.
+//  - Redistributions in binary form must reproduce the above copyright
+//    notice, this list of conditions and the following disclaimers in
+//    the documentation and/or other materials provided with the distribution.
+//  - Neither the names of Advanced Micro Devices, Inc,
+//    nor the names of its contributors may be used to endorse or promote
+//    products derived from this Software without specific prior written
+//    permission.
+//
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL
+// THE CONTRIBUTORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR
+// OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,
+// ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
+// DEALINGS WITH THE SOFTWARE.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+#include <cstdlib>
+#include <iostream>
+#include <stdio.h>
+#include <signal.h>
+
+// Debug Agent Headers
+#include "AgentLogging.h"
+#include "AgentUtils.h"
+#include "HSADebugAgentGDBInterface.h"
+#include "HSADebugAgent.h"
+#include "HSADebugInfo.h"
+#include "HSAHandleQueueError.h"
+
+static void INThandler(int sig);
+static std::map<uint64_t, std::pair<uint64_t, WaveStateInfo *>> FindWavesAllQueues();
+
+void InitialLinuxSignalsHandler()
+{
+    char *pSignalsEnvVar;
+    pSignalsEnvVar = std::getenv("ROCM_DEBUG_ENABLE_LINUX_SIGNALS");
+
+    if ((pSignalsEnvVar == nullptr))
+    {
+        return;
+    }
+
+    std::string envValue(pSignalsEnvVar);
+    if (envValue == "0")
+    {
+      return;
+    }
+    else if (envValue == "1")
+    {
+        signal(SIGINT, INThandler);
+        signal(SIGTERM, INThandler);
+    }
+    else
+    {
+        AGENT_WARNING("Invalid Invalid value for ROCM_DEBUG_ENABLE_LINUX_SIGNALS, signal handling disabled by default. ");
+    }
+}
+
+void INThandler(int sig)
+{
+    if (g_gdbAttached)
+    {
+        std::abort();
+    }
+
+    if (sig == SIGINT)
+    {
+        signal(sig, SIG_IGN);
+        printf("\nDumping wave state due to SIGINT\n\n");
+    }
+    else if (sig == SIGTERM)
+    {
+        signal(sig, SIG_IGN);
+        printf("\nDumping wave state due to SIGTERM\n\n");
+    }
+
+    debugInfoLock.lock();
+    PreemptAllQueues();
+    std::map<uint64_t, std::pair<uint64_t, WaveStateInfo *>> waves = FindWavesAllQueues();
+    PrintWaves(waves);
+    debugInfoLock.unlock();
+    std::abort();
+}
+
+static std::map<uint64_t, std::pair<uint64_t, WaveStateInfo *>> FindWavesAllQueues()
+{
+    GPUAgentInfo *pAgent = _r_amd_gpu_debug.pAgentList;
+    std::map<uint64_t, std::pair<uint64_t, WaveStateInfo *>> waves;
+
+    while (pAgent != nullptr)
+    {
+        QueueInfo *pQueue = pAgent->pQueueList;
+        while (pQueue != nullptr)
+        {
+            WaveStateInfo *pWave = pQueue->pWaveList;
+            while (pWave != nullptr)
+            {
+                std::map<uint64_t, std::pair<uint64_t, WaveStateInfo *>>::iterator it;
+                it = waves.find(pWave->regs.pc);
+                if (it != waves.end())
+                {
+                    it->second.first++;
+                }
+                else
+                {
+                    waves.insert(std::make_pair(pWave->regs.pc,
+                                                std::make_pair(1, pWave)));
+                }
+                pWave = pWave->pNext;
+            }
+            pQueue = pQueue->pNext;
+        }
+        pAgent = pAgent->pNext;
+    }
+    return waves;
+}
