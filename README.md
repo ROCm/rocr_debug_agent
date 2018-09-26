@@ -1,45 +1,41 @@
-# rocr_debug_agent
-The rocr_debug_agent repository provides the components required to build library for dump GPU memory fault info.
-The rocr_debug_agent components are used by ROCm-GDB to support debugging GPU kernels on ROCm.
+# ROCr Debug Agent
 
-# Package Contents
-The ROCm GPU Debug SDK includes the source code is briefly listed below
-* Source code
-  * HSA Debug Agent: The HSA Debug Agent is a library injected into an HSA application by the ROCR-Runtime. The source code for the Agent is provided in *src*.
+The ROCr Debug Agent is a library that can be loaded by ROCm Platform Runtime to provide the following functionality:
+* Print the state of wavefronts that report memory violation or upon executing a "s_trap 2" instruction.
+* Allows SIGINT (`ctrl c`) or SIGTERM (`kill -15`) to print wavefront state of aborted GPU dispatches.
+* It is enabled on Vega10 GPUs on ROCm1.9.
 
-# Debug Agent User Guide
-* Enable debug agent (export librocr_debug_agent64.so path if it is not install in /opt/rocm/lib)
-  * `export HSA_TOOLS_LIB=librocr_debug_agent64.so`
-  * `export LD_LIBRARY_PATH=/path/to/librocr_debug_agent64.so>`
+# Usage
 
-* Dump wave states.
-  * Include llvm-objdump in `$PATH`. (llvm-objdump needs to support target “amdgcn - AMD GCN GPUs”).
-  * Run the application
-  * Wave states will be printed to stdout by default in case of memory fault, queue error, and trap instructions (__builtin_trap(); or __builtin_debugtrap();).
-  * Use env variable `ROCM_DEBUG_WAVE_STATE_DUMP` to save dump to file.
-```
-    export ROCM_DEBUG_WAVE_STATE_DUMP=stdout    // Print dump to stdout, default
-    export ROCM_DEBUG_WAVE_STATE_DUMP=file      // Save dump to file ROCm_Wave_State_Dump in code object folder
-```
-  * Use env variable `ROCM_DEBUG_ENABLE_LINUX_SIGNALS` to enable dump wave states when SIGINT (`ctrl c`) or SIGTERM (`kill -15`)
-```
-    export ROCM_DEBUG_ENABLE_LINUX_SIGNALS=0    // Disable dump for Linux signal
-    export ROCM_DEBUG_ENABLE_LINUX_SIGNALS=1    // Enable dump for Linux signal
+To use the ROCr Debug Agent set the following environment variable:
+
+```sh
+export HSA_TOOLS_LIB=librocr_debug_agent64.so
 ```
 
-* Save GPU code object files.
-  * By default code objects will be saved in /tmp/ROCm_Tmp_PID_XXXX/ when loaded, and deleted when unload.
-  * Use env variable `ROCM_DEBUG_SAVE_CODE_OBJECT` to specify the path to save all GPU code object files.
-```
-    export ROCM_DEBUG_SAVE_CODE_OBJECT=/code/object/file/path
+This will use the ROCr Debug Agent library installed at /opt/rocm/lib/librocr_debug_agent64.so by default since the ROCm installation adds /opt/rocm/lib to the system library path. To use a different version set the LD_LIBRARY_PATH, for example:
+
+```sh
+export LD_LIBRARY_PATH=/path_to_directory_containing_librocr_debug_agent64.so
 ```
 
-* Debug Agent Logging.
-  Debug Agent has internal Logging. It is disabled by default, and can be enabled by env variables.
-  * `export ROCM_DEBUG_ENABLE_AGENTLOG=stdout` will write debug agent log to cout.
-  * `export ROCM_DEBUG_ENABLE_AGENTLOG=<filename>` will write debug agent log to file.
+To display the machine code instructions of wavefronts, together with the source text location, the ROCr Debug Agent using the llvm-objdump tool. Ensure that a version that supports AMD GCN GPUs is on your '$PATH`. For example, for the ROCm1.9:
 
-* A sample print out for GPU memory fault
+```sh
+export PATH=/opt/rocm/opencl/bin/x86_64/:$PATH
+```
+
+Execute your application.
+
+If the application encounters a GPU error, it will display the wavefront state of the GPU to `stdout`. Possible error states include:
+
+* The GPU executes a memory instruction that causes a memory violation. This is reported as an XNACK error state.
+* Queue error.
+* The GPU executes an `S_TRAP` instruction. The `__builtin_trap()` language builtin can be used to generate a `S_TRAP`.
+* A SIGINT (`ctrl c`) or SIGTERM (`kill -15`) signal is sent to the application while executing GPU code. Enabled by the `ROCM_DEBUG_ENABLE_LINUX_SIGNALS` environment variable.
+
+For example, a sample print out for GPU memory fault is:
+
 ```
 Memory access fault by GPU agent: AMD gfx900
 Node: 1
@@ -117,3 +113,88 @@ Faulty PC offset: 1310
 
 Aborted (core dumped)
 ```
+
+# Options
+
+## Dump Output
+
+By default the wavefront dump is sent to `stdout`.
+
+To save to a file use:
+
+```sh
+export ROCM_DEBUG_WAVE_STATE_DUMP=file
+```
+
+This will create a file called `ROCm_Wave_State_Dump` in code object directory (see below).
+
+To return to the default `stdout` use either of the following:
+
+```sh
+export ROCM_DEBUG_WAVE_STATE_DUMP=stdout
+unset ROCM_DEBUG_WAVE_STATE_DUMP
+```
+
+## Linux Signal Control
+
+The following environment variable can be used to enable dumping wavefront states when SIGINT (`ctrl c`) or SIGTERM (`kill -15`) is sent to the application:
+
+```sh
+export ROCM_DEBUG_ENABLE_LINUX_SIGNALS=1
+```
+
+Either of the following will disable this behavior:
+
+```sh
+export ROCM_DEBUG_ENABLE_LINUX_SIGNALS=0
+unset ROCM_DEBUG_ENABLE_LINUX_SIGNALS
+```
+
+## Code Object Saving
+
+When the ROCr Debug Agent is enabled, each GPU code object loaded by the ROCm Platform Runtime will be saved in a file in the code object directory. By default the code object directory is `/tmp/ROCm_Tmp_PID_XXXX/` where `XXXX` is the application process ID. The code object directory can be specified using the following environent variable:
+
+```sh
+export ROCM_DEBUG_SAVE_CODE_OBJECT=code_object_directory
+```
+
+This will use the path `/code_object_directory`.
+
+Loaded code objects will be saved in files named `ROCm_Code_Object_N` where N is a unique integer starting at 0 of the order in which the code object was loaded.
+
+If the default code object directory is used, then the saved code object file will be deleted when it is unloaded with the ROCm Platform Runtime, and the complete code object directory will be deleted when the application exits normally. If a code object directory path is specified then neither the saved code objects, nor the code object directory will be deleted.
+
+To return to using the default code object directory use:
+
+```sh
+unset ROCM_DEBUG_SAVE_CODE_OBJECT
+```
+
+## Logging
+
+By default ROCr Debug Agent logging is disabled. It can be enabled to display to `stdout` using:
+
+```sh
+export ROCM_DEBUG_ENABLE_AGENTLOG=stdout
+```
+
+Or to a file using:
+
+```sh
+export ROCM_DEBUG_ENABLE_AGENTLOG=<filename>
+```
+
+Which will write to the file `<filename>_AgentLog_PID_XXXX.log`.
+
+To disable logging use:
+
+```sh
+unset ROCM_DEBUG_ENABLE_AGENTLOG
+```
+
+# Repository Contents
+
+* `src`
+  * Contains the sources for building the ROCr Debug Agent. See the `README.md` for directions.
+* `test`
+  * Contains the tests for the ROCr Debug Agent. See the `README.md` for directions.
