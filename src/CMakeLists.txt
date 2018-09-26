@@ -127,7 +127,7 @@ find_library(ROCR_LIB ${CORE_RUNTIME_LIBRARY}.so
   HINTS /opt/rocm/lib)
 
 find_path(HSAKMT_INC hsakmt.h
-  HINTS /opt/rocm/include/libhsakmt)
+  HINTS /opt/rocm/include)
 
 find_library(HSAKMT_LIB ${ROC_THUNK_LIBRARY}.so
   HINTS /opt/rocm/lib)

@@ -35,9 +35,6 @@
 #ifndef HSA_INTERCEPT_H_
 #define HSA_INTERCEPT_H_
 
-// HSA Headers
-#include <hsa_api_trace.h>
-
 // Initial the runtime API table for intercepting
 DebugAgentStatus InitHsaCoreAgentIntercept(HsaApiTable* table);
 

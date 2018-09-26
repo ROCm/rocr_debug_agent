@@ -44,6 +44,7 @@
 
 // HSA headers
 #include <hsakmt.h>
+#include <hsa_api_trace.h>
 
 // Debug Agent Headers
 #include "AgentLogging.h"

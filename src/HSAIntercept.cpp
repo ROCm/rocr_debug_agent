@@ -34,7 +34,8 @@
 
 #include <unistd.h>
 #include <fcntl.h>
-#include <hsa.h>
+
+// HSA headers
 #include <hsa_api_trace.h>
 #include <hsa_ven_amd_loader.h>
 
