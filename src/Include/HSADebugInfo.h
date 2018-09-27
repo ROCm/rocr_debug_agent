@@ -32,8 +32,8 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-#ifndef HSA_PROCESS_WAVE_H_
-#define HSA_PROCESS_WAVE_H_
+#ifndef HSA_DEBUG_INFO_H_
+#define HSA_DEBUG_INFO_H_
 
 #include <map>
 #include <mutex>
@@ -63,7 +63,7 @@ extern std::mutex codeObjectInfoLock;
 
 // Get the wave states of a queue from context save area,
 // decode and update wave info in the queue.
-DebugAgentStatus ProcessQueueWaveStates(uint32_t nodeId, uint32_t queueId);
+DebugAgentStatus ProcessQueueWaveStates(uint32_t nodeId, uint64_t queueId);
 
 // Preempt queues of all agents and process the waves.
 DebugAgentStatus PreemptAllQueues();
@@ -149,4 +149,4 @@ DebugAgentStatus AddToLinkListEnd(listType* pAddItem, listType** ppList)
     return DEBUG_AGENT_STATUS_SUCCESS;
 };
 
-#endif // HSA_PROCESS_WAVE_H_
+#endif // HSA_DEBUG_INFO_H_

@@ -196,6 +196,13 @@ extern "C" void OnUnload()
 
     AgentCleanDebugInfo();
 
+    // Not available for ROCm1.9
+//    status = AgentUnsetSysEventHandler();
+//    if (status != DEBUG_AGENT_STATUS_SUCCESS)
+//    {
+//        AGENT_ERROR("OnUnload: Cannot unset GPU event handler");
+//    }
+
     status = AgentUnsetDebugTrapHandler();
     if (status != DEBUG_AGENT_STATUS_SUCCESS)
     {
@@ -491,7 +498,6 @@ static DebugAgentStatus AgentSetDebugTrapHandler()
     {
         void* HSATrapHandler = nullptr;
         void* pTrapHandlerEntry = nullptr;
-        DebugTrapBuff* pTrapHandlerBuffer = nullptr;
         uint64_t trapHandlerSize = 0;
         uint64_t trapHandlerBufferSize = 0;
         const char* pEntryPointName = "debug_trap_handler";

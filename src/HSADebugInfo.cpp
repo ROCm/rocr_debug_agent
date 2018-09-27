@@ -62,7 +62,7 @@ std::mutex codeObjectInfoLock;
 // Total number of loaded code object during execution (only increase)
 static uint32_t gs_numCodeObject = 0;
 
-DebugAgentStatus ProcessQueueWaveStates(uint32_t nodeId, uint32_t queueId)
+DebugAgentStatus ProcessQueueWaveStates(uint32_t nodeId, uint64_t queueId)
 {
     HsaQueueInfo queue_info;
 
@@ -643,6 +643,7 @@ DebugAgentStatus AddCodeObjectToList(CodeObjectInfo *pCodeObject)
     if (agentStatus != DEBUG_AGENT_STATUS_SUCCESS)
     {
         AGENT_ERROR("Cannot get debug session id");
+        codeObjectInfoLock.unlock();
         return agentStatus;
     }
 
@@ -653,6 +654,7 @@ DebugAgentStatus AddCodeObjectToList(CodeObjectInfo *pCodeObject)
     if (agentStatus != DEBUG_AGENT_STATUS_SUCCESS)
     {
         AGENT_ERROR("Cannot add code object info to link list");
+        codeObjectInfoLock.unlock();
         return agentStatus;
     }
 
@@ -664,7 +666,6 @@ DebugAgentStatus AddCodeObjectToList(CodeObjectInfo *pCodeObject)
 
 void RemoveCodeObjectFromList(uint64_t addrLoaded)
 {
-    codeObjectInfoLock.lock();
     CodeObjectInfo *pListCurrent = _r_amd_gpu_debug.pCodeObjectList;
     while (pListCurrent != nullptr)
     {
@@ -704,5 +705,4 @@ void RemoveCodeObjectFromList(uint64_t addrLoaded)
         }
         delete pListCurrent;
     }
-    codeObjectInfoLock.unlock();
 }
