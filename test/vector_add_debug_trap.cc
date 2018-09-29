@@ -1,86 +1,22 @@
-#include <algorithm>
-#include <assert.h>
-#include <fcntl.h>
-#include <hsa.h>
-#include <hsa_ext_amd.h>
-#include <iostream>
-#include <memory>
-#include <string.h>
-#include <vector>
+#include "util.h"
+#include "vector_add_debug_trap.h"
 
 #define M_ORDER 64
 #define M_GET(M, I, J) M[I * M_ORDER + J]
 #define M_SET(M, I, J, V) M[I * M_ORDER + J] = V
 
-static const uint32_t kNumBufferElements = 256;
 typedef struct test_debug_data_t {
   bool trap_triggered;
   hsa_queue_t** queue_pointer;
 } test_debug_data;
 
-
+static const uint32_t kNumBufferElements = 256;
 static void TestDebugTrap(hsa_status_t status, hsa_queue_t *source, void *data);
-static void VectorAddDebugTrapTest(hsa_agent_t cpuAgent, hsa_agent_t gpuAgent);
-static hsa_status_t GetGlobalMemoryPool(hsa_amd_memory_pool_t pool, void* data);
-static hsa_status_t GetKernArgMemoryPool(hsa_amd_memory_pool_t pool, void* data);
-static hsa_status_t IterateCPUAgents(hsa_agent_t agent, void *data);
-static hsa_status_t IterateGPUAgents(hsa_agent_t agent, void *data);
-static hsa_status_t QueryAgentISACallback(hsa_isa_t isa, void *data);
-static void WriteAQLToQueue(hsa_kernel_dispatch_packet_t const* in_aql, hsa_queue_t* q);
-
-// This wrapper atomically writes the provided header and setup to the
-// provided AQL packet. The provided AQL packet address should be in the
-// queue memory space.
-static inline void AtomicSetPacketHeader(uint16_t header, uint16_t setup,
-                                  hsa_kernel_dispatch_packet_t* queue_packet) {
-  __atomic_store_n(reinterpret_cast<uint32_t*>(queue_packet),
-                   header | (setup << 16), __ATOMIC_RELEASE);
-}
-
-typedef struct __attribute__((aligned(16))) arguments_t {
-  const int *a;
-  const int *b;
-  const int *c;
-  int *d;
-  int *e;
-} arguments;
-
-arguments *vectorAddKernArgs = NULL;
-
+static arguments *vectorAddKernArgs = NULL;
 static const char CODE_OBJECT_NAME[] = "vector_add_debug_trap_kernel.o";
 static const char KERNEL_NAME[] = "vector_add_debug_trap";
-static const char TEST_SEPARATOR[] = "  **************************";
 
-static void PrintDebugSubtestHeader(const char *header) {
-  std::cout << "  *** Debug Agent Test: " << header << " ***" << std::endl;
-}
-
-static void WriteAQLToQueue(hsa_kernel_dispatch_packet_t const* in_aql,
-                            hsa_queue_t* q) {
-  void* queue_base = q->base_address;
-  const uint32_t queue_mask = q->size - 1;
-  uint64_t que_idx = hsa_queue_add_write_index_relaxed(q, 1);
-
-  hsa_kernel_dispatch_packet_t* queue_aql_packet;
-
-  queue_aql_packet =
-    &(reinterpret_cast<hsa_kernel_dispatch_packet_t*>(queue_base))
-    [que_idx & queue_mask];
-
-  queue_aql_packet->workgroup_size_x = in_aql->workgroup_size_x;
-  queue_aql_packet->workgroup_size_y = in_aql->workgroup_size_y;
-  queue_aql_packet->workgroup_size_z = in_aql->workgroup_size_z;
-  queue_aql_packet->grid_size_x = in_aql->grid_size_x;
-  queue_aql_packet->grid_size_y = in_aql->grid_size_y;
-  queue_aql_packet->grid_size_z = in_aql->grid_size_z;
-  queue_aql_packet->private_segment_size = in_aql->private_segment_size;
-  queue_aql_packet->group_segment_size = in_aql->group_segment_size;
-  queue_aql_packet->kernel_object = in_aql->kernel_object;
-  queue_aql_packet->kernarg_address = in_aql->kernarg_address;
-  queue_aql_packet->completion_signal = in_aql->completion_signal;
-}
-
-static void VectorAddDebugTrapTest(hsa_agent_t cpuAgent, hsa_agent_t gpuAgent) {
+void VectorAddDebugTrapTest(hsa_agent_t cpuAgent, hsa_agent_t gpuAgent) {
   hsa_status_t err;
   hsa_queue_t *queue = NULL;  // command queue
   hsa_signal_t signal = {0};  // completion signal
@@ -277,42 +213,9 @@ static void VectorAddDebugTrapTest(hsa_agent_t cpuAgent, hsa_agent_t gpuAgent) {
   if (vectorAddKernArgs) { hsa_memory_free(vectorAddKernArgs); }
   if (signal.handle) { hsa_signal_destroy(signal); }
   if (queue) { hsa_queue_destroy(queue); }
-  std::cout << TEST_SEPARATOR << std::endl;
 }
 
-int main() {
-  hsa_status_t err;
-
-  // initiale hsa
-  err = hsa_init();
-  assert(err == HSA_STATUS_SUCCESS);
-
-  PrintDebugSubtestHeader("VectorAddDebugTrapTest");
-
-  // find all cpu agents
-  std::vector<hsa_agent_t> cpus;
-  err = hsa_iterate_agents(IterateCPUAgents, &cpus);
-  assert(err == HSA_STATUS_SUCCESS);
-
-  // find all gpu agents
-  std::vector<hsa_agent_t> gpus;
-  err = hsa_iterate_agents(IterateGPUAgents, &gpus);
-  assert(err == HSA_STATUS_SUCCESS);
-
-  if (gpus.size() == 0){
-    std::cout << "No supported GPU found, exit test." << std::endl;
-  }
-  else {
-    for (unsigned int i = 0 ; i< gpus.size(); ++i) {
-      VectorAddDebugTrapTest(cpus[0], gpus[i]);
-    }
-  }
-
-  std::cout << "Test Finished" << std::endl;
-  std::cout << TEST_SEPARATOR << std::endl;
-}
-
-static void TestDebugTrap(hsa_status_t status, hsa_queue_t *source, void *data) {
+void TestDebugTrap(hsa_status_t status, hsa_queue_t *source, void *data) {
   std::cout<< "runtime catched trap instruction successfully"<< std::endl;
   assert(source != NULL);
   assert(data != NULL);
@@ -326,124 +229,4 @@ static void TestDebugTrap(hsa_status_t status, hsa_queue_t *source, void *data) 
   // check the queue id and user data
   assert(source->id == queue->id);
   std::cout<< "custom queue error handler completed successfully"<< std::endl;
-}
-
-// Find  a memory pool that can be used for kernarg locations.
-static hsa_status_t GetKernArgMemoryPool(hsa_amd_memory_pool_t pool, void* data) {
-  hsa_status_t err;
-  if (data == NULL) {
-    return HSA_STATUS_ERROR_INVALID_ARGUMENT;
-  }
-  hsa_amd_segment_t segment;
-  err = hsa_amd_memory_pool_get_info(pool,
-                                         HSA_AMD_MEMORY_POOL_INFO_SEGMENT,
-                                         &segment);
-  assert(err == HSA_STATUS_SUCCESS);
-  if (HSA_AMD_SEGMENT_GLOBAL != segment) {
-    return HSA_STATUS_SUCCESS;
-  }
-
-  hsa_amd_memory_pool_global_flag_t flags;
-  err = hsa_amd_memory_pool_get_info(pool,
-                                         HSA_AMD_MEMORY_POOL_INFO_GLOBAL_FLAGS,
-                                         &flags);
-  assert(err == HSA_STATUS_SUCCESS);
-
-  if (flags & HSA_AMD_MEMORY_POOL_GLOBAL_FLAG_KERNARG_INIT) {
-    hsa_amd_memory_pool_t* ret =
-                                reinterpret_cast<hsa_amd_memory_pool_t*>(data);
-    *ret = pool;
-  }
-
-  return HSA_STATUS_SUCCESS;
-}
-
-// Find coarse grained system memory.
-static hsa_status_t GetGlobalMemoryPool(hsa_amd_memory_pool_t pool, void* data) {
-  hsa_amd_segment_t segment;
-  hsa_status_t err;
-  err = hsa_amd_memory_pool_get_info(pool,
-                                         HSA_AMD_MEMORY_POOL_INFO_SEGMENT,
-                                         &segment);
-  if (HSA_AMD_SEGMENT_GLOBAL != segment)
-    return err;
-
-  hsa_amd_memory_pool_global_flag_t flags;
-  err = hsa_amd_memory_pool_get_info(pool,
-                                        HSA_AMD_MEMORY_POOL_INFO_GLOBAL_FLAGS,
-                                        &flags);
-  assert(err == HSA_STATUS_SUCCESS);
-
-  // this is valid for dGPUs. But on APUs, it has to be FINE_GRAINED
-  if (flags & HSA_AMD_MEMORY_POOL_GLOBAL_FLAG_COARSE_GRAINED) {
-    hsa_amd_memory_pool_t* ret =
-                                reinterpret_cast<hsa_amd_memory_pool_t*>(data);
-    *ret = pool;
-  } else {  // this is for APUs
-    if (flags & HSA_AMD_MEMORY_POOL_GLOBAL_FLAG_FINE_GRAINED) {
-      hsa_amd_memory_pool_t* ret =
-                                reinterpret_cast<hsa_amd_memory_pool_t*>(data);
-      *ret = pool;
-    }
-  }
-  return err;
-}
-
-// Find CPU Agents
-static hsa_status_t IterateCPUAgents(hsa_agent_t agent, void *data) {
-  hsa_status_t status;
-  assert(data != NULL);
-  if (data == NULL) {
-    return HSA_STATUS_ERROR_INVALID_ARGUMENT;
-  }
-
-  std::vector<hsa_agent_t>* cpus = static_cast<std::vector<hsa_agent_t>*>(data);
-  hsa_device_type_t device_type;
-  status = hsa_agent_get_info(agent, HSA_AGENT_INFO_DEVICE, &device_type);
-  assert(status == HSA_STATUS_SUCCESS);
-  if (HSA_STATUS_SUCCESS == status && HSA_DEVICE_TYPE_CPU == device_type) {
-    cpus->push_back(agent);
-  }
-  return status;
-}
-
-// Find GPU Agents
-static hsa_status_t IterateGPUAgents(hsa_agent_t agent, void *data) {
-  hsa_status_t status;
-  assert(data != NULL);
-  if (data == NULL) {
-    return HSA_STATUS_ERROR_INVALID_ARGUMENT;
-  }
-  std::vector<hsa_agent_t>* gpus = static_cast<std::vector<hsa_agent_t>*>(data);
-  hsa_device_type_t device_type;
-  status = hsa_agent_get_info(agent, HSA_AGENT_INFO_DEVICE, &device_type);
-  assert(status == HSA_STATUS_SUCCESS);
-
-  if (HSA_STATUS_SUCCESS == status && HSA_DEVICE_TYPE_GPU == device_type) {
-    bool supGFX900 = false;
-    status = hsa_agent_iterate_isas(
-        agent, QueryAgentISACallback, &supGFX900);
-    assert(status == HSA_STATUS_SUCCESS);
-    if (HSA_STATUS_SUCCESS == status && supGFX900 ==true)
-      gpus->push_back(agent);
-  }
-  return status;
-}
-
-static hsa_status_t QueryAgentISACallback(hsa_isa_t isa, void *data)
-{
-  if (data == nullptr){
-    return HSA_STATUS_ERROR;
-  }
-
-  const char gfx900[] = "amdgcn-amd-amdhsa--gfx900";
-  char isaName[64];
-
-  //TODO: check isa name length
-  hsa_status_t status = hsa_isa_get_info_alt(
-     isa, HSA_ISA_INFO_NAME, isaName);
-  if (strcmp(isaName, gfx900) == 0){
-    *(bool*)data = true;
-  }
-  return status;
 }

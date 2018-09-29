@@ -213,20 +213,24 @@ set(LC_TARGETS
 
 # Test kernels
 set(LC_SRCS
+  "${CMAKE_CURRENT_SOURCE_DIR}/vector_add_normal_kernel.cl"
   "${CMAKE_CURRENT_SOURCE_DIR}/vector_add_debug_trap_kernel.cl"
+  "${CMAKE_CURRENT_SOURCE_DIR}/vector_add_memory_fault_kernel.cl"
 )
 
 # Build and generate header file for debug trap handler
 foreach(LC_TARGET IN LISTS LC_TARGETS)
-  get_filename_component(SRC_BASE_NAME "${LC_SRCS}" NAME_WE)
-  set(OUT_BASE_NAME ${SRC_BASE_NAME})
-  set(OBJ_PATH ${OUT_BASE_NAME}.o)
-
-  LCStaticCompile(${LC_SRCS} ${OBJ_PATH} ${LC_TARGET})
+  foreach(LC_SRC IN LISTS LC_SRCS)
+    get_filename_component(SRC_BASE_NAME "${LC_SRC}" NAME_WE)
+    set(OUT_BASE_NAME ${SRC_BASE_NAME})
+    set(OBJ_PATH ${OUT_BASE_NAME}.o)
+    list ( APPEND OBJ_PATHS "${OBJ_PATH}" )
+    LCStaticCompile(${LC_SRC} ${OBJ_PATH} ${LC_TARGET})
+  endforeach()
 endforeach()
 
 # Add LC code object taget for dependency
-add_custom_target(LC_OBJ DEPENDS ${OBJ_PATH})
+add_custom_target(LC_OBJ DEPENDS ${OBJ_PATHS})
 
 # Build and link the program
 add_executable(${TARGET_NAME} ${Src} ${LC_SRCS})

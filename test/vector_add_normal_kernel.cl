@@ -1,0 +1,12 @@
+__kernel void
+vector_add_normal(__global int *a,
+                  __global int *b,
+                  __global int *c)
+{
+//  for (int i =1; i>0; i++)
+//      {
+//      i--;
+//      }
+  int gid = get_global_id(0);
+  c[gid] = a[gid] + b[gid];
+}
