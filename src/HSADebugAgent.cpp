@@ -44,7 +44,9 @@
 #include "HSATrapHandler_s_gfx900.h"
 #include "HSADebugInfo.h"
 #include "HSAIntercept.h"
+#include "HSAHandleDebugTrapSignal.h"
 #include "HSAHandleLinuxSignals.h"
+#include "HSAHandleMemoryFault.h"
 
 // Debug info tracked by debug agent, it is probed by ROCm-GDB
 AmdGpuDebug _r_amd_gpu_debug;
@@ -93,6 +95,9 @@ static bool AgentIsSupportedISA(char *isaName);
 // Clean _r_amd_gpu_debug
 static void AgentCleanDebugInfo();
 
+// Set system event handler in runtime
+static DebugAgentStatus AgentSetSysEventHandler();
+
 // Set debug trap handler through KFD
 static DebugAgentStatus AgentSetDebugTrapHandler();
 
@@ -104,6 +109,11 @@ static void* FindDebugTrapHandler(char* pAgentName);
 
 // find the kernarg segment when iterate regions
 static hsa_status_t FindKernargSegment(hsa_region_t region, void *pData);
+
+// Handle runtime event based on event type.
+static hsa_status_t
+HSADebugAgentHandleRuntimeEvent(const hsa_amd_event_t* event, void* pData);
+
 
 extern "C" bool OnLoad(void *pTable,
                        uint64_t runtimeVersion, uint64_t failedToolCount,
@@ -141,6 +151,14 @@ extern "C" bool OnLoad(void *pTable,
         return false;
     }
 
+    // Check if ROC GDB is attached.
+    char *pGDBEnvVar;
+    pGDBEnvVar = std::getenv("ROCM_ENABLE_GDB");
+    if (pGDBEnvVar != NULL)
+    {
+        g_gdbAttached = true;
+    }
+
     status = AgentInitDebugInfo();
     if (status != DEBUG_AGENT_STATUS_SUCCESS)
     {
@@ -155,8 +173,16 @@ extern "C" bool OnLoad(void *pTable,
         return false;
     }
 
+    // Set the custom runtime event handler
+    status = AgentSetSysEventHandler();
+    if (status != DEBUG_AGENT_STATUS_SUCCESS)
+    {
+        AGENT_ERROR("Interception: Cannot set GPU event handler");
+        return DEBUG_AGENT_STATUS_FAILURE;
+    }
+
     // Not available for ROCm1.9
-    if (tableVersionMajor > 1)
+    if (g_gdbAttached)
     {
         status = AgentSetDebugTrapHandler();
         if (status != DEBUG_AGENT_STATUS_SUCCESS)
@@ -177,38 +203,33 @@ extern "C" bool OnLoad(void *pTable,
 
     InitialLinuxSignalsHandler();
 
-    AGENT_LOG("===== Finished Loading GDB Tools Agent=====");
+    AGENT_LOG("===== Finished Loading ROC Debug Agent=====");
     g_debugAgentInitialSuccess = true;
     return true;
 }
 
 extern "C" void OnUnload()
 {
-    AGENT_LOG("===== Unload GDB Tools Agent=====");
+    AGENT_LOG("===== Unload ROC Debug Agent=====");
 
     DebugAgentStatus status = DEBUG_AGENT_STATUS_FAILURE;
+
+    AgentCleanDebugInfo();
+
+    if (g_gdbAttached)
+    {
+        status = AgentUnsetDebugTrapHandler();
+        if (status != DEBUG_AGENT_STATUS_SUCCESS)
+        {
+            AGENT_ERROR("OnUnload: Cannot unset debug trap handler");
+        }
+    }
 
     status = AgentCloseLogger();
     if (status != DEBUG_AGENT_STATUS_SUCCESS)
     {
         AGENT_ERROR("OnUnload: Cannot close Logging");
     }
-
-    AgentCleanDebugInfo();
-
-    // Not available for ROCm1.9
-//    status = AgentUnsetSysEventHandler();
-//    if (status != DEBUG_AGENT_STATUS_SUCCESS)
-//    {
-//        AGENT_ERROR("OnUnload: Cannot unset GPU event handler");
-//    }
-
-    status = AgentUnsetDebugTrapHandler();
-    if (status != DEBUG_AGENT_STATUS_SUCCESS)
-    {
-        AGENT_ERROR("OnUnload: Cannot unset debug trap handler");
-    }
-
 }
 
 // Check the version based on the provided by HSA runtime's OnLoad function.
@@ -264,13 +285,6 @@ static DebugAgentStatus AgentCheckVersion(uint64_t runtimeVersion,
 static DebugAgentStatus AgentInitDebugInfo()
 {
     AGENT_LOG("Initialize agent debug info")
-
-    char *pGDBEnvVar;
-    pGDBEnvVar = std::getenv("ROCM_ENABLE_GDB");
-    if (pGDBEnvVar != NULL)
-    {
-        g_gdbAttached = true;
-    }
 
     hsa_status_t status = HSA_STATUS_SUCCESS;
 
@@ -505,6 +519,7 @@ static DebugAgentStatus AgentSetDebugTrapHandler()
         hsa_region_t kernargSegment = {0};
         hsa_executable_symbol_t symbol = {0};
         hsa_status_t status = HSA_STATUS_SUCCESS;
+        HSAKMT_STATUS kmtStatus = HSAKMT_STATUS_SUCCESS;
 
         // Find target trap handler
         HSATrapHandler = FindDebugTrapHandler(pAgent->agentName);
@@ -615,7 +630,7 @@ static DebugAgentStatus AgentSetDebugTrapHandler()
         trapHandlerBufferSize = sizeof(DebugTrapBuff);
 
         // Register trap handler in KFD
-        HSAKMT_STATUS kmtStatus = hsaKmtSetTrapHandler(
+        kmtStatus = hsaKmtSetTrapHandler(
                 pAgent->nodeId, pTrapHandlerEntry,
                 trapHandlerSize, pTrapHandlerBuffer, trapHandlerBufferSize);
         if (kmtStatus != HSAKMT_STATUS_SUCCESS)
@@ -624,10 +639,29 @@ static DebugAgentStatus AgentSetDebugTrapHandler()
             return DEBUG_AGENT_STATUS_FAILURE;
         }
 
+        kmtStatus = hsaKmtEnableDebugTrap(pAgent->nodeId, INVALID_QUEUEID);
+        if (kmtStatus != HSAKMT_STATUS_SUCCESS)
+        {
+            AGENT_ERROR("Cannot enable debug trap handler.");
+            return DEBUG_AGENT_STATUS_FAILURE;
+        }
+
+        kmtStatus = hsaKmtSetWaveLaunchMode(pAgent->nodeId, HSA_DBG_WAVE_LAUNCH_MODE_SINGLE_STEP);
+        if (kmtStatus != HSAKMT_STATUS_SUCCESS)
+        {
+            AGENT_ERROR("Cannot set wave in single step mode.");
+            return DEBUG_AGENT_STATUS_FAILURE;
+        }
+
         // Bind trap handler event signal in runtime
         status = hsa_amd_signal_async_handler(
                 debugTrapSignal, HSA_SIGNAL_CONDITION_NE, 0,
-                NULL, NULL);
+                HSADebugTrapSignalHandler, NULL);
+        if (status != HSA_STATUS_SUCCESS)
+        {
+            AGENT_ERROR("Cannot bind debug event signal handler.");
+            return DEBUG_AGENT_STATUS_FAILURE;
+        }
 
         pAgentNext = pAgent->pNext;
         pAgent = pAgentNext;
@@ -644,42 +678,57 @@ static DebugAgentStatus AgentUnsetDebugTrapHandler()
     while (pAgent != nullptr)
     {
         hsa_status_t status = HSA_STATUS_SUCCESS;
+        HSAKMT_STATUS kmtStatus = HSAKMT_STATUS_SUCCESS;
 
-        status = hsa_executable_destroy(debugTrapHandlerExecutable);
+        kmtStatus = hsaKmtSetWaveLaunchMode(pAgent->nodeId, HSA_DBG_WAVE_LAUNCH_MODE_NORMAL);
+        if (kmtStatus != HSAKMT_STATUS_SUCCESS)
+        {
+            AGENT_ERROR("Cannot set wave in normal mode.");
+            return DEBUG_AGENT_STATUS_FAILURE;
+        }
+
+        kmtStatus = hsaKmtDisableDebugTrap(pAgent->nodeId);
+        if (kmtStatus != HSAKMT_STATUS_SUCCESS)
+        {
+            AGENT_ERROR("Cannot disable debug trap handler.");
+            return DEBUG_AGENT_STATUS_FAILURE;
+        }
+
+        // Reset debug trap handler by regsiter nullptr
+        kmtStatus = hsaKmtSetTrapHandler(
+                pAgent->nodeId, nullptr,
+                0, nullptr, 0);
+        if (kmtStatus != HSAKMT_STATUS_SUCCESS)
+        {
+            AGENT_ERROR("Cannot reset debug trap handler.");
+            return DEBUG_AGENT_STATUS_FAILURE;
+        }
+
+        status = gs_OrigCoreApiTable.hsa_executable_destroy_fn(debugTrapHandlerExecutable);
         if (status != HSA_STATUS_SUCCESS)
         {
             AGENT_ERROR("Cannot destroy debug trap handler executable.");
             return DEBUG_AGENT_STATUS_FAILURE;
         }
 
-        status = hsa_code_object_reader_destroy(debugTrapHandlerCodeObjectReader);
+        status = gs_OrigCoreApiTable.hsa_code_object_reader_destroy_fn(debugTrapHandlerCodeObjectReader);
         if (status != HSA_STATUS_SUCCESS)
         {
             AGENT_ERROR("Cannot destroy debug trap handler code object reader.");
             return DEBUG_AGENT_STATUS_FAILURE;
         }
 
-        status = hsa_signal_destroy(debugTrapSignal);
+        status = gs_OrigCoreApiTable.hsa_signal_destroy_fn(debugTrapSignal);
         if (status != HSA_STATUS_SUCCESS)
         {
             AGENT_ERROR("Cannot destroy debug event signal.");
             return DEBUG_AGENT_STATUS_FAILURE;
         }
 
-        status = hsa_memory_free((void*)pTrapHandlerBuffer);
+        status = gs_OrigCoreApiTable.hsa_memory_free_fn((void*)pTrapHandlerBuffer);
         if (status != HSA_STATUS_SUCCESS)
         {
             AGENT_ERROR("Cannot destroy debug event signal.");
-            return DEBUG_AGENT_STATUS_FAILURE;
-        }
-
-        // Reset debug trap handler by regsiter nullptr
-        HSAKMT_STATUS kmtStatus = hsaKmtSetTrapHandler(
-                pAgent->nodeId, nullptr,
-                0, nullptr, 0);
-        if (kmtStatus != HSAKMT_STATUS_SUCCESS)
-        {
-            AGENT_ERROR("Cannot reset debug trap handler.");
             return DEBUG_AGENT_STATUS_FAILURE;
         }
 
@@ -690,7 +739,7 @@ static DebugAgentStatus AgentUnsetDebugTrapHandler()
     return DEBUG_AGENT_STATUS_SUCCESS;
 }
 
-hsa_status_t FindKernargSegment(hsa_region_t region, void *pData)
+static hsa_status_t FindKernargSegment(hsa_region_t region, void *pData)
 {
     if (!pData)
     {
@@ -721,4 +770,38 @@ hsa_status_t FindKernargSegment(hsa_region_t region, void *pData)
     }
 
     return HSA_STATUS_SUCCESS;
+}
+
+static DebugAgentStatus AgentSetSysEventHandler()
+{
+    hsa_status_t status = HSA_STATUS_SUCCESS;
+    status = hsa_amd_register_system_event_handler(HSADebugAgentHandleRuntimeEvent, NULL);
+    if (status == HSA_STATUS_SUCCESS)
+    {
+        return DEBUG_AGENT_STATUS_SUCCESS;
+    }
+    else
+    {
+        AGENT_ERROR("System event handler aleady exists");
+        return DEBUG_AGENT_STATUS_FAILURE;
+    }
+}
+
+static hsa_status_t
+HSADebugAgentHandleRuntimeEvent(const hsa_amd_event_t* event, void* pData)
+{
+    if (event == nullptr)
+    {
+        AGENT_ERROR("HSA Runtime provided a nullptr event pointer.");
+        return HSA_STATUS_ERROR;
+    }
+    hsa_amd_event_t gpuEvent = *event;
+    switch (gpuEvent.event_type)
+    {
+        case GPU_MEMORY_FAULT_EVENT :
+            return HSADebugAgentHandleMemoryFault(gpuEvent, pData);
+            break;
+        default :
+            return HSA_STATUS_SUCCESS;
+    }
 }

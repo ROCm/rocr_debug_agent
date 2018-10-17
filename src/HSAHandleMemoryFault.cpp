@@ -91,32 +91,22 @@ HSADebugAgentHandleMemoryFault(hsa_amd_event_t event, void* pData)
 
     if (g_gdbAttached)
     {
-        debugInfoLock.unlock();
         // GDB breakpoint, it triggers GDB to probe wave state info.
         TriggerGPUEventFault();
-        std::abort();
-    }
-
-    // Print general mempry fault info.
-    PrintVMFaultInfo(pAgent);
-
-    // Gather fault wave state info (vGPR, sGPR, LDS), and print
-    std::map<uint64_t, std::pair<uint64_t, WaveStateInfo*>> waves =
-        FindFaultyWaves();
-    PrintWaves(waves);
-    debugInfoLock.unlock();
-
-    // TODO: not abort() if runtime needs to take over.
-    std::abort();
-
-    if (status == DEBUG_AGENT_STATUS_SUCCESS)
-    {
-        return HSA_STATUS_SUCCESS;
     }
     else
     {
-        return HSA_STATUS_ERROR;
+        // Print general mempry fault info.
+        PrintVMFaultInfo(pAgent);
+
+        // Gather fault wave state info (vGPR, sGPR, LDS), and print
+        std::map<uint64_t, std::pair<uint64_t, WaveStateInfo*>> waves =
+            FindFaultyWaves();
+        PrintWaves(waves);
     }
+
+    debugInfoLock.unlock();
+    return HSA_STATUS_SUCCESS;
 }
 
 static void UpdateMemoryFaultInfo(hsa_amd_gpu_memory_fault_info_t* pFault)

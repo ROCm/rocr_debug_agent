@@ -79,7 +79,7 @@ trap_entry:
   s_bfe_u32            ttmp2, ttmp1, SQ_WAVE_PC_HI_TRAP_ID_BFE
   s_cbranch_scc0       L_NOT_TRAP
 
-  // If not debugtrap or llvm.trap then signal debugger.
+  // If not debugtrap (s_trap 1) or llvm.trap (s_trap 2) then signal debugger.
   s_cmp_ge_u32         ttmp2, 0x3
   s_cbranch_scc1       L_SEND_DEBUG_SIGNAL
 

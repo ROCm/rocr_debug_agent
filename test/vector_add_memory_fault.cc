@@ -189,7 +189,9 @@ void VectorAddMemoryFaultTest(hsa_agent_t cpuAgent, hsa_agent_t gpuAgent) {
   hsa_signal_value_t completion;
   completion = hsa_signal_wait_scacquire(signal, HSA_SIGNAL_CONDITION_LT, 1,
                                          0xffffffff, HSA_WAIT_STATE_ACTIVE);
-  assert(completion == 0);
+
+  // completion signal should not be changed.
+  assert(completion == 1);
 
   hsa_signal_store_relaxed(signal, 1);
 

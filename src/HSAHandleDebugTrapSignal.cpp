@@ -32,40 +32,26 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-#ifndef HSA_DEBUG_AGENT_H_
-#define HSA_DEBUG_AGENT_H_
+#include <hsa_api_trace.h>
+#include <iostream>
 
-// forward declaration.
-typedef struct _AmdGpuDebug AmdGpuDebug;
+// Debug Agent Headers
+#include "HSADebugAgent.h"
+#include "HSADebugAgentGDBInterface.h"
+#include "HSADebugInfo.h"
+#include "HSAHandleDebugTrapSignal.h"
 
-typedef enum
+bool HSADebugTrapSignalHandler(hsa_signal_value_t signalValue, void* arg)
 {
-    DEBUG_AGENT_STATUS_FAILURE, // A failure in the debug agent
-    DEBUG_AGENT_STATUS_SUCCESS  // A success
-} DebugAgentStatus;
+    if (!g_debugAgentInitialSuccess)
+    {
+        return false;
+    }
 
-// This is the instance of the structure probed by the GDB.
-extern AmdGpuDebug _r_amd_gpu_debug;
-
-// Temp direcoty path for code object files
-extern char g_codeObjDir[92];
-
-// whether delete tmp code object files
-extern bool g_deleteTmpFile;
-
-// Debug agent initialization status
-extern bool g_debugAgentInitialSuccess;
-
-// ISA name of gfx900
-const char gfx900[] = "amdgcn-amd-amdhsa--gfx900";
-
-// GDB attached
-extern bool g_gdbAttached;
-
-extern "C" bool OnLoad(void *pTable,
-                       uint64_t runtimeVersion, uint64_t failedToolCount,
-                       const char *const *pFailedToolNames);
-
-extern "C" void OnUnload();
-
-#endif // HSA_DEBUG_AGENT_H
+    debugInfoLock.lock();
+    PreemptAllQueues();
+    TriggerGPUUserBreakpoint();
+    ResumeAllQueues();
+    debugInfoLock.unlock();
+    return true;
+}

@@ -107,13 +107,6 @@ DeleteCodeObjectInfoCallback(hsa_executable_t executable,
                              hsa_loaded_code_object_t loadedCodeObject,
                              void *data);
 
-// Register custom event handler in runtime.
-static hsa_status_t InitEventHandler();
-
-// Handle runtime event based on event type.
-static hsa_status_t
-HSADebugAgentHandleRuntimeEvent(const hsa_amd_event_t* event, void* pData);
-
 // This function will be extended with the kernel compilation interception too
 DebugAgentStatus InitHsaCoreAgentIntercept(HsaApiTable* pTable)
 {
@@ -151,23 +144,8 @@ DebugAgentStatus InitHsaCoreAgentIntercept(HsaApiTable* pTable)
     // We override the table that we get from the runtime
     UpdateHSAFunctionTable(pTable);
 
-    // Set the custom runtime event handler
-    status = InitEventHandler();
-    if (status != HSA_STATUS_SUCCESS)
-    {
-        AGENT_ERROR("Interception: Cannot register GPU event handler");
-        return DEBUG_AGENT_STATUS_FAILURE;
-    }
-
     AGENT_LOG("InitHsaCoreAgentIntercept: Finished updating HSA API Table");
     return DEBUG_AGENT_STATUS_SUCCESS;
-}
-
-hsa_status_t InitEventHandler()
-{
-    hsa_status_t status = HSA_STATUS_SUCCESS;
-    status = gs_OrigExtApiTable.hsa_amd_register_system_event_handler_fn(HSADebugAgentHandleRuntimeEvent, NULL);
-    return status;
 }
 
 static void UpdateHSAFunctionTable(HsaApiTable* pTable)
@@ -497,28 +475,11 @@ DeleteCodeObjectInfoCallback(
         return status;
     }
 
+    codeObjectInfoLock.lock();
     RemoveCodeObjectFromList(loadedBaseAddress);
+    codeObjectInfoLock.unlock();
 
     AGENT_LOG("Interception: Exit DeleteCodeObjectInfoCallback");
 
     return status;
-}
-
-static hsa_status_t
-HSADebugAgentHandleRuntimeEvent(const hsa_amd_event_t* event, void* pData)
-{
-    if (event == nullptr)
-    {
-        AGENT_ERROR("HSA Runtime provided a nullptr event pointer.");
-        return HSA_STATUS_ERROR;
-    }
-    hsa_amd_event_t gpuEvent = *event;
-    switch (gpuEvent.event_type)
-    {
-        case GPU_MEMORY_FAULT_EVENT :
-            return HSADebugAgentHandleMemoryFault(gpuEvent, pData);
-            break;
-        default :
-            return HSA_STATUS_SUCCESS;
-    }
 }
