@@ -224,6 +224,7 @@ endmacro()
 
 set(ASM_SRCS
   "${CMAKE_CURRENT_SOURCE_DIR}/HSATrapHandler_s_gfx900.s"
+  "${CMAKE_CURRENT_SOURCE_DIR}/HSATrapHandler_s_gfx906.s"
 )
 
 # Build and generate header file for debug trap handler

@@ -59,6 +59,9 @@ extern bool g_debugAgentInitialSuccess;
 // ISA name of gfx900
 const char gfx900[] = "amdgcn-amd-amdhsa--gfx900";
 
+// ISA name of gfx906
+const char gfx906[] = "amdgcn-amd-amdhsa--gfx906";
+
 // GDB attached
 extern bool g_gdbAttached;
 

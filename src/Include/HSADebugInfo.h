@@ -78,7 +78,7 @@ DebugAgentStatus ResumeAllQueues();
 DebugAgentStatus ResumeAgentQueues(GPUAgentInfo* pAgent);
 
 // Print waves based on its PC.
-void PrintWaves(std::map<uint64_t, std::pair<uint64_t, WaveStateInfo*>> waves);
+void PrintWaves(GPUAgentInfo* pAgent, std::map<uint64_t, std::pair<uint64_t, WaveStateInfo*>> waves);
 
 // Get the pointer of specified agent info by node from the agent link list.
 GPUAgentInfo* GetAgentFromList(uint64_t node);

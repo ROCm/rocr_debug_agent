@@ -89,21 +89,21 @@ HSADebugAgentHandleMemoryFault(hsa_amd_event_t event, void* pData)
         pQueue = pQueue->pNext;
     }
 
-    if (g_gdbAttached)
-    {
-        // GDB breakpoint, it triggers GDB to probe wave state info.
-        TriggerGPUEventFault();
-    }
-    else
-    {
+//    if (g_gdbAttached)
+//    {
+//        // GDB breakpoint, it triggers GDB to probe wave state info.
+//        TriggerGPUEventFault();
+//    }
+//    else
+//    {
         // Print general mempry fault info.
         PrintVMFaultInfo(pAgent);
 
         // Gather fault wave state info (vGPR, sGPR, LDS), and print
         std::map<uint64_t, std::pair<uint64_t, WaveStateInfo*>> waves =
             FindFaultyWaves();
-        PrintWaves(waves);
-    }
+        PrintWaves(pAgent, waves);
+//    }
 
     debugInfoLock.unlock();
     return HSA_STATUS_SUCCESS;
@@ -128,7 +128,7 @@ static std::map<uint64_t, std::pair<uint64_t, WaveStateInfo*>> FindFaultyWaves()
     {
         if (pAgent->agentStatus == AGENT_STATUS_UNSUPPORTED)
         {
-            AGENT_ERROR("Due to unsupported agent ISA (supported ISA: gfx900), can not print waves in Agent: "
+            AGENT_ERROR("Due to unsupported agent ISA (supported ISA: gfx900/gfx906), can not print waves in Agent: "
                         << pAgent->agentName);
             pAgent = pAgent->pNext;
             continue;

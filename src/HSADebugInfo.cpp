@@ -275,7 +275,7 @@ DebugAgentStatus ResumeAllQueues()
     return DEBUG_AGENT_STATUS_SUCCESS;
 }
 
-void PrintWaves(std::map<uint64_t, std::pair<uint64_t, WaveStateInfo *>> waves)
+void PrintWaves(GPUAgentInfo* pAgent, std::map<uint64_t, std::pair<uint64_t, WaveStateInfo *>> waves)
 {
     std::stringstream err;
 
@@ -399,12 +399,15 @@ void PrintWaves(std::map<uint64_t, std::pair<uint64_t, WaveStateInfo *>> waves)
                 // Disassemble X bytes before/after the PC.
                 uint32_t disasm_context = 0x20;
 
+                std::stringstream  mcpuString;
+                uint64_t targetName = atoi(&(pAgent->agentName[7]));
+                mcpuString << "-mcpu=gfx" << targetName;
                 std::stringstream arg_start_addr, arg_stop_addr;
                 arg_start_addr << "--start-address=0x" << std::hex << std::uppercase << (pc_code_obj_offset - disasm_context);
                 arg_stop_addr << "--stop-address=0x" << std::hex << std::uppercase << (pc_code_obj_offset + disasm_context);
 
                 std::exit(execlp("/opt/rocm/opencl/bin/x86_64/llvm-objdump", "llvm-objdump", "-triple=amdgcn-amd-amdhsa",
-                                 "-mcpu=gfx900", "-disassemble", "-source", "-line-numbers", (char *)(arg_start_addr.str().c_str()),
+                                 (char *)(mcpuString.str().c_str()), "-disassemble", "-source", "-line-numbers", (char *)(arg_start_addr.str().c_str()),
                                  (char *)(arg_stop_addr.str().c_str()), (char *)code_obj_path, (char *)NULL));
             }
 

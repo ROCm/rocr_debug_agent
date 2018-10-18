@@ -77,7 +77,7 @@ void HSADebugAgentHandleQueueError(hsa_status_t status, hsa_queue_t* pHsaQueueT,
         std::map<uint64_t, std::pair<uint64_t, WaveStateInfo*>> waves =
             FindWavesByQueue(pQueue);
         PrintQueueErrorInfo(status, pQueue);
-        PrintWaves(waves);
+        PrintWaves(pAgent, waves);
     }
     // resume all quueues in HSA_Status_success
     ResumeAgentQueues(pAgent);

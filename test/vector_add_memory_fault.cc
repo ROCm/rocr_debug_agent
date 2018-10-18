@@ -1,3 +1,6 @@
+#include <string>
+#include <string.h>
+
 #include "util.h"
 #include "vector_add_memory_fault.h"
 
@@ -105,7 +108,8 @@ void VectorAddMemoryFaultTest(hsa_agent_t cpuAgent, hsa_agent_t gpuAgent) {
   hsa_code_object_reader_t code_obj_rdr = {0};
   hsa_executable_t executable = {0};
 
-  hsa_file_t file_handle = open(CODE_OBJECT_NAME, O_RDONLY);
+  std::string kernel_file = isaName + "/" + CODE_OBJECT_NAME;
+  hsa_file_t file_handle = open(kernel_file.c_str(), O_RDONLY);
   assert(file_handle != -1);
 
   err = hsa_code_object_reader_create_from_file(file_handle, &code_obj_rdr);

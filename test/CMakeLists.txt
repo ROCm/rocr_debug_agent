@@ -209,6 +209,7 @@ endmacro()
 # Test supported GPU ISAs
 set(LC_TARGETS
   gfx900
+  gfx906
 )
 
 # Test kernels
@@ -223,7 +224,8 @@ foreach(LC_TARGET IN LISTS LC_TARGETS)
   foreach(LC_SRC IN LISTS LC_SRCS)
     get_filename_component(SRC_BASE_NAME "${LC_SRC}" NAME_WE)
     set(OUT_BASE_NAME ${SRC_BASE_NAME})
-    set(OBJ_PATH ${OUT_BASE_NAME}.o)
+    file(MAKE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/${LC_TARGET})
+    set(OBJ_PATH ${LC_TARGET}/${OUT_BASE_NAME}.o)
     list ( APPEND OBJ_PATHS "${OBJ_PATH}" )
     LCStaticCompile(${LC_SRC} ${OBJ_PATH} ${LC_TARGET})
   endforeach()

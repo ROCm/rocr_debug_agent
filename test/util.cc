@@ -1,3 +1,5 @@
+#include <string>
+#include <string.h>
 #include "util.h"
 
 void WriteAQLToQueue(hsa_kernel_dispatch_packet_t const* in_aql,
@@ -117,11 +119,11 @@ hsa_status_t IterateGPUAgents(hsa_agent_t agent, void *data) {
   assert(status == HSA_STATUS_SUCCESS);
 
   if (HSA_STATUS_SUCCESS == status && HSA_DEVICE_TYPE_GPU == device_type) {
-    bool supGFX900 = false;
+    bool supGFX = false;
     status = hsa_agent_iterate_isas(
-        agent, QueryAgentISACallback, &supGFX900);
+        agent, QueryAgentISACallback, &supGFX);
     assert(status == HSA_STATUS_SUCCESS);
-    if (HSA_STATUS_SUCCESS == status && supGFX900 ==true)
+    if (HSA_STATUS_SUCCESS == status && supGFX ==true)
       gpus->push_back(agent);
   }
   return status;
@@ -134,12 +136,18 @@ hsa_status_t QueryAgentISACallback(hsa_isa_t isa, void *data)
   }
 
   const char gfx900[] = "amdgcn-amd-amdhsa--gfx900";
-  char isaName[64];
+  const char gfx906[] = "amdgcn-amd-amdhsa--gfx906";
+  char isaNameTmp[64];
 
   //TODO: check isa name length
   hsa_status_t status = hsa_isa_get_info_alt(
-     isa, HSA_ISA_INFO_NAME, isaName);
-  if (strcmp(isaName, gfx900) == 0){
+     isa, HSA_ISA_INFO_NAME, isaNameTmp);
+  if (strcmp(isaNameTmp, gfx900) == 0) {
+    isaName = "gfx900";
+    *(bool*)data = true;
+  }
+  else if (strcmp(isaNameTmp, gfx906) == 0) {
+    isaName = "gfx906";
     *(bool*)data = true;
   }
   return status;

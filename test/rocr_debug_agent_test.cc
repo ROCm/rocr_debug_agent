@@ -7,6 +7,7 @@ static void PrintTestInfo(const char *header);
 static void RunVectorAddDebugTrapTest();
 static void RunVectorAddNormalTest();
 static void RunVectorAddMemoryFaultTest();
+std::string isaName;
 
 int main(int argc, char *argv[]) {
   PrintTestInfo("Debug agent tests start");

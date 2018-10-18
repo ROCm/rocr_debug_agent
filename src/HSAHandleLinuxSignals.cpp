@@ -93,9 +93,19 @@ void INThandler(int sig)
     }
 
     debugInfoLock.lock();
-    PreemptAllQueues();
-    std::map<uint64_t, std::pair<uint64_t, WaveStateInfo *>> waves = FindWavesAllQueues();
-    PrintWaves(waves);
+    GPUAgentInfo *pAgent = _r_amd_gpu_debug.pAgentList;
+    while (pAgent != nullptr)
+    {
+        DebugAgentStatus status = DEBUG_AGENT_STATUS_SUCCESS;
+        status = PreemptAgentQueues(pAgent);
+        if (status != DEBUG_AGENT_STATUS_SUCCESS)
+        {
+            AGENT_ERROR("Cannot get queue preemption.");
+        }
+        std::map<uint64_t, std::pair<uint64_t, WaveStateInfo *>> waves = FindWavesAllQueues();
+        PrintWaves(pAgent, waves);
+        pAgent = pAgent->pNext;
+    }
     debugInfoLock.unlock();
     std::abort();
 }

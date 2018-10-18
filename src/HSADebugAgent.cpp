@@ -42,6 +42,7 @@
 #include "HSADebugAgentGDBInterface.h"
 #include "HSADebugAgent.h"
 #include "HSATrapHandler_s_gfx900.h"
+#include "HSATrapHandler_s_gfx906.h"
 #include "HSADebugInfo.h"
 #include "HSAIntercept.h"
 #include "HSAHandleDebugTrapSignal.h"
@@ -433,7 +434,8 @@ static hsa_status_t QueryAgentISACallback(hsa_isa_t isa, void *pData)
 // as the naming could change.
 static bool AgentIsSupportedISA(char *isaName)
 {
-    if (strcmp(isaName, gfx900) == 0)
+    if ((strcmp(isaName, gfx900) == 0) ||
+        (strcmp(isaName, gfx906) == 0))
     {
         return true;
     }
@@ -494,10 +496,16 @@ static void* FindDebugTrapHandler(char* pAgentName)
 
     uint64_t targetName = atoi(&(pAgentName[7]));
     uint8_t gfxMajor = targetName / 100;
+    uint8_t gfxMinor = targetName % 100;
 
     switch (gfxMajor) {
         case 9:
-            return HSATrapHandler_s_gfx900_co;
+            if (gfxMinor == 0)
+                return HSATrapHandler_s_gfx900_co;
+            else if (gfxMinor == 6)
+                return HSATrapHandler_s_gfx906_co;
+            else
+                return nullptr;
         default:
             return nullptr;
     }

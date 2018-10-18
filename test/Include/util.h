@@ -8,7 +8,6 @@
 #include <hsa_ext_amd.h>
 #include <iostream>
 #include <memory>
-#include <string.h>
 #include <vector>
 
 typedef struct __attribute__((aligned(16))) arguments_t {
@@ -20,6 +19,8 @@ typedef struct __attribute__((aligned(16))) arguments_t {
 } arguments;
 
 const char TEST_SEPARATOR[] = "  **************************";
+// isa name inforamt "gfx900"
+extern std::string isaName;
 
 hsa_status_t GetGlobalMemoryPool(hsa_amd_memory_pool_t pool, void* data);
 hsa_status_t GetKernArgMemoryPool(hsa_amd_memory_pool_t pool, void* data);
