@@ -63,7 +63,7 @@ static void UpdateHSAFunctionTable(HsaApiTable* pTable);
 
 // Intercept function hsa_queue_create
 static hsa_status_t
-HsaDebugAgent_hsa_queue_create(hsa_agent_t agent,
+HsaDebugAgentHsaQueueCreate(hsa_agent_t agent,
                                uint32_t size,
                                hsa_queue_type32_t type,
                                void (*callback)(hsa_status_t status,
@@ -76,16 +76,16 @@ HsaDebugAgent_hsa_queue_create(hsa_agent_t agent,
 
 // Intercept function hsa_queue_destroy
 static hsa_status_t
-HsaDebugAgent_hsa_queue_destroy(hsa_queue_t* queue);
+HsaDebugAgentHsaQueueDestroy(hsa_queue_t* queue);
 
 // Intercept function hsa_executable_freeze
 static hsa_status_t
-HsaDebugAgent_hsa_executable_freeze(hsa_executable_t executable,
+HsaDebugAgentHsaExecutableFreeze(hsa_executable_t executable,
                                     const char *options);
 
 // Intercept function hsa_executable_destroy
 static hsa_status_t
-HsaDebugAgent_hsa_executable_destroy(hsa_executable_t executable);
+HsaDebugAgentHsaExecutableDestroy(hsa_executable_t executable);
 
 // Add loaded code object info when loading
 static hsa_status_t
@@ -96,6 +96,12 @@ static hsa_status_t
 AddCodeObjectInfoCallback(hsa_executable_t executable,
                           hsa_loaded_code_object_t loadedCodeObject,
                           void *data);
+
+// Internal queue create callback
+static void
+HsaDebugAgentInternalQueueCreateCallback(const hsa_queue_t* queue,
+                                         hsa_agent_t agent,
+                                         void* data);
 
 // Delete code object info when unloading
 static hsa_status_t
@@ -141,6 +147,15 @@ DebugAgentStatus InitHsaCoreAgentIntercept(HsaApiTable* pTable)
         return DEBUG_AGENT_STATUS_FAILURE;
     }
 
+    // Register internal queue create callbacks
+    status = gs_OrigExtApiTable.hsa_amd_runtime_queue_create_register_fn(
+            HsaDebugAgentInternalQueueCreateCallback, nullptr);
+    if (status != HSA_STATUS_SUCCESS)
+    {
+        AGENT_ERROR("Interception: Cannot register internal queue create callback");
+        return DEBUG_AGENT_STATUS_FAILURE;
+    }
+
     // We override the table that we get from the runtime
     UpdateHSAFunctionTable(pTable);
 
@@ -157,16 +172,16 @@ static void UpdateHSAFunctionTable(HsaApiTable* pTable)
 
     AGENT_LOG("Interception: Replace functions with HSADebugAgent versions");
 
-    pTable->core_->hsa_queue_create_fn = HsaDebugAgent_hsa_queue_create;
-    pTable->core_->hsa_queue_destroy_fn = HsaDebugAgent_hsa_queue_destroy;
+    pTable->core_->hsa_queue_create_fn = HsaDebugAgentHsaQueueCreate;
+    pTable->core_->hsa_queue_destroy_fn = HsaDebugAgentHsaQueueDestroy;
     pTable->core_->hsa_executable_freeze_fn
-            = HsaDebugAgent_hsa_executable_freeze;
+            = HsaDebugAgentHsaExecutableFreeze;
     pTable->core_->hsa_executable_destroy_fn
-            = HsaDebugAgent_hsa_executable_destroy;
+            = HsaDebugAgentHsaExecutableDestroy;
 }
 
 static hsa_status_t
-HsaDebugAgent_hsa_queue_create(
+HsaDebugAgentHsaQueueCreate(
         hsa_agent_t agent,
         uint32_t size,
         hsa_queue_type32_t type,
@@ -235,7 +250,7 @@ HsaDebugAgent_hsa_queue_create(
 }
 
 static hsa_status_t
-HsaDebugAgent_hsa_queue_destroy(hsa_queue_t* queue)
+HsaDebugAgentHsaQueueDestroy(hsa_queue_t* queue)
 {
 
     AGENT_LOG("Interception: hsa_queue_destroy");
@@ -263,8 +278,50 @@ HsaDebugAgent_hsa_queue_destroy(hsa_queue_t* queue)
 
 }
 
+static void
+HsaDebugAgentInternalQueueCreateCallback(const hsa_queue_t* queue,
+                                         hsa_agent_t agent,
+                                         void* data)
+{
+    AGENT_LOG("Interception: internal queue create");
+
+    hsa_status_t status = HSA_STATUS_SUCCESS;
+
+    uint32_t agentNode;
+    status = gs_OrigCoreApiTable.hsa_agent_get_info_fn(agent, HSA_AGENT_INFO_NODE , &agentNode);
+    if (status != HSA_STATUS_SUCCESS)
+    {
+        AGENT_ERROR("Interception: Error when query agnet node: " << GetHsaStatusString(status));
+    }
+
+    QueueInfo* pNewQueueInfo = new QueueInfo;
+    pNewQueueInfo->queueStatus = HSA_STATUS_SUCCESS;
+    pNewQueueInfo->callback = nullptr;
+    pNewQueueInfo->data = nullptr;
+    pNewQueueInfo->pWaveList = nullptr;
+    pNewQueueInfo->pPrev = nullptr;
+    pNewQueueInfo->pNext = nullptr;
+
+    pNewQueueInfo->queue = (hsa_queue_t*)queue;
+    pNewQueueInfo->queueId = queue->id;
+
+    debugInfoLock.lock();
+    DebugAgentStatus agentStatus = addQueueToList(agentNode, pNewQueueInfo);
+    debugInfoLock.unlock();
+
+    if (agentStatus != DEBUG_AGENT_STATUS_SUCCESS)
+    {
+        AGENT_ERROR("Interception: Cannot add queue info to link list");
+    }
+
+    // Trigger GPU event breakpoint
+    TriggerGPUQueueUpdate();
+
+    AGENT_LOG("Interception: Exit internal queue create callback");
+}
+
 static hsa_status_t
-HsaDebugAgent_hsa_executable_freeze(
+HsaDebugAgentHsaExecutableFreeze(
         hsa_executable_t executable,
         const char *options)
 {
@@ -293,7 +350,7 @@ HsaDebugAgent_hsa_executable_freeze(
 }
 
 static hsa_status_t
-HsaDebugAgent_hsa_executable_destroy(
+HsaDebugAgentHsaExecutableDestroy(
         hsa_executable_t executable)
 {
     AGENT_LOG("Interception: hsa_executable_destroy");
@@ -333,7 +390,7 @@ AddExecCodeObjectInfo(hsa_executable_t executable)
             hsa_ven_amd_loader_executable_iterate_loaded_code_objects(
                     executable,
                     AddCodeObjectInfoCallback,
-                    NULL);
+                    nullptr);
     return status;
 }
 
@@ -449,7 +506,7 @@ DeleteExecCodeObjectInfo(hsa_executable_t executable)
             hsa_ven_amd_loader_executable_iterate_loaded_code_objects(
                     executable,
                     DeleteCodeObjectInfoCallback,
-                    NULL);
+                    nullptr);
     return status;
 }
 

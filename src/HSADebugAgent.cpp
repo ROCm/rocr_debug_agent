@@ -182,6 +182,14 @@ extern "C" bool OnLoad(void *pTable,
         return DEBUG_AGENT_STATUS_FAILURE;
     }
 
+    status = InitHsaCoreAgentIntercept(
+            reinterpret_cast<HsaApiTable *>(pTable));
+    if (status != DEBUG_AGENT_STATUS_SUCCESS)
+    {
+        AGENT_ERROR("Cannot initialize dispatch tables");
+        return false;
+    }
+
     // Not available for ROCm1.9
     if (g_gdbAttached)
     {
@@ -191,15 +199,6 @@ extern "C" bool OnLoad(void *pTable,
             AGENT_ERROR("Cannot set debug trap handler");
             return false;
         }
-    }
-
-    status = InitHsaCoreAgentIntercept(
-            reinterpret_cast<HsaApiTable *>(pTable));
-
-    if (status != DEBUG_AGENT_STATUS_SUCCESS)
-    {
-        AGENT_ERROR("Cannot initialize dispatch tables");
-        return false;
     }
 
     InitialLinuxSignalsHandler();
@@ -712,32 +711,44 @@ static DebugAgentStatus AgentUnsetDebugTrapHandler()
             return DEBUG_AGENT_STATUS_FAILURE;
         }
 
-        status = gs_OrigCoreApiTable.hsa_executable_destroy_fn(debugTrapHandlerExecutable);
-        if (status != HSA_STATUS_SUCCESS)
+        if (debugTrapHandlerExecutable.handle)
         {
-            AGENT_ERROR("Cannot destroy debug trap handler executable.");
-            return DEBUG_AGENT_STATUS_FAILURE;
+            status = gs_OrigCoreApiTable.hsa_executable_destroy_fn(debugTrapHandlerExecutable);
+            if (status != HSA_STATUS_SUCCESS)
+            {
+                AGENT_ERROR("Cannot destroy debug trap handler executable.");
+                return DEBUG_AGENT_STATUS_FAILURE;
+            }
         }
 
-        status = gs_OrigCoreApiTable.hsa_code_object_reader_destroy_fn(debugTrapHandlerCodeObjectReader);
-        if (status != HSA_STATUS_SUCCESS)
+        if (debugTrapHandlerCodeObjectReader.handle)
         {
-            AGENT_ERROR("Cannot destroy debug trap handler code object reader.");
-            return DEBUG_AGENT_STATUS_FAILURE;
+            status = gs_OrigCoreApiTable.hsa_code_object_reader_destroy_fn(debugTrapHandlerCodeObjectReader);
+            if (status != HSA_STATUS_SUCCESS)
+            {
+                AGENT_ERROR("Cannot destroy debug trap handler code object reader.");
+                return DEBUG_AGENT_STATUS_FAILURE;
+            }
         }
 
-        status = gs_OrigCoreApiTable.hsa_signal_destroy_fn(debugTrapSignal);
-        if (status != HSA_STATUS_SUCCESS)
+        if (debugTrapSignal.handle)
         {
-            AGENT_ERROR("Cannot destroy debug event signal.");
-            return DEBUG_AGENT_STATUS_FAILURE;
+            status = gs_OrigCoreApiTable.hsa_signal_destroy_fn(debugTrapSignal);
+            if (status != HSA_STATUS_SUCCESS)
+            {
+                AGENT_ERROR("Cannot destroy debug event signal.");
+                return DEBUG_AGENT_STATUS_FAILURE;
+            }
         }
 
-        status = gs_OrigCoreApiTable.hsa_memory_free_fn((void*)pTrapHandlerBuffer);
-        if (status != HSA_STATUS_SUCCESS)
+        if (pTrapHandlerBuffer)
         {
-            AGENT_ERROR("Cannot destroy debug event signal.");
-            return DEBUG_AGENT_STATUS_FAILURE;
+            status = gs_OrigCoreApiTable.hsa_memory_free_fn((void*)pTrapHandlerBuffer);
+            if (status != HSA_STATUS_SUCCESS)
+            {
+                AGENT_ERROR("Cannot destroy debug event signal.");
+                return DEBUG_AGENT_STATUS_FAILURE;
+            }
         }
 
         pAgentNext = pAgent->pNext;
@@ -813,3 +824,4 @@ HSADebugAgentHandleRuntimeEvent(const hsa_amd_event_t* event, void* pData)
             return HSA_STATUS_SUCCESS;
     }
 }
+
