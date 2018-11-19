@@ -201,7 +201,7 @@ macro(LCStaticCompile ClSrc ObjPath TargetName)
   add_custom_command(
     OUTPUT ${ObjPath}
     DEPENDS "${ClSrc}"
-    COMMAND ${LC_BIN}/clang ${LC_FLAGS} ${LC_BITL_FLAGS} -include ${CL_INCP}/opencl-c.h -target amdgcn--amdhsa -mcpu=${TargetName} ${ClSrc} -o ${ObjPath}
+    COMMAND ${LC_BIN}/clang ${LC_FLAGS} ${LC_BITL_FLAGS} -include ${CL_INCP}/opencl-c.h -target amdgcn--amdhsa -mcpu=${TargetName} -mno-code-object-v3 ${ClSrc} -o ${ObjPath}
     COMMENT "Building LC code object ${ObjPath}..."
   )
 endmacro()

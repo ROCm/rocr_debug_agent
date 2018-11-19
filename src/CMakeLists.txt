@@ -199,7 +199,7 @@ macro(LLVMAssemble AsmPath ObjPath TargetName)
   add_custom_command(
     OUTPUT ${ObjPath}
     DEPENDS "${AsmPath}"
-    COMMAND ${LC_BIN}/clang -x assembler -target amdgcn--amdhsa -mcpu=${TargetName} -c -o ${ObjPath} "${AsmPath}"
+    COMMAND ${LC_BIN}/clang -x assembler -target amdgcn--amdhsa -mcpu=${TargetName} -mno-code-object-v3 -c -o ${ObjPath} "${AsmPath}"
     COMMENT "Building LLVM assembly object ${ObjPath}..."
   )
 endmacro()
