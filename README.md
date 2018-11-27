@@ -3,7 +3,7 @@
 The ROCr Debug Agent is a library that can be loaded by ROCm Platform Runtime to provide the following functionality:
 * Print the state of wavefronts that report memory violation or upon executing a "s_trap 2" instruction.
 * Allows SIGINT (`ctrl c`) or SIGTERM (`kill -15`) to print wavefront state of aborted GPU dispatches.
-* It is enabled on Vega10 GPUs on ROCm1.9.
+* It is enabled on Vega10 (since ROCm1.9), Vega20 (since ROCm2.0) GPUs.
 
 # Usage
 
@@ -19,7 +19,7 @@ This will use the ROCr Debug Agent library installed at /opt/rocm/lib/librocr_de
 export LD_LIBRARY_PATH=/path_to_directory_containing_librocr_debug_agent64.so
 ```
 
-To display the machine code instructions of wavefronts, together with the source text location, the ROCr Debug Agent using the llvm-objdump tool. Ensure that a version that supports AMD GCN GPUs is on your '$PATH`. For example, for the ROCm1.9:
+To display the machine code instructions of wavefronts, together with the source text location, the ROCr Debug Agent using the llvm-objdump tool. (1) Compile the code object with "-g" for OpenCL, or "-gline-tables-only" for HIP/hcc. (2) Ensure a llvm-objdump that supports AMD GCN GPUs is on your '$PATH`. For example, for the ROCm1.9:
 
 ```sh
 export PATH=/opt/rocm/opencl/bin/x86_64/:$PATH
