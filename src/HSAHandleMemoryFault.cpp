@@ -89,13 +89,13 @@ HSADebugAgentHandleMemoryFault(hsa_amd_event_t event, void* pData)
         pQueue = pQueue->pNext;
     }
 
-//    if (g_gdbAttached)
-//    {
-//        // GDB breakpoint, it triggers GDB to probe wave state info.
-//        TriggerGPUEventFault();
-//    }
-//    else
-//    {
+    if (g_gdbAttached)
+    {
+        // GDB breakpoint, it triggers GDB to probe wave state info.
+        TriggerGPUEvent();
+    }
+    else
+    {
         // Print general mempry fault info.
         PrintVMFaultInfo(pAgent);
 
@@ -103,7 +103,7 @@ HSADebugAgentHandleMemoryFault(hsa_amd_event_t event, void* pData)
         std::map<uint64_t, std::pair<uint64_t, WaveStateInfo*>> waves =
             FindFaultyWaves();
         PrintWaves(pAgent, waves);
-//    }
+    }
 
     debugInfoLock.unlock();
     return HSA_STATUS_SUCCESS;

@@ -305,8 +305,8 @@ DebugAgentStatus SaveWaveStateDumpToFile(std::stringstream& dump)
         return agentStatus;
     }
 
-    char waveStatePath[64];
-    sprintf(waveStatePath, "%s/ROCm_Wave_State_Dump", g_codeObjDir);
+    std::string waveStatePath = g_codeObjDir;
+    waveStatePath += "/ROCm_Wave_State_Dump";
     std::ofstream opStream;
     opStream.open(waveStatePath, std::ofstream::app);
 

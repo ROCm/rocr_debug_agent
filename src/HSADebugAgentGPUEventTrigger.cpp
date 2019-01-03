@@ -49,21 +49,9 @@ extern "C"
         return;
     }
 
-    void __attribute__((optimize("O0"))) TriggerGPUCodeObjectUpdate(void)
+    void __attribute__((optimize("O0"))) TriggerGPUEvent(void)
     {
-        AGENT_LOG("TriggerGPUCodeObjectUpdate() called.");
-        return;
-    }
-
-    void __attribute__((optimize("O0"))) TriggerGPUQueueUpdate(void)
-    {
-        AGENT_LOG("TriggerGPUQueueUpdate() called.");
-        return;
-    }
-
-    void __attribute__((optimize("O0"))) TriggerGPUEventFault(void)
-    {
-        AGENT_LOG("TriggerGPUEventFault() called.");
+        AGENT_LOG("TriggerGPUEvent() called.");
         return;
     }
 }
