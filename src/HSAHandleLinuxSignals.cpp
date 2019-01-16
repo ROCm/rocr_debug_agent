@@ -93,7 +93,7 @@ void INThandler(int sig)
     }
 
     debugInfoLock.lock();
-    GPUAgentInfo *pAgent = _r_amd_gpu_debug.pAgentList;
+    GPUAgentInfo *pAgent = _r_rocm_debug_info.pAgentList;
     while (pAgent != nullptr)
     {
         DebugAgentStatus status = DEBUG_AGENT_STATUS_SUCCESS;
@@ -112,7 +112,7 @@ void INThandler(int sig)
 
 static std::map<uint64_t, std::pair<uint64_t, WaveStateInfo *>> FindWavesAllQueues()
 {
-    GPUAgentInfo *pAgent = _r_amd_gpu_debug.pAgentList;
+    GPUAgentInfo *pAgent = _r_rocm_debug_info.pAgentList;
     std::map<uint64_t, std::pair<uint64_t, WaveStateInfo *>> waves;
 
     while (pAgent != nullptr)

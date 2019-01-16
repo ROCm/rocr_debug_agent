@@ -50,7 +50,7 @@
 #include "HSAHandleMemoryFault.h"
 
 // Debug info tracked by debug agent, it is probed by ROCm-GDB
-AmdGpuDebug _r_amd_gpu_debug;
+RocmGpuDebug _r_rocm_debug_info;
 
 // Temp direcoty path for code object files
 char g_codeObjDir[92];
@@ -93,7 +93,7 @@ static DebugAgentStatus AgentCheckVersion(uint64_t runtimeVersion,
 // Check if ISA is supported by debug agent
 static bool AgentIsSupportedISA(char *isaName);
 
-// Clean _r_amd_gpu_debug
+// Clean _r_rocm_debug_info
 static void AgentCleanDebugInfo();
 
 // Set system event handler in runtime
@@ -288,7 +288,7 @@ static DebugAgentStatus AgentInitDebugInfo()
 
     hsa_status_t status = HSA_STATUS_SUCCESS;
 
-    _r_amd_gpu_debug = {HSA_DEBUG_AGENT_VERSION, nullptr, nullptr};
+    _r_rocm_debug_info = {HSA_DEBUG_AGENT_VERSION, nullptr, nullptr};
 
     GPUAgentInfo *pEndGPUAgentInfo = nullptr;
     status = hsa_iterate_agents(QueryAgentCallback, &(pEndGPUAgentInfo));
@@ -398,7 +398,7 @@ static hsa_status_t QueryAgentCallback(hsa_agent_t agent, void *pData)
     pGpuAgent->pPrev = pPrevGPUAgent;
     if (pPrevGPUAgent == nullptr)
     {
-        _r_amd_gpu_debug.pAgentList = pGpuAgent;
+        _r_rocm_debug_info.pAgentList = pGpuAgent;
     }
     else
     {
@@ -443,7 +443,7 @@ static bool AgentIsSupportedISA(char *isaName)
 
 static void AgentCleanDebugInfo()
 {
-    GPUAgentInfo *pAgent = _r_amd_gpu_debug.pAgentList;
+    GPUAgentInfo *pAgent = _r_rocm_debug_info.pAgentList;
     GPUAgentInfo *pAgentNext = nullptr;
 
     debugInfoLock.lock();
@@ -464,13 +464,13 @@ static void AgentCleanDebugInfo()
     debugInfoLock.unlock();
 
     codeObjectInfoLock.lock();
-    CodeObjectInfo *pCodeObj = _r_amd_gpu_debug.pCodeObjectList;
-    CodeObjectInfo *pCodeObjNext = nullptr;
-    while (pCodeObj != nullptr)
+    ExecutableInfo *pExec = _r_rocm_debug_info.pExecutableList;
+    ExecutableInfo *pExecNext = nullptr;
+    while (pExecNext != nullptr)
     {
-        pCodeObjNext = pCodeObj->pNext;
-        RemoveCodeObjectFromList(pCodeObj->addrLoaded);
-        pCodeObj = pCodeObjNext;
+        pExecNext = pExec->pNext;
+        DeleteExecutableFromList(pExec->executable_id);
+        pExec = pExecNext;
     }
     codeObjectInfoLock.unlock();
 
@@ -512,7 +512,7 @@ static void* FindDebugTrapHandler(char* pAgentName)
 
 static DebugAgentStatus AgentSetDebugTrapHandler()
 {
-    GPUAgentInfo* pAgent = _r_amd_gpu_debug.pAgentList;
+    GPUAgentInfo* pAgent = _r_rocm_debug_info.pAgentList;
     GPUAgentInfo* pAgentNext = nullptr;
 
     while (pAgent != nullptr)
@@ -679,7 +679,7 @@ static DebugAgentStatus AgentSetDebugTrapHandler()
 
 static DebugAgentStatus AgentUnsetDebugTrapHandler()
 {
-    GPUAgentInfo* pAgent = _r_amd_gpu_debug.pAgentList;
+    GPUAgentInfo* pAgent = _r_rocm_debug_info.pAgentList;
     GPUAgentInfo* pAgentNext = nullptr;
 
     while (pAgent != nullptr)

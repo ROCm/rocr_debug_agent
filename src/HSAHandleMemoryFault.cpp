@@ -122,7 +122,7 @@ static void UpdateMemoryFaultInfo(hsa_amd_gpu_memory_fault_info_t* pFault)
 
 static std::map<uint64_t, std::pair<uint64_t, WaveStateInfo*>> FindFaultyWaves()
 {
-    GPUAgentInfo* pAgent = _r_amd_gpu_debug.pAgentList;
+    GPUAgentInfo* pAgent = _r_rocm_debug_info.pAgentList;
     std::map<uint64_t, std::pair<uint64_t, WaveStateInfo*>> faultyWaves;
     while(pAgent != nullptr)
     {

@@ -33,7 +33,6 @@
 ////////////////////////////////////////////////////////////////////////////////
 
 #include <hsa_api_trace.h>
-#include <iostream>
 
 // Debug Agent Headers
 #include "HSADebugAgent.h"

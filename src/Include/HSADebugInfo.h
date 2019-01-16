@@ -46,6 +46,7 @@ typedef struct _WaveStateInfo WaveStateInfo;
 typedef struct _GPUAgentInfo GPUAgentInfo;
 typedef struct _QueueInfo QueueInfo;
 typedef struct _CodeObjectInfo CodeObjectInfo;
+typedef struct _ExecutableInfo ExecutableInfo;
 
 #define COMPUTE_RELAUNCH_PAYLOAD_VGPRS(x) (((x) >> 0x0) & 0x3F)
 #define COMPUTE_RELAUNCH_PAYLOAD_SGPRS(x) (((x) >> 0x6) & 0x7)
@@ -96,11 +97,17 @@ DebugAgentStatus addQueueToList(uint64_t nodeId, QueueInfo* pQueue);
 QueueInfo* GetQueueFromList(uint64_t node, uint64_t queueId);
 QueueInfo* GetQueueFromList(uint64_t queueId);
 
-// Remove the code object info by its loaded address from link list.
-void RemoveCodeObjectFromList(uint64_t addrLoaded);
+// Add executable info to the link list.
+DebugAgentStatus AddExecutableToList(ExecutableInfo* pExec);
+
+// Delete executable info from link list.
+void DeleteExecutableFromList(uint64_t exec_id);
 
 // Add code object info to the link list.
-DebugAgentStatus AddCodeObjectToList(CodeObjectInfo* pCodeObject);
+DebugAgentStatus AddCodeObjectToList(CodeObjectInfo* pCodeObject, ExecutableInfo * pExecutable);
+
+// Delete the code object info by its loaded address from link list.
+void DeleteCodeObjectFromList(uint64_t addrLoaded, ExecutableInfo * pExecutable);
 
 // Remove the queue info by its queue id from link list.
 void RemoveQueueFromList(uint64_t queueId);
