@@ -652,8 +652,8 @@ DebugAgentStatus AddExecutableToList(ExecutableInfo *pExec)
         return agentStatus;
     }
 
-    return agentStatus;
     codeObjectInfoLock.unlock();
+    return agentStatus;
 }
 
 DebugAgentStatus AddCodeObjectToList(CodeObjectInfo *pCodeObject, ExecutableInfo *pExecutable)
