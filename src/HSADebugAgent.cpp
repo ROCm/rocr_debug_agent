@@ -625,7 +625,7 @@ static DebugAgentStatus AgentSetDebugTrapHandler()
             AGENT_ERROR("Cannot allocate memory for trap buffer.");
             return DEBUG_AGENT_STATUS_FAILURE;
         }
-        memset(pTrapHandlerBuffer, 0, sizeof(DebugTrapBuff));
+        *pTrapHandlerBuffer = {};
 
         pTrapHandlerBuffer->debugEventSignalHandle = debugTrapSignal.handle;
         if(!IsMultipleOf(pTrapHandlerBuffer, 0x100))

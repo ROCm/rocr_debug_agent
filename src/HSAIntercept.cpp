@@ -242,7 +242,7 @@ HsaDebugAgentHsaQueueCreate(
     }
 
     // Trigger GPU event breakpoint
-    TriggerGPUQueueUpdate();
+    TriggerGPUEvent();
 
     AGENT_LOG("Interception: Exit hsa_queue_create");
 
@@ -270,7 +270,7 @@ HsaDebugAgentHsaQueueDestroy(hsa_queue_t* queue)
     }
 
     // Trigger GPU event breakpoint
-    TriggerGPUQueueUpdate();
+    TriggerGPUEvent();
 
     AGENT_LOG("Interception: Exit hsa_queue_destroy");
 
@@ -315,7 +315,7 @@ HsaDebugAgentInternalQueueCreateCallback(const hsa_queue_t* queue,
     }
 
     // Trigger GPU event breakpoint
-    TriggerGPUQueueUpdate();
+    TriggerGPUEvent();
 
     AGENT_LOG("Interception: Exit internal queue create callback");
 }
@@ -342,7 +342,7 @@ HsaDebugAgentHsaExecutableFreeze(
     status = AddExecCodeObjectInfo(executable);
 
     // Trigger GPU event breakpoint
-    TriggerGPUCodeObjectUpdate();
+    TriggerGPUEvent();
 
     AGENT_LOG("Interception: Exit hsa_executable_freeze");
 
@@ -375,7 +375,7 @@ HsaDebugAgentHsaExecutableDestroy(
     }
 
     // Trigger GPU event breakpoint
-    TriggerGPUCodeObjectUpdate();
+    TriggerGPUEvent();
 
     AGENT_LOG("Interception: Exit hsa_executable_destroy");
 

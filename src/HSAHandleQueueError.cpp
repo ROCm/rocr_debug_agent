@@ -70,7 +70,7 @@ void HSADebugAgentHandleQueueError(hsa_status_t status, hsa_queue_t* pHsaQueueT,
     if (g_gdbAttached)
     {
         // GDB breakpoint, it triggers GDB to probe wave state info.
-        TriggerGPUEventFault();
+        TriggerGPUEvent();
     }
     else
     {

@@ -639,7 +639,7 @@ DebugAgentStatus AddCodeObjectToList(CodeObjectInfo *pCodeObject)
     codeObjectInfoLock.lock();
 
     // Create temp file for the loaded code object
-    char codeObjPath[AGENT_MAX_FILE_PATH_LEN];
+    std::string codeObjPath;
     char sessionID[64];
     DebugAgentStatus agentStatus = DEBUG_AGENT_STATUS_SUCCESS;
 
@@ -651,8 +651,11 @@ DebugAgentStatus AddCodeObjectToList(CodeObjectInfo *pCodeObject)
         return agentStatus;
     }
 
-    sprintf(codeObjPath, "%s/ROCm_Code_Object_%d", g_codeObjDir, gs_numCodeObject);
-    strncpy(&(pCodeObject->path[0]), codeObjPath, sizeof(codeObjPath));
+    codeObjPath = g_codeObjDir;
+    codeObjPath += "/ROCm_CodeObject_";
+    codeObjPath += std::to_string(gs_numCodeObject);
+    strncpy(&(pCodeObject->path[0]), codeObjPath.c_str(), sizeof(pCodeObject->path));
+
 
     agentStatus = AddToLinkListEnd<CodeObjectInfo>(pCodeObject, &(_r_amd_gpu_debug.pCodeObjectList));
     if (agentStatus != DEBUG_AGENT_STATUS_SUCCESS)

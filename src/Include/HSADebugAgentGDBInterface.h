@@ -41,6 +41,7 @@
 // Max breakpoint number based on the trap buffer size (0x1000)
 #define AGENT_MAX_BREAKPOINT 510
 
+#pragma pack(push,1)
 extern "C" {
 
 // HSA agent status
@@ -219,14 +220,10 @@ typedef struct _DebugTrapBuff
 // Regular GPU breakpoint
 void __attribute__((optimize("O0"))) TriggerGPUUserBreakpoint(void);
 
-// Breakpoint for code object update
-void __attribute__((optimize("O0"))) TriggerGPUCodeObjectUpdate(void);
-
-// Breakpoint for queue update
-void __attribute__((optimize("O0"))) TriggerGPUQueueUpdate(void);
-
 // Breakpoint for GPU fault
-void __attribute__((optimize("O0"))) TriggerGPUEventFault(void);
+void __attribute__((optimize("O0"))) TriggerGPUEvent(void);
 
 } // extern "C"
+#pragma pack(pop)
+
 #endif // DEBUG_AGENT_GDB_INTERFACE_H_
