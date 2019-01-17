@@ -36,7 +36,7 @@
 #define HSA_DEBUG_AGENT_H_
 
 // forward declaration.
-typedef struct _AmdGpuDebug AmdGpuDebug;
+typedef struct _RocmGpuDebug RocmGpuDebug;
 
 typedef enum
 {
@@ -45,7 +45,7 @@ typedef enum
 } DebugAgentStatus;
 
 // This is the instance of the structure probed by the GDB.
-extern AmdGpuDebug _r_amd_gpu_debug;
+extern RocmGpuDebug _r_rocm_debug_info;
 
 // Temp direcoty path for code object files
 extern char g_codeObjDir[92];

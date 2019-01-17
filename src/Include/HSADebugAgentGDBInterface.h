@@ -84,6 +84,16 @@ typedef struct _CodeObjectInfo
     struct _CodeObjectInfo* pPrev;
 } CodeObjectInfo;
 
+// Link list that maintains executables for ROCm-GDB to probe.
+typedef struct _ExecutableInfo
+{
+    uint64_t executable_id;
+    uint64_t node_id;
+    CodeObjectInfo* pCodeObjectList;
+    struct _ExecutableInfo* pNext;
+    struct _ExecutableInfo* pPrev;
+} ExecutableInfo;
+
 // TODO: define fault reason mask type
 // Memory fault info for ROCm-GDB to probe
 typedef struct _MemoryFaultInfo
@@ -192,15 +202,15 @@ typedef struct _GPUAgentInfo
 } GPUAgentInfo;
 
 // Struct that maintains all debug info for ROCm-GDB to probe.
-typedef struct _AmdGpuDebug
+typedef struct _RocmGpuDebug
 {
     // Version number for the debug agent.
     uint64_t version;
     // Head of the chain of AMD GPU agents.
     GPUAgentInfo* pAgentList;
     // Head of the chain of loaded objects.
-    CodeObjectInfo* pCodeObjectList;
-} AmdGpuDebug;
+    ExecutableInfo* pExecutableList;
+} RocmGpuDebug;
 
 // Debug trap handler buffer struct
 typedef struct _DebugTrapBuff

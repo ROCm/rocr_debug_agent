@@ -87,9 +87,13 @@ HsaDebugAgentHsaExecutableFreeze(hsa_executable_t executable,
 static hsa_status_t
 HsaDebugAgentHsaExecutableDestroy(hsa_executable_t executable);
 
-// Add loaded code object info when loading
+// Add executable info
+static ExecutableInfo *
+AddExecutableInfo(hsa_executable_t executable);
+
+// Add loaded code object info
 static hsa_status_t
-AddExecCodeObjectInfo(hsa_executable_t executable);
+AddExecCodeObjectInfo(hsa_executable_t executable, ExecutableInfo *pExecutable);
 
 // Query loaded code object info for adding it in code object info link list
 static hsa_status_t
@@ -102,16 +106,6 @@ static void
 HsaDebugAgentInternalQueueCreateCallback(const hsa_queue_t* queue,
                                          hsa_agent_t agent,
                                          void* data);
-
-// Delete code object info when unloading
-static hsa_status_t
-DeleteExecCodeObjectInfo(hsa_executable_t executable);
-
-// Query loaded code object info for deleting it from code object info link list
-static hsa_status_t
-DeleteCodeObjectInfoCallback(hsa_executable_t executable,
-                             hsa_loaded_code_object_t loadedCodeObject,
-                             void *data);
 
 // This function will be extended with the kernel compilation interception too
 DebugAgentStatus InitHsaCoreAgentIntercept(HsaApiTable* pTable)
@@ -333,13 +327,27 @@ HsaDebugAgentHsaExecutableFreeze(
             options);
     if (status != HSA_STATUS_SUCCESS)
     {
-        AGENT_ERROR("Interception: Cannot free executable");
+        AGENT_ERROR("Interception: Cannot freeze executable");
         return status;
     }
 
+    // Create and add exec info to _r_rocm_debug_info
+    ExecutableInfo *pExec;
+    pExec = AddExecutableInfo(executable);
+    if (pExec == nullptr)
+    {
+        AGENT_ERROR("Interception: Cannot add executable info");
+        return HSA_STATUS_ERROR;
+    }
+
     // Get loaded code object info of the freezed executable
-    // and update _r_amd_gpu_debug
-    status = AddExecCodeObjectInfo(executable);
+    // and update _r_rocm_debug_info
+    status = AddExecCodeObjectInfo(executable, pExec);
+    if (status != HSA_STATUS_SUCCESS)
+    {
+        AGENT_ERROR("Interception: Cannot add code object info");
+        return status;
+    }
 
     // Trigger GPU event breakpoint
     TriggerGPUEvent();
@@ -358,13 +366,8 @@ HsaDebugAgentHsaExecutableDestroy(
     hsa_status_t status = HSA_STATUS_SUCCESS;
 
     // Remove loaded code object info of the deleted executable
-    // and update _r_amd_gpu_debug
-    status = DeleteExecCodeObjectInfo(executable);
-    if (status != HSA_STATUS_SUCCESS)
-    {
-        AGENT_ERROR("Interception: Cannot delete code object info");
-        return status;
-    }
+    // and update _r_rocm_debug_info
+    DeleteExecutableFromList(executable.handle);
 
     status = gs_OrigCoreApiTable.hsa_executable_destroy_fn(
             executable);
@@ -382,15 +385,41 @@ HsaDebugAgentHsaExecutableDestroy(
     return status;
 }
 
+static ExecutableInfo*
+AddExecutableInfo(hsa_executable_t executable)
+{
+    AGENT_LOG("Interception: AddExecutableInfo");
+
+    ExecutableInfo* pExec = new ExecutableInfo;
+    pExec->executable_id = executable.handle;
+    pExec->node_id = 0;    /* FIXME: executable can have code ojects of different agents, disabled for now */
+    pExec->pCodeObjectList = nullptr;
+    pExec->pPrev = nullptr;
+    pExec->pNext = nullptr;
+
+    DebugAgentStatus agentStatus = DEBUG_AGENT_STATUS_SUCCESS;
+
+    agentStatus = AddExecutableToList(pExec);
+    if (agentStatus != DEBUG_AGENT_STATUS_SUCCESS)
+    {
+        AGENT_ERROR("Interception: Cannot add executable info to link list");
+        delete pExec;
+        return nullptr;
+    }
+
+    AGENT_LOG("Interception: Exit AddExecutableInfo");
+    return pExec;
+}
+
 static hsa_status_t
-AddExecCodeObjectInfo(hsa_executable_t executable)
+AddExecCodeObjectInfo(hsa_executable_t executable, ExecutableInfo *pExec)
 {
     hsa_status_t status = HSA_STATUS_SUCCESS;
     status = gs_OrigLoaderExtTable.
             hsa_ven_amd_loader_executable_iterate_loaded_code_objects(
                     executable,
                     AddCodeObjectInfoCallback,
-                    nullptr);
+                    (void *)pExec);
     return status;
 }
 
@@ -479,10 +508,11 @@ AddCodeObjectInfoCallback(
 
     DebugAgentStatus agentStatus = DEBUG_AGENT_STATUS_SUCCESS;
 
-    agentStatus = AddCodeObjectToList(pList);
+    agentStatus = AddCodeObjectToList(pList, (ExecutableInfo *)data);
     if (agentStatus != DEBUG_AGENT_STATUS_SUCCESS)
     {
         AGENT_ERROR("Interception: Cannot add code object info to link list");
+        delete pList;
         return HSA_STATUS_ERROR;
     }
 
@@ -494,49 +524,6 @@ AddCodeObjectInfoCallback(
     }
 
     AGENT_LOG("Interception: Exit AddCodeObjectInfoCallback");
-
-    return status;
-}
-
-static hsa_status_t
-DeleteExecCodeObjectInfo(hsa_executable_t executable)
-{
-    hsa_status_t status = HSA_STATUS_SUCCESS;
-    status = gs_OrigLoaderExtTable.
-            hsa_ven_amd_loader_executable_iterate_loaded_code_objects(
-                    executable,
-                    DeleteCodeObjectInfoCallback,
-                    nullptr);
-    return status;
-}
-
-static hsa_status_t
-DeleteCodeObjectInfoCallback(
-        hsa_executable_t executable,
-        hsa_loaded_code_object_t loadedCodeObject,
-        void *data)
-{
-    AGENT_LOG("Interception: DeleteCodeObjectInfoCallback");
-    hsa_status_t status = HSA_STATUS_SUCCESS;
-
-    uint64_t loadedBaseAddress;
-    status = gs_OrigLoaderExtTable.hsa_ven_amd_loader_loaded_code_object_get_info(
-            loadedCodeObject,
-            HSA_VEN_AMD_LOADER_LOADED_CODE_OBJECT_INFO_LOAD_BASE,
-            &loadedBaseAddress);
-
-    if (status != HSA_STATUS_SUCCESS)
-    {
-        AGENT_ERROR("Interception: Error when query HSA_VEN_AMD_LOADER_LOADED_CODE_OBJECT_INFO_CODE_OBJECT_STORAGE_MEMORY_BASE"
-                << GetHsaStatusString(status));
-        return status;
-    }
-
-    codeObjectInfoLock.lock();
-    RemoveCodeObjectFromList(loadedBaseAddress);
-    codeObjectInfoLock.unlock();
-
-    AGENT_LOG("Interception: Exit DeleteCodeObjectInfoCallback");
 
     return status;
 }

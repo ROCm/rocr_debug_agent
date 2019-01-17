@@ -216,7 +216,7 @@ DebugAgentStatus PreemptAgentQueues(GPUAgentInfo* pAgent)
 
 DebugAgentStatus PreemptAllQueues()
 {
-    GPUAgentInfo *pAgent = _r_amd_gpu_debug.pAgentList;
+    GPUAgentInfo *pAgent = _r_rocm_debug_info.pAgentList;
     while (pAgent != nullptr)
     {
         DebugAgentStatus status = DEBUG_AGENT_STATUS_SUCCESS;
@@ -260,7 +260,7 @@ DebugAgentStatus ResumeAgentQueues(GPUAgentInfo* pAgent)
 
 DebugAgentStatus ResumeAllQueues()
 {
-    GPUAgentInfo *pAgent = _r_amd_gpu_debug.pAgentList;
+    GPUAgentInfo *pAgent = _r_rocm_debug_info.pAgentList;
     while (pAgent != nullptr)
     {
         DebugAgentStatus status = DEBUG_AGENT_STATUS_SUCCESS;
@@ -364,17 +364,22 @@ void PrintWaves(GPUAgentInfo* pAgent, std::map<uint64_t, std::pair<uint64_t, Wav
 
         char *code_obj_path = nullptr;
         uint64_t pc_code_obj_offset = 0;
-        CodeObjectInfo *pList = _r_amd_gpu_debug.pCodeObjectList;
-        while (pList)
+        ExecutableInfo *pExec = _r_rocm_debug_info.pExecutableList;
+        while(pExec)
         {
-            if ((pWaveState->regs.pc >= pList->addrLoaded) &&
-                (pWaveState->regs.pc < (pList->addrLoaded + pList->sizeLoaded)))
+            CodeObjectInfo *pList = pExec->pCodeObjectList;
+            while (pList)
             {
-                code_obj_path = &(pList->path[0]);
-                pc_code_obj_offset = pWaveState->regs.pc - pList->addrLoaded;
-                break;
+                if ((pWaveState->regs.pc >= pList->addrLoaded) &&
+                    (pWaveState->regs.pc < (pList->addrLoaded + pList->sizeLoaded)))
+                {
+                    code_obj_path = &(pList->path[0]);
+                    pc_code_obj_offset = pWaveState->regs.pc - pList->addrLoaded;
+                    break;
+                }
+                pList = pList->pNext;
             }
-            pList = pList->pNext;
+            pExec = pExec->pNext;
         }
 
         if (code_obj_path != nullptr)
@@ -476,7 +481,7 @@ void PrintWaves(GPUAgentInfo* pAgent, std::map<uint64_t, std::pair<uint64_t, Wav
 
 GPUAgentInfo *GetAgentFromList(uint64_t nodeId)
 {
-    GPUAgentInfo *pList = _r_amd_gpu_debug.pAgentList;
+    GPUAgentInfo *pList = _r_rocm_debug_info.pAgentList;
     while (pList != nullptr)
     {
         if (pList->nodeId == nodeId)
@@ -491,7 +496,7 @@ GPUAgentInfo *GetAgentFromList(uint64_t nodeId)
 
 GPUAgentInfo *GetAgentFromList(hsa_agent_t agentHandle)
 {
-    GPUAgentInfo *pList = _r_amd_gpu_debug.pAgentList;
+    GPUAgentInfo *pList = _r_rocm_debug_info.pAgentList;
     while (pList != nullptr)
     {
         if (pList->agent.handle == agentHandle.handle)
@@ -506,7 +511,7 @@ GPUAgentInfo *GetAgentFromList(hsa_agent_t agentHandle)
 
 GPUAgentInfo *GetAgentByQueueID(uint64_t queueId)
 {
-    GPUAgentInfo *pAgentList = _r_amd_gpu_debug.pAgentList;
+    GPUAgentInfo *pAgentList = _r_rocm_debug_info.pAgentList;
     QueueInfo *pQueueList = nullptr;
     while (pAgentList != nullptr)
     {
@@ -547,7 +552,7 @@ QueueInfo *GetQueueFromList(uint64_t nodeId, uint64_t queueId)
 
 QueueInfo *GetQueueFromList(uint64_t queueId)
 {
-    GPUAgentInfo *pAgentList = _r_amd_gpu_debug.pAgentList;
+    GPUAgentInfo *pAgentList = _r_rocm_debug_info.pAgentList;
     QueueInfo *pQueueList = nullptr;
     while (pAgentList != nullptr)
     {
@@ -581,7 +586,7 @@ void CleanUpQueueWaveState(uint64_t nodeId, uint64_t queueId)
 
 void RemoveQueueFromList(uint64_t queueId)
 {
-    GPUAgentInfo *pAgentList = _r_amd_gpu_debug.pAgentList;
+    GPUAgentInfo *pAgentList = _r_rocm_debug_info.pAgentList;
     QueueInfo *pQueueList = nullptr;
     while (pAgentList != nullptr)
     {
@@ -600,7 +605,7 @@ void RemoveQueueFromList(uint64_t queueId)
 FinishSearch:
     if (pQueueList == nullptr)
     {
-        AGENT_ERROR("Unable to delete queue in _r_amd_gpu_debug: can not find queue with ID" << queueId);
+        AGENT_ERROR("Unable to delete queue in _r_rocm_debug_info: can not find queue with ID" << queueId);
         return;
     }
     else
@@ -634,7 +639,24 @@ FinishSearch:
     }
 }
 
-DebugAgentStatus AddCodeObjectToList(CodeObjectInfo *pCodeObject)
+
+DebugAgentStatus AddExecutableToList(ExecutableInfo *pExec)
+{
+    codeObjectInfoLock.lock();
+    DebugAgentStatus agentStatus = DEBUG_AGENT_STATUS_SUCCESS;
+    agentStatus = AddToLinkListEnd<ExecutableInfo>(pExec, &(_r_rocm_debug_info.pExecutableList));
+    if (agentStatus != DEBUG_AGENT_STATUS_SUCCESS)
+    {
+        AGENT_ERROR("Cannot add executable info to link list");
+        codeObjectInfoLock.unlock();
+        return agentStatus;
+    }
+
+    return agentStatus;
+    codeObjectInfoLock.unlock();
+}
+
+DebugAgentStatus AddCodeObjectToList(CodeObjectInfo *pCodeObject, ExecutableInfo *pExecutable)
 {
     codeObjectInfoLock.lock();
 
@@ -657,7 +679,7 @@ DebugAgentStatus AddCodeObjectToList(CodeObjectInfo *pCodeObject)
     strncpy(&(pCodeObject->path[0]), codeObjPath.c_str(), sizeof(pCodeObject->path));
 
 
-    agentStatus = AddToLinkListEnd<CodeObjectInfo>(pCodeObject, &(_r_amd_gpu_debug.pCodeObjectList));
+    agentStatus = AddToLinkListEnd<CodeObjectInfo>(pCodeObject, &(pExecutable->pCodeObjectList));
     if (agentStatus != DEBUG_AGENT_STATUS_SUCCESS)
     {
         AGENT_ERROR("Cannot add code object info to link list");
@@ -671,9 +693,60 @@ DebugAgentStatus AddCodeObjectToList(CodeObjectInfo *pCodeObject)
     return agentStatus;
 }
 
-void RemoveCodeObjectFromList(uint64_t addrLoaded)
+void DeleteExecutableFromList(uint64_t exec_id)
 {
-    CodeObjectInfo *pListCurrent = _r_amd_gpu_debug.pCodeObjectList;
+    ExecutableInfo *pListCurrent = _r_rocm_debug_info.pExecutableList;
+    while (pListCurrent != nullptr)
+    {
+        if (pListCurrent->executable_id == exec_id)
+        {
+            break;
+        }
+        else
+        {
+            pListCurrent = pListCurrent->pNext;
+        }
+    }
+
+    if (pListCurrent == nullptr)
+    {
+        AGENT_ERROR("Unable to delete executable in _r_rocm_debug_info: executable not found");
+        return;
+    }
+    else
+    {
+        if (pListCurrent->pPrev != nullptr)
+        {
+            pListCurrent->pPrev->pNext = pListCurrent->pNext;
+        }
+        else
+        {
+            _r_rocm_debug_info.pExecutableList = pListCurrent->pNext;
+        }
+
+        if (pListCurrent->pNext != nullptr)
+        {
+            pListCurrent->pNext->pPrev = pListCurrent->pPrev;
+        }
+
+        /* delete all code objects of the executable */
+
+        CodeObjectInfo *pCodeObject = pListCurrent->pCodeObjectList;
+        CodeObjectInfo *pCodeObjectNext = nullptr;
+        while (pCodeObjectNext != nullptr)
+        {
+            pCodeObjectNext = pCodeObject->pNext;
+            DeleteCodeObjectFromList(pCodeObject->addrLoaded, pListCurrent);
+            pCodeObject = pCodeObjectNext;
+        }
+        delete pListCurrent;
+    }
+}
+
+
+void DeleteCodeObjectFromList(uint64_t addrLoaded, ExecutableInfo *pExecutable)
+{
+    CodeObjectInfo *pListCurrent = pExecutable->pCodeObjectList;
     while (pListCurrent != nullptr)
     {
         if (pListCurrent->addrLoaded == addrLoaded)
@@ -688,7 +761,7 @@ void RemoveCodeObjectFromList(uint64_t addrLoaded)
 
     if (pListCurrent == nullptr)
     {
-        AGENT_ERROR("Unable to delete code object in _r_amd_gpu_debug: code object not found");
+        AGENT_ERROR("Unable to delete code object in _r_rocm_debug_info: code object not found");
         return;
     }
     else
@@ -699,7 +772,7 @@ void RemoveCodeObjectFromList(uint64_t addrLoaded)
         }
         else
         {
-            _r_amd_gpu_debug.pCodeObjectList = pListCurrent->pNext;
+            pExecutable->pCodeObjectList = pListCurrent->pNext;
         }
 
         if (pListCurrent->pNext != nullptr)
