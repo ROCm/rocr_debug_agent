@@ -53,12 +53,6 @@
 #include "HSADebugAgent.h"
 #include "HSADebugInfo.h"
 
-// lock for updating agent/queue/wave info
-std::mutex debugInfoLock;
-
-// lock for updating code object info
-std::mutex codeObjectInfoLock;
-
 // Total number of loaded code object during execution (only increase)
 static uint32_t gs_numCodeObject = 0;
 
@@ -642,24 +636,19 @@ FinishSearch:
 
 DebugAgentStatus AddExecutableToList(ExecutableInfo *pExec)
 {
-    codeObjectInfoLock.lock();
     DebugAgentStatus agentStatus = DEBUG_AGENT_STATUS_SUCCESS;
     agentStatus = AddToLinkListEnd<ExecutableInfo>(pExec, &(_r_rocm_debug_info.pExecutableList));
     if (agentStatus != DEBUG_AGENT_STATUS_SUCCESS)
     {
         AGENT_ERROR("Cannot add executable info to link list");
-        codeObjectInfoLock.unlock();
         return agentStatus;
     }
 
-    codeObjectInfoLock.unlock();
     return agentStatus;
 }
 
 DebugAgentStatus AddCodeObjectToList(CodeObjectInfo *pCodeObject, ExecutableInfo *pExecutable)
 {
-    codeObjectInfoLock.lock();
-
     // Create temp file for the loaded code object
     std::string codeObjPath;
     char sessionID[64];
@@ -669,7 +658,6 @@ DebugAgentStatus AddCodeObjectToList(CodeObjectInfo *pCodeObject, ExecutableInfo
     if (agentStatus != DEBUG_AGENT_STATUS_SUCCESS)
     {
         AGENT_ERROR("Cannot get debug session id");
-        codeObjectInfoLock.unlock();
         return agentStatus;
     }
 
@@ -683,12 +671,10 @@ DebugAgentStatus AddCodeObjectToList(CodeObjectInfo *pCodeObject, ExecutableInfo
     if (agentStatus != DEBUG_AGENT_STATUS_SUCCESS)
     {
         AGENT_ERROR("Cannot add code object info to link list");
-        codeObjectInfoLock.unlock();
         return agentStatus;
     }
 
     gs_numCodeObject++;
-    codeObjectInfoLock.unlock();
 
     return agentStatus;
 }

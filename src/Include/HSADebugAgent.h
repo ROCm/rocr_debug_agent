@@ -35,6 +35,8 @@
 #ifndef HSA_DEBUG_AGENT_H_
 #define HSA_DEBUG_AGENT_H_
 
+#include <mutex>
+
 // forward declaration.
 typedef struct _RocmGpuDebug RocmGpuDebug;
 
@@ -64,6 +66,9 @@ const char gfx906[] = "amdgcn-amd-amdhsa--gfx906";
 
 // GDB attached
 extern bool g_gdbAttached;
+
+// lock for access debug agenet 
+extern std::mutex debugAgentAccessLock;
 
 extern "C" bool OnLoad(void *pTable,
                        uint64_t runtimeVersion, uint64_t failedToolCount,

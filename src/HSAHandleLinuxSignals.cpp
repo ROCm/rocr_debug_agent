@@ -81,6 +81,8 @@ void INThandler(int sig)
         std::abort();
     }
 
+    debugAgentAccessLock.lock();
+
     if (sig == SIGINT)
     {
         signal(sig, SIG_IGN);
@@ -92,7 +94,6 @@ void INThandler(int sig)
         printf("\nDumping wave state due to SIGTERM\n\n");
     }
 
-    debugInfoLock.lock();
     GPUAgentInfo *pAgent = _r_rocm_debug_info.pAgentList;
     while (pAgent != nullptr)
     {
@@ -106,7 +107,8 @@ void INThandler(int sig)
         PrintWaves(pAgent, waves);
         pAgent = pAgent->pNext;
     }
-    debugInfoLock.unlock();
+
+    debugAgentAccessLock.unlock();
     std::abort();
 }
 

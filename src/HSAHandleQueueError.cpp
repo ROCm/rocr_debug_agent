@@ -55,7 +55,7 @@ void HSADebugAgentHandleQueueError(hsa_status_t status, hsa_queue_t* pHsaQueueT,
         return;
     }
 
-    debugInfoLock.lock();
+    debugAgentAccessLock.lock();
 
     if (status == HSA_STATUS_SUCCESS)
     {
@@ -81,7 +81,7 @@ void HSADebugAgentHandleQueueError(hsa_status_t status, hsa_queue_t* pHsaQueueT,
     }
     // resume all quueues in HSA_Status_success
     ResumeAgentQueues(pAgent);
-    debugInfoLock.unlock();
+    debugAgentAccessLock.unlock();
 
     // Call the original callback registered when create queue in runtime
     if (pQueue->callback != nullptr)

@@ -67,7 +67,8 @@ HSADebugAgentHandleMemoryFault(hsa_amd_event_t event, void* pData)
         return HSA_STATUS_ERROR;
     }
 
-    debugInfoLock.lock();
+    debugAgentAccessLock.lock();
+    
     DebugAgentStatus status = DEBUG_AGENT_STATUS_SUCCESS;
     hsa_amd_gpu_memory_fault_info_t fault = event.memory_fault;
 
@@ -83,7 +84,7 @@ HSADebugAgentHandleMemoryFault(hsa_amd_event_t event, void* pData)
         status = ProcessQueueWaveStates(pAgent->nodeId, pQueue->queueId);
         if (status != DEBUG_AGENT_STATUS_SUCCESS)
         {
-            debugInfoLock.unlock();
+            debugAgentAccessLock.unlock();
             return HSA_STATUS_ERROR;
         }
         pQueue = pQueue->pNext;
@@ -105,7 +106,7 @@ HSADebugAgentHandleMemoryFault(hsa_amd_event_t event, void* pData)
         PrintWaves(pAgent, waves);
     }
 
-    debugInfoLock.unlock();
+    debugAgentAccessLock.unlock();
     return HSA_STATUS_SUCCESS;
 }
 

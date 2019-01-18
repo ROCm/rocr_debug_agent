@@ -186,6 +186,7 @@ HsaDebugAgentHsaQueueCreate(
         uint32_t group_segment_size,
         hsa_queue_t** queue)
 {
+    debugAgentAccessLock.lock();
     AGENT_LOG("Interception: hsa_queue_create");
 
     hsa_status_t status = HSA_STATUS_SUCCESS;
@@ -225,9 +226,7 @@ HsaDebugAgentHsaQueueCreate(
     pNewQueueInfo->queue = (*queue);
     pNewQueueInfo->queueId = (**queue).id;
 
-    debugInfoLock.lock();
     DebugAgentStatus agentStatus = addQueueToList(agentNode, pNewQueueInfo);
-    debugInfoLock.unlock();
 
     if (agentStatus != DEBUG_AGENT_STATUS_SUCCESS)
     {
@@ -239,6 +238,7 @@ HsaDebugAgentHsaQueueCreate(
     TriggerGPUEvent();
 
     AGENT_LOG("Interception: Exit hsa_queue_create");
+    debugAgentAccessLock.unlock();
 
     return status;
 }
@@ -246,14 +246,12 @@ HsaDebugAgentHsaQueueCreate(
 static hsa_status_t
 HsaDebugAgentHsaQueueDestroy(hsa_queue_t* queue)
 {
-
+    debugAgentAccessLock.lock();
     AGENT_LOG("Interception: hsa_queue_destroy");
 
     hsa_status_t status = HSA_STATUS_SUCCESS;
 
-    debugInfoLock.lock();
     RemoveQueueFromList(queue->id);
-    debugInfoLock.unlock();
 
     status = gs_OrigCoreApiTable.hsa_queue_destroy_fn(queue);
 
@@ -267,6 +265,7 @@ HsaDebugAgentHsaQueueDestroy(hsa_queue_t* queue)
     TriggerGPUEvent();
 
     AGENT_LOG("Interception: Exit hsa_queue_destroy");
+    debugAgentAccessLock.unlock();
 
     return status;
 
@@ -299,10 +298,7 @@ HsaDebugAgentInternalQueueCreateCallback(const hsa_queue_t* queue,
     pNewQueueInfo->queue = (hsa_queue_t*)queue;
     pNewQueueInfo->queueId = queue->id;
 
-    debugInfoLock.lock();
     DebugAgentStatus agentStatus = addQueueToList(agentNode, pNewQueueInfo);
-    debugInfoLock.unlock();
-
     if (agentStatus != DEBUG_AGENT_STATUS_SUCCESS)
     {
         AGENT_ERROR("Interception: Cannot add queue info to link list");
@@ -319,6 +315,7 @@ HsaDebugAgentHsaExecutableFreeze(
         hsa_executable_t executable,
         const char *options)
 {
+    debugAgentAccessLock.lock();
     AGENT_LOG("Interception: hsa_executable_freeze");
 
     hsa_status_t status = HSA_STATUS_SUCCESS;
@@ -353,6 +350,7 @@ HsaDebugAgentHsaExecutableFreeze(
     TriggerGPUEvent();
 
     AGENT_LOG("Interception: Exit hsa_executable_freeze");
+    debugAgentAccessLock.unlock();
 
     return status;
 }
@@ -361,6 +359,7 @@ static hsa_status_t
 HsaDebugAgentHsaExecutableDestroy(
         hsa_executable_t executable)
 {
+    debugAgentAccessLock.unlock();
     AGENT_LOG("Interception: hsa_executable_destroy");
 
     hsa_status_t status = HSA_STATUS_SUCCESS;
@@ -381,6 +380,7 @@ HsaDebugAgentHsaExecutableDestroy(
     TriggerGPUEvent();
 
     AGENT_LOG("Interception: Exit hsa_executable_destroy");
+    debugAgentAccessLock.unlock();
 
     return status;
 }

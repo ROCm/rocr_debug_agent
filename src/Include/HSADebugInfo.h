@@ -36,7 +36,6 @@
 #define HSA_DEBUG_INFO_H_
 
 #include <map>
-#include <mutex>
 
 // Debug Agent Headers
 #include "HSADebugAgent.h"
@@ -55,12 +54,6 @@ typedef struct _ExecutableInfo ExecutableInfo;
 #define COMPUTE_RELAUNCH_IS_EVENT(x) (((x) >> 0x1E) & 0x1)
 #define COMPUTE_RELAUNCH_IS_STATE(x) (((x) >> 0x1F) & 0x1)
 #define SQ_WAVE_TRAPSTS_XNACK_ERROR(x) (((x) >> 0x1C) & 0x1)
-
-// lock for updating agent/queue/wave info
-extern std::mutex debugInfoLock;
-
-// lock for updating code object info
-extern std::mutex codeObjectInfoLock;
 
 // Get the wave states of a queue from context save area,
 // decode and update wave info in the queue.

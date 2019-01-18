@@ -76,6 +76,9 @@ hsa_executable_t debugTrapHandlerExecutable = {0};
 // Debug trap handler buffer
 DebugTrapBuff* pTrapHandlerBuffer = nullptr;
 
+// lock for access debug agenet 
+std::mutex debugAgentAccessLock;
+
 // Initial debug agent info link list
 static DebugAgentStatus AgentInitDebugInfo();
 
@@ -120,7 +123,7 @@ extern "C" bool OnLoad(void *pTable,
                        uint64_t runtimeVersion, uint64_t failedToolCount,
                        const char *const *pFailedToolNames)
 {
-    // TODO: may make this thread safe
+    debugAgentAccessLock.lock();
     g_debugAgentInitialSuccess = false;
     DebugAgentStatus status = DEBUG_AGENT_STATUS_FAILURE;
     uint32_t tableVersionMajor =
@@ -133,6 +136,7 @@ extern "C" bool OnLoad(void *pTable,
     if (status != DEBUG_AGENT_STATUS_SUCCESS)
     {
         AGENT_ERROR("Cannot initialize logging");
+        debugAgentAccessLock.unlock();
         return false;
     }
 
@@ -142,6 +146,7 @@ extern "C" bool OnLoad(void *pTable,
     if (status != DEBUG_AGENT_STATUS_SUCCESS)
     {
         AGENT_ERROR("Version mismatch");
+        debugAgentAccessLock.unlock();
         return false;
     }
 
@@ -149,6 +154,7 @@ extern "C" bool OnLoad(void *pTable,
     if (tableVersionMajor < 1 || tableVersionMinor < 48)
     {
         AGENT_ERROR("Unsupported runtime version");
+        debugAgentAccessLock.unlock();
         return false;
     }
 
@@ -164,6 +170,7 @@ extern "C" bool OnLoad(void *pTable,
     if (status != DEBUG_AGENT_STATUS_SUCCESS)
     {
         AGENT_ERROR("Cannot initialize debug info");
+        debugAgentAccessLock.unlock();
         return false;
     }
 
@@ -171,6 +178,7 @@ extern "C" bool OnLoad(void *pTable,
     if (status != DEBUG_AGENT_STATUS_SUCCESS)
     {
         AGENT_ERROR("Cannot create code object directory");
+        debugAgentAccessLock.unlock();
         return false;
     }
 
@@ -179,7 +187,8 @@ extern "C" bool OnLoad(void *pTable,
     if (status != DEBUG_AGENT_STATUS_SUCCESS)
     {
         AGENT_ERROR("Interception: Cannot set GPU event handler");
-        return DEBUG_AGENT_STATUS_FAILURE;
+        debugAgentAccessLock.unlock();
+        return false;
     }
 
     status = InitHsaCoreAgentIntercept(
@@ -187,6 +196,7 @@ extern "C" bool OnLoad(void *pTable,
     if (status != DEBUG_AGENT_STATUS_SUCCESS)
     {
         AGENT_ERROR("Cannot initialize dispatch tables");
+        debugAgentAccessLock.unlock();
         return false;
     }
 
@@ -197,6 +207,7 @@ extern "C" bool OnLoad(void *pTable,
         if (status != DEBUG_AGENT_STATUS_SUCCESS)
         {
             AGENT_ERROR("Cannot set debug trap handler");
+            debugAgentAccessLock.unlock();
             return false;
         }
     }
@@ -205,11 +216,14 @@ extern "C" bool OnLoad(void *pTable,
 
     AGENT_LOG("===== Finished Loading ROC Debug Agent=====");
     g_debugAgentInitialSuccess = true;
+    debugAgentAccessLock.unlock();
     return true;
 }
 
 extern "C" void OnUnload()
 {
+    debugAgentAccessLock.lock();
+    
     AGENT_LOG("===== Unload ROC Debug Agent=====");
 
     DebugAgentStatus status = DEBUG_AGENT_STATUS_FAILURE;
@@ -230,6 +244,8 @@ extern "C" void OnUnload()
     {
         AGENT_ERROR("OnUnload: Cannot close Logging");
     }
+
+    debugAgentAccessLock.unlock();
 }
 
 // Check the version based on the provided by HSA runtime's OnLoad function.
@@ -446,7 +462,6 @@ static void AgentCleanDebugInfo()
     GPUAgentInfo *pAgent = _r_rocm_debug_info.pAgentList;
     GPUAgentInfo *pAgentNext = nullptr;
 
-    debugInfoLock.lock();
     while (pAgent != nullptr)
     {
         pAgentNext = pAgent->pNext;
@@ -461,9 +476,7 @@ static void AgentCleanDebugInfo()
         }
         pAgent = pAgentNext;
     }
-    debugInfoLock.unlock();
 
-    codeObjectInfoLock.lock();
     ExecutableInfo *pExec = _r_rocm_debug_info.pExecutableList;
     ExecutableInfo *pExecNext = nullptr;
     while (pExecNext != nullptr)
@@ -472,7 +485,6 @@ static void AgentCleanDebugInfo()
         DeleteExecutableFromList(pExec->executable_id);
         pExec = pExecNext;
     }
-    codeObjectInfoLock.unlock();
 
     if (g_deleteTmpFile)
     {
