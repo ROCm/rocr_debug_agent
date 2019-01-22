@@ -234,9 +234,6 @@ HsaDebugAgentHsaQueueCreate(
         return HSA_STATUS_ERROR;
     }
 
-    // Trigger GPU event breakpoint
-    TriggerGPUEvent();
-
     AGENT_LOG("Interception: Exit hsa_queue_create");
     debugAgentAccessLock.unlock();
 
@@ -260,9 +257,6 @@ HsaDebugAgentHsaQueueDestroy(hsa_queue_t* queue)
         AGENT_ERROR("Interception: Error when destory queue: " << GetHsaStatusString(status));
         return status;
     }
-
-    // Trigger GPU event breakpoint
-    TriggerGPUEvent();
 
     AGENT_LOG("Interception: Exit hsa_queue_destroy");
     debugAgentAccessLock.unlock();
@@ -304,9 +298,6 @@ HsaDebugAgentInternalQueueCreateCallback(const hsa_queue_t* queue,
         AGENT_ERROR("Interception: Cannot add queue info to link list");
     }
 
-    // Trigger GPU event breakpoint
-    TriggerGPUEvent();
-
     AGENT_LOG("Interception: Exit internal queue create callback");
 }
 
@@ -346,6 +337,12 @@ HsaDebugAgentHsaExecutableFreeze(
         return status;
     }
 
+    // Update event info, nodeId will be updated when update code object info
+    DebugAgentEventInfo *pEventInfo = _r_rocm_debug_info.pDebugAgentEvent;
+    pEventInfo->eventType = DEBUG_AGENT_EVENT_EXECUTABLE_CREATE;
+    pEventInfo->eventData.executableCreate.executableId = executable.handle;
+    pEventInfo->eventData.executableCreate.executableHandle = (uint64_t)pExec;
+
     // Trigger GPU event breakpoint
     TriggerGPUEvent();
 
@@ -364,6 +361,14 @@ HsaDebugAgentHsaExecutableDestroy(
 
     hsa_status_t status = HSA_STATUS_SUCCESS;
 
+    // Update event info
+    DebugAgentEventInfo *pEventInfo = _r_rocm_debug_info.pDebugAgentEvent;
+    pEventInfo->eventType = DEBUG_AGENT_EVENT_EXECUTABLE_DESTORY;
+    pEventInfo->eventData.executableDestory.executableId = executable.handle;
+
+    // Trigger GPU event breakpoint before remove it 
+    TriggerGPUEvent();
+
     // Remove loaded code object info of the deleted executable
     // and update _r_rocm_debug_info
     DeleteExecutableFromList(executable.handle);
@@ -375,9 +380,6 @@ HsaDebugAgentHsaExecutableDestroy(
         AGENT_ERROR("Interception: Cannot destroy executable");
         return status;
     }
-
-    // Trigger GPU event breakpoint
-    TriggerGPUEvent();
 
     AGENT_LOG("Interception: Exit hsa_executable_destroy");
     debugAgentAccessLock.unlock();
@@ -391,8 +393,8 @@ AddExecutableInfo(hsa_executable_t executable)
     AGENT_LOG("Interception: AddExecutableInfo");
 
     ExecutableInfo* pExec = new ExecutableInfo;
-    pExec->executable_id = executable.handle;
-    pExec->node_id = 0;    /* FIXME: executable can have code ojects of different agents, disabled for now */
+    pExec->executableId = executable.handle;
+    pExec->nodeId = 0;    /* FIXME: executable can have code ojects of different agents, disabled for now */
     pExec->pCodeObjectList = nullptr;
     pExec->pPrev = nullptr;
     pExec->pNext = nullptr;
@@ -498,6 +500,25 @@ AddCodeObjectInfoCallback(
                 << GetHsaStatusString(status));
         return status;
     }
+
+    // Query the agent of loaded code object and update node id of the executable, 
+    // since the agent is undefined when it is created. Assuming all the code objects of 
+    // an executable is for the same agent.
+    hsa_agent_t loadedAgent;
+    status = gs_OrigLoaderExtTable.hsa_ven_amd_loader_loaded_code_object_get_info(
+            loadedCodeObject,
+            HSA_VEN_AMD_LOADER_LOADED_CODE_OBJECT_INFO_AGENT,
+            &loadedAgent);
+
+    if (status != HSA_STATUS_SUCCESS)
+    {
+        AGENT_ERROR("Interception: Error when query HSA_VEN_AMD_LOADER_LOADED_CODE_OBJECT_INFO_AGENT"
+                << GetHsaStatusString(status));
+        return status;
+    }
+
+    GPUAgentInfo *pAgent = GetAgentFromList(loadedAgent);
+    ((ExecutableInfo *)data)->nodeId = pAgent->nodeId;
 
     CodeObjectInfo* pList = new CodeObjectInfo;
     pList->addrDelta = addrDelta;

@@ -55,18 +55,26 @@ void HSADebugAgentHandleQueueError(hsa_status_t status, hsa_queue_t* pHsaQueueT,
         return;
     }
 
-    debugAgentAccessLock.lock();
-
     if (status == HSA_STATUS_SUCCESS)
     {
         AGENT_ERROR("Queue status HSA_STATUS_SUCCESS when handle queue error.");
         return;
     }
 
+    debugAgentAccessLock.lock();
+
     GPUAgentInfo* pAgent = GetAgentByQueueID(pHsaQueueT->id);
     PreemptAgentQueues(pAgent);
     QueueInfo* pQueue = (QueueInfo*)pData;
     pQueue->queueStatus = status;
+
+    // Update the queue error event in event info
+    DebugAgentEventInfo *pEventInfo = _r_rocm_debug_info.pDebugAgentEvent;
+    pEventInfo->eventType = DEBUG_AGENT_EVENT_QUEUE_ERROR;
+    pEventInfo->eventData.queueError.nodeId = pAgent->nodeId;
+    pEventInfo->eventData.queueError.queueId = pHsaQueueT->id;
+    pEventInfo->eventData.queueError.queueStatus = status;
+
     if (g_gdbAttached)
     {
         // GDB breakpoint, it triggers GDB to probe wave state info.

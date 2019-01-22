@@ -473,7 +473,7 @@ void PrintWaves(GPUAgentInfo* pAgent, std::map<uint64_t, std::pair<uint64_t, Wav
     }
 }
 
-GPUAgentInfo *GetAgentFromList(uint64_t nodeId)
+GPUAgentInfo *GetAgentFromList(uint32_t nodeId)
 {
     GPUAgentInfo *pList = _r_rocm_debug_info.pAgentList;
     while (pList != nullptr)
@@ -523,14 +523,14 @@ GPUAgentInfo *GetAgentByQueueID(uint64_t queueId)
     return nullptr;
 }
 
-DebugAgentStatus addQueueToList(uint64_t nodeId, QueueInfo *pQueue)
+DebugAgentStatus addQueueToList(uint32_t nodeId, QueueInfo *pQueue)
 {
     GPUAgentInfo *pAgent = GetAgentFromList(nodeId);
     DebugAgentStatus statusAddToList = AddToLinkListEnd<QueueInfo>(pQueue, &(pAgent->pQueueList));
     return statusAddToList;
 }
 
-QueueInfo *GetQueueFromList(uint64_t nodeId, uint64_t queueId)
+QueueInfo *GetQueueFromList(uint32_t nodeId, uint64_t queueId)
 {
     QueueInfo *pList = (GetAgentFromList(nodeId))->pQueueList;
     while (pList != nullptr)
@@ -564,7 +564,7 @@ QueueInfo *GetQueueFromList(uint64_t queueId)
     return nullptr;
 }
 
-void CleanUpQueueWaveState(uint64_t nodeId, uint64_t queueId)
+void CleanUpQueueWaveState(uint32_t nodeId, uint64_t queueId)
 {
     QueueInfo *pQueueList = GetQueueFromList(nodeId, queueId);
     WaveStateInfo *pWaveListCurrent = pQueueList->pWaveList;
@@ -679,12 +679,12 @@ DebugAgentStatus AddCodeObjectToList(CodeObjectInfo *pCodeObject, ExecutableInfo
     return agentStatus;
 }
 
-void DeleteExecutableFromList(uint64_t exec_id)
+void DeleteExecutableFromList(uint64_t execId)
 {
     ExecutableInfo *pListCurrent = _r_rocm_debug_info.pExecutableList;
     while (pListCurrent != nullptr)
     {
-        if (pListCurrent->executable_id == exec_id)
+        if (pListCurrent->executableId == execId)
         {
             break;
         }
@@ -719,7 +719,7 @@ void DeleteExecutableFromList(uint64_t exec_id)
 
         CodeObjectInfo *pCodeObject = pListCurrent->pCodeObjectList;
         CodeObjectInfo *pCodeObjectNext = nullptr;
-        while (pCodeObjectNext != nullptr)
+        while (pCodeObject != nullptr)
         {
             pCodeObjectNext = pCodeObject->pNext;
             DeleteCodeObjectFromList(pCodeObject->addrLoaded, pListCurrent);

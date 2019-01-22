@@ -52,10 +52,6 @@ typedef enum
     AGENT_STATUS_ACTIVE = 0,
     // Unsupported agent
     AGENT_STATUS_UNSUPPORTED,
-    // Memory fault in supported agent
-    AGENT_STATUS_MEMORY_FAULT,
-    // Memory fault in unsupported agent
-    AGENT_STATUS_UNSUPPORTED_MEMORY_FAULT,
 } AgentStatus;
 
 // HSA queue status
@@ -68,7 +64,7 @@ typedef enum
     QUEUE_STATUS_FAILURE,
 } QueueStatus;
 
-// Link list that maintains loaded code objects for ROCm-GDB to probe.
+// Loaded code objects for ROCm-GDB to probe.
 typedef struct _CodeObjectInfo
 {
     // Difference between the address in the ELF file and the addresses in memory.
@@ -84,11 +80,11 @@ typedef struct _CodeObjectInfo
     struct _CodeObjectInfo* pPrev;
 } CodeObjectInfo;
 
-// Link list that maintains executables for ROCm-GDB to probe.
+// Executables for ROCm-GDB to probe.
 typedef struct _ExecutableInfo
 {
-    uint64_t executable_id;
-    uint64_t node_id;
+    uint64_t executableId;
+    uint32_t nodeId;
     CodeObjectInfo* pCodeObjectList;
     struct _ExecutableInfo* pNext;
     struct _ExecutableInfo* pPrev;
@@ -111,7 +107,7 @@ typedef struct _MemoryFaultInfo
     uint32_t faultReasonMask;
 } MemoryFaultInfo;
 
-// Link list that maintains wave states of a queue for ROCm-GDB to probe.
+// Wave states of a queue for ROCm-GDB to probe.
 typedef struct _WaveStateInfo
 {
     // Number of SGPRs allocated per wavefront.
@@ -145,7 +141,7 @@ typedef struct _WaveStateInfo
 
 } WaveStateInfo;
 
-// List list that maintains queues of an agent for ROCm-GDB to probe.
+// Queues of an agent for ROCm-GDB to probe.
 typedef struct _QueueInfo
 {
     // Queue status. Value is QueueStatus. TODO: hold runtime queue error state
@@ -166,7 +162,7 @@ typedef struct _QueueInfo
     struct _QueueInfo* pPrev;
 } QueueInfo;
 
-// List list that maintains agents for ROCm-GDB to probe.
+// Agents for ROCm-GDB to probe.
 typedef struct _GPUAgentInfo
 {
     // Agent status. Vaule is AgentStatus.
@@ -174,7 +170,7 @@ typedef struct _GPUAgentInfo
     // GPU Agent handle.
     hsa_agent_t agent;
     // Agent node id.
-    uint64_t nodeId;
+    uint32_t nodeId;
     // Agent name.
     char     agentName[AGENT_MAX_AGENT_NAME_LEN];
     // Chip identifier.
@@ -191,8 +187,6 @@ typedef struct _GPUAgentInfo
     uint32_t numSIMDsPerCU;
     // num of shader engines.
     uint32_t numSEs;
-    // The GPU memory fault info. Only valid when agentStatus is AGENT_STATUS_MEMORY_FAULT.
-    MemoryFaultInfo memoryFaultInfo;
     // Link list of queues of the agent.
     QueueInfo* pQueueList;
     // Next element of the agent link list.
@@ -200,6 +194,60 @@ typedef struct _GPUAgentInfo
     // Previous element of the agent link list.
     struct _GPUAgentInfo* pPrev;
 } GPUAgentInfo;
+
+typedef enum {
+    // Invalid event
+    DEBUG_AGENT_EVENT_INVALID                = 0x000,
+    // Debug agent intercept executable create
+    DEBUG_AGENT_EVENT_EXECUTABLE_CREATE      = 0x001,
+    // Debug agent intercept executable destory
+    DEBUG_AGENT_EVENT_EXECUTABLE_DESTORY     = 0x002,
+    // Debug agent get memory fault
+    DEBUG_AGENT_EVENT_MEMORY_FAULT           = 0x003,
+    // Debug agent get queue error
+    DEBUG_AGENT_EVENT_QUEUE_ERROR            = 0x004,
+    // Debug agent get user breakpoint
+    DEBUG_AGENT_EVENT_USER_BREAKPOINT        = 0x005,
+} DebugAgentEventType;
+
+union EventData {
+    struct _EventExecutableCreate {
+        uint32_t nodeId;
+        uint64_t executableId;
+        uint64_t executableHandle;
+    } executableCreate;
+    struct _EventExecutableDestory {
+        uint64_t executableId;
+    } executableDestory;
+    struct _EventMemoryFault {
+        uint32_t nodeId;
+        uint64_t virtualAddress;
+        // Bit field encoding the memory access failure reasons.
+        // There could be multiple bits set for one fault.
+        // 0x00000001 Page not present or supervisor privilege.
+        // 0x00000010 Write access to a read-only page.
+        // 0x00000100 Execute access to a page marked NX.
+        // 0x00001000 Host access only.
+        // 0x00010000 ECC failure (if supported by HW).
+        // 0x00100000 Can't determine the exact fault address.
+        uint32_t faultReasonMask;
+    } memoryFault;
+    struct _EventQueueError {
+        uint32_t nodeId;
+        uint64_t queueId;
+        uint64_t queueStatus;
+    } queueError;
+    struct _EventUserBreakpoint {
+        uint32_t nodeId;
+    } userBreakpoint;
+};
+
+// ROCm event info reported by debug agent
+typedef struct
+{
+    DebugAgentEventType eventType;
+    EventData eventData;
+} DebugAgentEventInfo;
 
 // Struct that maintains all debug info for ROCm-GDB to probe.
 typedef struct _RocmGpuDebug
@@ -210,6 +258,8 @@ typedef struct _RocmGpuDebug
     GPUAgentInfo* pAgentList;
     // Head of the chain of loaded objects.
     ExecutableInfo* pExecutableList;
+    // ROCm event caught by debug agent (only one event can be triggered at a time)
+    DebugAgentEventInfo* pDebugAgentEvent;
 } RocmGpuDebug;
 
 // Debug trap handler buffer struct

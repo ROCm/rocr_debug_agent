@@ -52,6 +52,7 @@ bool HSADebugTrapSignalHandler(hsa_signal_value_t signalValue, void* arg)
     PreemptAllQueues();
     TriggerGPUUserBreakpoint();
     ResumeAllQueues();
+    
     debugAgentAccessLock.unlock();
     return true;
 }

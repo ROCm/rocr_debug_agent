@@ -45,11 +45,8 @@
 #include "HSADebugInfo.h"
 #include "HSAHandleMemoryFault.h"
 
-// Update fault info of the fautly agent
-static void UpdateMemoryFaultInfo(hsa_amd_gpu_memory_fault_info_t* fault);
-
 // Print general mempry fault info
-static void PrintVMFaultInfo(const GPUAgentInfo* pFaultyAgent);
+static void PrintVMFaultInfo();
 
 // Find the waves in XNACK error state
 static std::map<uint64_t, std::pair<uint64_t, WaveStateInfo*>> FindFaultyWaves();
@@ -70,25 +67,21 @@ HSADebugAgentHandleMemoryFault(hsa_amd_event_t event, void* pData)
     debugAgentAccessLock.lock();
     
     DebugAgentStatus status = DEBUG_AGENT_STATUS_SUCCESS;
-    hsa_amd_gpu_memory_fault_info_t fault = event.memory_fault;
-
-    UpdateMemoryFaultInfo(&fault);
-
-    // TODO: Get all waves of all agents, force preempt the active ones.
-    // Get all the waves for the faulty agent.
-    GPUAgentInfo* pAgent = GetAgentFromList(fault.agent);
-    QueueInfo* pQueue = pAgent->pQueueList;
-    while (pQueue != nullptr)
+    GPUAgentInfo* pAgent = GetAgentFromList(event.memory_fault.agent);
+    
+    DebugAgentEventInfo *pEventInfo = _r_rocm_debug_info.pDebugAgentEvent;
+    if (pEventInfo == nullptr)
     {
-        CleanUpQueueWaveState(pAgent->nodeId, pQueue->queueId);
-        status = ProcessQueueWaveStates(pAgent->nodeId, pQueue->queueId);
-        if (status != DEBUG_AGENT_STATUS_SUCCESS)
-        {
-            debugAgentAccessLock.unlock();
-            return HSA_STATUS_ERROR;
-        }
-        pQueue = pQueue->pNext;
+        AGENT_ERROR("Can not locate event info in _r_rocm_debug_info");
+        return HSA_STATUS_ERROR;
     }
+
+    // Update event info
+    pEventInfo->eventType = DEBUG_AGENT_EVENT_MEMORY_FAULT;
+    pEventInfo->eventData.memoryFault.nodeId = pAgent->nodeId;
+    pEventInfo->eventData.memoryFault.virtualAddress = event.memory_fault.virtual_address;
+    pEventInfo->eventData.memoryFault.faultReasonMask = event.memory_fault.fault_reason_mask;
+
 
     if (g_gdbAttached)
     {
@@ -97,8 +90,23 @@ HSADebugAgentHandleMemoryFault(hsa_amd_event_t event, void* pData)
     }
     else
     {
+        // TODO: Get all waves of all agents, force preempt the active ones.
+        // Get all the waves for the faulty agent.
+        QueueInfo* pQueue = pAgent->pQueueList;
+        while (pQueue != nullptr)
+        {
+            CleanUpQueueWaveState(pAgent->nodeId, pQueue->queueId);
+            status = ProcessQueueWaveStates(pAgent->nodeId, pQueue->queueId);
+            if (status != DEBUG_AGENT_STATUS_SUCCESS)
+            {
+                debugAgentAccessLock.unlock();
+                return HSA_STATUS_ERROR;
+            }
+            pQueue = pQueue->pNext;
+        }
+
         // Print general mempry fault info.
-        PrintVMFaultInfo(pAgent);
+        PrintVMFaultInfo();
 
         // Gather fault wave state info (vGPR, sGPR, LDS), and print
         std::map<uint64_t, std::pair<uint64_t, WaveStateInfo*>> waves =
@@ -110,103 +118,96 @@ HSADebugAgentHandleMemoryFault(hsa_amd_event_t event, void* pData)
     return HSA_STATUS_SUCCESS;
 }
 
-static void UpdateMemoryFaultInfo(hsa_amd_gpu_memory_fault_info_t* pFault)
-{
-    GPUAgentInfo* pAgent = GetAgentFromList(pFault->agent);
-    if (pAgent->agentStatus == AGENT_STATUS_ACTIVE)
-    {
-        pAgent->agentStatus = AGENT_STATUS_MEMORY_FAULT;
-        pAgent->memoryFaultInfo.virtualAddress = pFault->virtual_address;
-        pAgent->memoryFaultInfo.faultReasonMask = pFault->fault_reason_mask;
-    }
-}
-
 static std::map<uint64_t, std::pair<uint64_t, WaveStateInfo*>> FindFaultyWaves()
 {
-    GPUAgentInfo* pAgent = _r_rocm_debug_info.pAgentList;
     std::map<uint64_t, std::pair<uint64_t, WaveStateInfo*>> faultyWaves;
-    while(pAgent != nullptr)
+    EventData memoryFaultInfo =_r_rocm_debug_info.pDebugAgentEvent->eventData;
+    GPUAgentInfo *pAgent = GetAgentFromList(memoryFaultInfo.memoryFault.nodeId);
+
+
+    if (pAgent->agentStatus == AGENT_STATUS_UNSUPPORTED)
     {
-        if (pAgent->agentStatus == AGENT_STATUS_UNSUPPORTED)
-        {
-            AGENT_ERROR("Due to unsupported agent ISA (supported ISA: gfx900/gfx906), can not print waves in Agent: "
-                        << pAgent->agentName);
-            pAgent = pAgent->pNext;
-            continue;
-        }
-        else if (pAgent->agentStatus == AGENT_STATUS_ACTIVE)
-        {
-            pAgent = pAgent->pNext;
-            continue;
-        }
+        AGENT_ERROR("Due to unsupported agent ISA (supported ISA: gfx900/gfx906), can not print waves in Agent: "
+                    << pAgent->agentName);
+        return faultyWaves;
+    }
 
-        QueueInfo* pQueue = pAgent->pQueueList;
-        while (pQueue != nullptr)
+    QueueInfo* pQueue = pAgent->pQueueList;
+    while (pQueue != nullptr)
+    {
+        WaveStateInfo* pWave = pQueue->pWaveList;
+        while (pWave != nullptr)
         {
-            WaveStateInfo* pWave = pQueue->pWaveList;
-            while (pWave != nullptr)
+            if (SQ_WAVE_TRAPSTS_XNACK_ERROR(pWave->regs.trapsts))
             {
-                if (SQ_WAVE_TRAPSTS_XNACK_ERROR(pWave->regs.trapsts))
+                pWave->regs.pc += 0x8;
+                pQueue->queueStatus = QUEUE_STATUS_FAILURE;
+
+                // Update the faulty waves for printing.
+                std::map<uint64_t, std::pair<uint64_t, WaveStateInfo*>>::iterator it;
+                it = faultyWaves.find(pWave->regs.pc);
+                if (it != faultyWaves.end())
                 {
-                    pWave->regs.pc += 0x8;
-                    pQueue->queueStatus = QUEUE_STATUS_FAILURE;
-
-                    // Update the faulty waves for printing.
-                    std::map<uint64_t, std::pair<uint64_t, WaveStateInfo*>>::iterator it;
-                    it = faultyWaves.find(pWave->regs.pc);
-                    if (it != faultyWaves.end())
-                    {
-                        it->second.first ++;
-                    }
-                    else
-                    {
-                        faultyWaves.insert(std::make_pair(pWave->regs.pc,
-                                                          std::make_pair(1, pWave)));
-                    }
-
+                    it->second.first ++;
                 }
-                pWave = pWave->pNext;
+                else
+                {
+                    faultyWaves.insert(std::make_pair(pWave->regs.pc,
+                                                        std::make_pair(1, pWave)));
+                }
+
             }
-            pQueue = pQueue->pNext;
+            pWave = pWave->pNext;
         }
-        pAgent = pAgent->pNext;
+        pQueue = pQueue->pNext;
     }
     return faultyWaves;
 }
 
-static void PrintVMFaultInfo(const GPUAgentInfo* pFaultyAgent)
+static void PrintVMFaultInfo()
 {
-    MemoryFaultInfo memoryFaultInfo = pFaultyAgent->memoryFaultInfo;
+    if (_r_rocm_debug_info.pDebugAgentEvent == nullptr)
+    {
+        AGENT_ERROR("Can not find memory fault info when print");
+        return;
+    }
+     
+    if (_r_rocm_debug_info.pDebugAgentEvent->eventType != DEBUG_AGENT_EVENT_MEMORY_FAULT)
+    {
+        AGENT_ERROR("Wrong event type when print memory fault info");
+        return;
+    }
+    
+    EventData memoryFaultInfo =_r_rocm_debug_info.pDebugAgentEvent->eventData;
     std::stringstream err;
 
-    uint64_t fault_page_idx = memoryFaultInfo.virtualAddress >> 0xC;
+    uint64_t fault_page_idx = memoryFaultInfo.memoryFault.virtualAddress >> 0xC;
 
     err << "\n";
-    err << "Memory access fault by GPU agent: " << pFaultyAgent->agentName <<std::endl;
-    err << "Node: " << pFaultyAgent->nodeId <<std::endl;
+    err << "Memory access fault at GPU Node: " << memoryFaultInfo.memoryFault.nodeId <<std::endl;
     err << "Address: 0x" << std::hex << std::uppercase << fault_page_idx << "xxx (";
 
-    if ((memoryFaultInfo.faultReasonMask & 0x00000001) > 0)
+    if ((memoryFaultInfo.memoryFault.faultReasonMask & 0x00000001) > 0)
     {
         err << "page not present;";
     }
-    if ((memoryFaultInfo.faultReasonMask & 0x00000010) > 0)
+    if ((memoryFaultInfo.memoryFault.faultReasonMask & 0x00000010) > 0)
     {
         err << "write access to a read-only page;";
     }
-    if ((memoryFaultInfo.faultReasonMask & 0x00000100) > 0)
+    if ((memoryFaultInfo.memoryFault.faultReasonMask & 0x00000100) > 0)
     {
         err << "execute access to a non-executable page;";
     }
-    if ((memoryFaultInfo.faultReasonMask & 0x00001000) > 0)
+    if ((memoryFaultInfo.memoryFault.faultReasonMask & 0x00001000) > 0)
     {
         err << "access to host access only;";
     }
-    if ((memoryFaultInfo.faultReasonMask & 0x00010000) > 0)
+    if ((memoryFaultInfo.memoryFault.faultReasonMask & 0x00010000) > 0)
     {
         err << "uncorrectable ECC failure;";
     }
-    if ((memoryFaultInfo.faultReasonMask & 0x00100000) > 0)
+    if ((memoryFaultInfo.memoryFault.faultReasonMask & 0x00100000) > 0)
     {
         err << "can't determine the exact fault address;";
     }

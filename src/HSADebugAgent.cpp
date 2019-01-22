@@ -304,7 +304,7 @@ static DebugAgentStatus AgentInitDebugInfo()
 
     hsa_status_t status = HSA_STATUS_SUCCESS;
 
-    _r_rocm_debug_info = {HSA_DEBUG_AGENT_VERSION, nullptr, nullptr};
+    _r_rocm_debug_info = {HSA_DEBUG_AGENT_VERSION, nullptr, nullptr, nullptr};
 
     GPUAgentInfo *pEndGPUAgentInfo = nullptr;
     status = hsa_iterate_agents(QueryAgentCallback, &(pEndGPUAgentInfo));
@@ -313,6 +313,10 @@ static DebugAgentStatus AgentInitDebugInfo()
         AGENT_ERROR("Failed querying the device information.");
         return DEBUG_AGENT_STATUS_FAILURE;
     }
+
+    DebugAgentEventInfo *pEventInfo = new DebugAgentEventInfo;
+    memset(pEventInfo, 0, sizeof(DebugAgentEventInfo));
+    _r_rocm_debug_info.pDebugAgentEvent = pEventInfo;
 
     AGENT_LOG("Finished initializing agent debug info")
 
@@ -459,9 +463,9 @@ static bool AgentIsSupportedISA(char *isaName)
 
 static void AgentCleanDebugInfo()
 {
+    /* delete agent list*/
     GPUAgentInfo *pAgent = _r_rocm_debug_info.pAgentList;
     GPUAgentInfo *pAgentNext = nullptr;
-
     while (pAgent != nullptr)
     {
         pAgentNext = pAgent->pNext;
@@ -477,15 +481,20 @@ static void AgentCleanDebugInfo()
         pAgent = pAgentNext;
     }
 
+    /* delete executable list*/
     ExecutableInfo *pExec = _r_rocm_debug_info.pExecutableList;
     ExecutableInfo *pExecNext = nullptr;
-    while (pExecNext != nullptr)
+    while (pExec != nullptr)
     {
         pExecNext = pExec->pNext;
-        DeleteExecutableFromList(pExec->executable_id);
+        DeleteExecutableFromList(pExec->executableId);
         pExec = pExecNext;
     }
 
+    /* delete event info*/
+    delete _r_rocm_debug_info.pDebugAgentEvent;
+
+    /*delete temp files */
     if (g_deleteTmpFile)
     {
         AgentDeleteFile(g_codeObjDir);

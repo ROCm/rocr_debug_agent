@@ -75,7 +75,7 @@ DebugAgentStatus ResumeAgentQueues(GPUAgentInfo* pAgent);
 void PrintWaves(GPUAgentInfo* pAgent, std::map<uint64_t, std::pair<uint64_t, WaveStateInfo*>> waves);
 
 // Get the pointer of specified agent info by node from the agent link list.
-GPUAgentInfo* GetAgentFromList(uint64_t node);
+GPUAgentInfo* GetAgentFromList(uint32_t node);
 
 // Get the pointer of specified agent info by agent handle from the agent link list.
 GPUAgentInfo* GetAgentFromList(hsa_agent_t agentHandle);
@@ -84,17 +84,17 @@ GPUAgentInfo* GetAgentFromList(hsa_agent_t agentHandle);
 GPUAgentInfo* GetAgentByQueueID(uint64_t queueId);
 
 // Add queue info to the link list.
-DebugAgentStatus addQueueToList(uint64_t nodeId, QueueInfo* pQueue);
+DebugAgentStatus addQueueToList(uint32_t nodeId, QueueInfo* pQueue);
 
 // Get the pointer of specified queue info by node and queue id from the link list.
-QueueInfo* GetQueueFromList(uint64_t node, uint64_t queueId);
+QueueInfo* GetQueueFromList(uint32_t node, uint64_t queueId);
 QueueInfo* GetQueueFromList(uint64_t queueId);
 
 // Add executable info to the link list.
 DebugAgentStatus AddExecutableToList(ExecutableInfo* pExec);
 
 // Delete executable info from link list.
-void DeleteExecutableFromList(uint64_t exec_id);
+void DeleteExecutableFromList(uint64_t execId);
 
 // Add code object info to the link list.
 DebugAgentStatus AddCodeObjectToList(CodeObjectInfo* pCodeObject, ExecutableInfo * pExecutable);
@@ -106,7 +106,7 @@ void DeleteCodeObjectFromList(uint64_t addrLoaded, ExecutableInfo * pExecutable)
 void RemoveQueueFromList(uint64_t queueId);
 
 // Delete the wave states of a queue.
-void CleanUpQueueWaveState(uint64_t node, uint64_t queueId);
+void CleanUpQueueWaveState(uint32_t node, uint64_t queueId);
 
 // Return pointer to the end element of a link list
 template <class listType>
