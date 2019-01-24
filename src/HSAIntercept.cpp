@@ -366,7 +366,7 @@ HsaDebugAgentHsaExecutableDestroy(
     pEventInfo->eventType = DEBUG_AGENT_EVENT_EXECUTABLE_DESTORY;
     pEventInfo->eventData.executableDestory.executableId = executable.handle;
 
-    // Trigger GPU event breakpoint before remove it 
+    // Trigger GPU event breakpoint before remove it
     TriggerGPUEvent();
 
     // Remove loaded code object info of the deleted executable
@@ -501,8 +501,8 @@ AddCodeObjectInfoCallback(
         return status;
     }
 
-    // Query the agent of loaded code object and update node id of the executable, 
-    // since the agent is undefined when it is created. Assuming all the code objects of 
+    // Query the agent of loaded code object and update node id of the executable,
+    // since the agent is undefined when it is created. Assuming all the code objects of
     // an executable is for the same agent.
     hsa_agent_t loadedAgent;
     status = gs_OrigLoaderExtTable.hsa_ven_amd_loader_loaded_code_object_get_info(
@@ -521,6 +521,7 @@ AddCodeObjectInfoCallback(
     ((ExecutableInfo *)data)->nodeId = pAgent->nodeId;
 
     CodeObjectInfo* pList = new CodeObjectInfo;
+    pList->nodeId = pAgent->nodeId;
     pList->addrDelta = addrDelta;
     pList->addrLoaded = loadedBaseAddress;
     pList->sizeLoaded = loadedSize;

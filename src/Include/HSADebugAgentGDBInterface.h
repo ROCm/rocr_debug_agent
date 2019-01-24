@@ -67,6 +67,8 @@ typedef enum
 // Loaded code objects for ROCm-GDB to probe.
 typedef struct _CodeObjectInfo
 {
+    // Node id the code object is loaded to.
+    uint32_t nodeId;
     // Difference between the address in the ELF file and the addresses in memory.
     uint64_t addrDelta;
     // Absolute temp code object file path.
@@ -249,6 +251,15 @@ typedef struct
     EventData eventData;
 } DebugAgentEventInfo;
 
+// Debug trap handler buffer struct
+typedef struct _DebugTrapBuff
+{
+    uint64_t debugEventSignalHandle;
+    uint32_t numMaxBreakPoint;
+    uint32_t numCurrectBreakPoint;
+    uint64_t breakPointPC[AGENT_MAX_BREAKPOINT];
+} DebugTrapBuff;
+
 // Struct that maintains all debug info for ROCm-GDB to probe.
 typedef struct _RocmGpuDebug
 {
@@ -260,16 +271,9 @@ typedef struct _RocmGpuDebug
     ExecutableInfo* pExecutableList;
     // ROCm event caught by debug agent (only one event can be triggered at a time)
     DebugAgentEventInfo* pDebugAgentEvent;
+    // Debug trap buffer address.
+    DebugTrapBuff* pDebugTrapBuffer;
 } RocmGpuDebug;
-
-// Debug trap handler buffer struct
-typedef struct _DebugTrapBuff
-{
-    uint64_t debugEventSignalHandle;
-    uint32_t numMaxBreakPoint = AGENT_MAX_BREAKPOINT;
-    uint32_t numCurrectBreakPoint;
-    uint64_t breakPointPC[AGENT_MAX_BREAKPOINT];
-} DebugTrapBuff;
 
 /// GDB will install a breakpoint on this function that will be used when
 /// a GPU kernel breakpoint is hit.

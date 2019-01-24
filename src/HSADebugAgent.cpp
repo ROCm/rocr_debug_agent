@@ -76,7 +76,7 @@ hsa_executable_t debugTrapHandlerExecutable = {0};
 // Debug trap handler buffer
 DebugTrapBuff* pTrapHandlerBuffer = nullptr;
 
-// lock for access debug agenet 
+// lock for access debug agenet
 std::mutex debugAgentAccessLock;
 
 // Initial debug agent info link list
@@ -223,7 +223,7 @@ extern "C" bool OnLoad(void *pTable,
 extern "C" void OnUnload()
 {
     debugAgentAccessLock.lock();
-    
+
     AGENT_LOG("===== Unload ROC Debug Agent=====");
 
     DebugAgentStatus status = DEBUG_AGENT_STATUS_FAILURE;
@@ -304,7 +304,7 @@ static DebugAgentStatus AgentInitDebugInfo()
 
     hsa_status_t status = HSA_STATUS_SUCCESS;
 
-    _r_rocm_debug_info = {HSA_DEBUG_AGENT_VERSION, nullptr, nullptr, nullptr};
+    _r_rocm_debug_info = {HSA_DEBUG_AGENT_VERSION, nullptr, nullptr, nullptr, nullptr};
 
     GPUAgentInfo *pEndGPUAgentInfo = nullptr;
     status = hsa_iterate_agents(QueryAgentCallback, &(pEndGPUAgentInfo));
