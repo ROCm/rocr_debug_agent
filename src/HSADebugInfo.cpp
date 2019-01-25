@@ -481,7 +481,6 @@ GPUAgentInfo *GetAgentFromList(uint32_t nodeId)
         if (pList->nodeId == nodeId)
         {
             return pList;
-            break;
         }
         pList = pList->pNext;
     }
@@ -496,7 +495,6 @@ GPUAgentInfo *GetAgentFromList(hsa_agent_t agentHandle)
         if (pList->agent.handle == agentHandle.handle)
         {
             return pList;
-            break;
         }
         pList = pList->pNext;
     }
@@ -677,6 +675,20 @@ DebugAgentStatus AddCodeObjectToList(CodeObjectInfo *pCodeObject, ExecutableInfo
     gs_numCodeObject++;
 
     return agentStatus;
+}
+
+ExecutableInfo *GetExecutableFromList(uint64_t execId)
+{
+    ExecutableInfo *pListCurrent = _r_rocm_debug_info.pExecutableList;
+    while (pListCurrent != nullptr)
+    {
+        if (pListCurrent->executableId == execId)
+        {
+            return pListCurrent;
+        }
+        pListCurrent = pListCurrent->pNext;
+    }
+    return nullptr;
 }
 
 void DeleteExecutableFromList(uint64_t execId)

@@ -365,6 +365,15 @@ HsaDebugAgentHsaExecutableDestroy(
     DebugAgentEventInfo *pEventInfo = _r_rocm_debug_info.pDebugAgentEvent;
     pEventInfo->eventType = DEBUG_AGENT_EVENT_EXECUTABLE_DESTORY;
     pEventInfo->eventData.executableDestory.executableId = executable.handle;
+    ExecutableInfo *pExecInfo;
+    pExecInfo = GetExecutableFromList(executable.handle);
+    if (pExecInfo == nullptr)
+    {
+        AGENT_ERROR("Interception: Cannot find executable info when destroy.");
+        return HSA_STATUS_ERROR;
+    }
+
+    pEventInfo->eventData.executableDestory.executableHandle = (uint64_t)pExecInfo;
 
     // Trigger GPU event breakpoint before remove it
     TriggerGPUEvent();

@@ -214,12 +214,18 @@ typedef enum {
 
 union EventData {
     struct _EventExecutableCreate {
+        // FIXME: node id is not vaild, as code object can belong
+        // to different agent.
         uint32_t nodeId;
         uint64_t executableId;
         uint64_t executableHandle;
     } executableCreate;
     struct _EventExecutableDestory {
+        // FIXME: node id is not vaild, as code object can belong
+        // to different agent.
+        uint32_t nodeId;
         uint64_t executableId;
+        uint64_t executableHandle;
     } executableDestory;
     struct _EventMemoryFault {
         uint32_t nodeId;

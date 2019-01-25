@@ -93,6 +93,9 @@ QueueInfo* GetQueueFromList(uint64_t queueId);
 // Add executable info to the link list.
 DebugAgentStatus AddExecutableToList(ExecutableInfo* pExec);
 
+// Get the pointer of executable info by its id.
+ExecutableInfo *GetExecutableFromList(uint64_t execId);
+
 // Delete executable info from link list.
 void DeleteExecutableFromList(uint64_t execId);
 
