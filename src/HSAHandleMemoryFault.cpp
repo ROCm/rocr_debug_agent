@@ -65,10 +65,10 @@ HSADebugAgentHandleMemoryFault(hsa_amd_event_t event, void* pData)
     }
 
     debugAgentAccessLock.lock();
-    
+
     DebugAgentStatus status = DEBUG_AGENT_STATUS_SUCCESS;
     GPUAgentInfo* pAgent = GetAgentFromList(event.memory_fault.agent);
-    
+
     DebugAgentEventInfo *pEventInfo = _r_rocm_debug_info.pDebugAgentEvent;
     if (pEventInfo == nullptr)
     {
@@ -78,9 +78,9 @@ HSADebugAgentHandleMemoryFault(hsa_amd_event_t event, void* pData)
 
     // Update event info
     pEventInfo->eventType = DEBUG_AGENT_EVENT_MEMORY_FAULT;
-    pEventInfo->eventData.memoryFault.nodeId = pAgent->nodeId;
-    pEventInfo->eventData.memoryFault.virtualAddress = event.memory_fault.virtual_address;
-    pEventInfo->eventData.memoryFault.faultReasonMask = event.memory_fault.fault_reason_mask;
+    pEventInfo->eventData.eventMemoryFault.nodeId = pAgent->nodeId;
+    pEventInfo->eventData.eventMemoryFault.virtualAddress = event.memory_fault.virtual_address;
+    pEventInfo->eventData.eventMemoryFault.faultReasonMask = event.memory_fault.fault_reason_mask;
 
 
     if (g_gdbAttached)
@@ -122,7 +122,7 @@ static std::map<uint64_t, std::pair<uint64_t, WaveStateInfo*>> FindFaultyWaves()
 {
     std::map<uint64_t, std::pair<uint64_t, WaveStateInfo*>> faultyWaves;
     EventData memoryFaultInfo =_r_rocm_debug_info.pDebugAgentEvent->eventData;
-    GPUAgentInfo *pAgent = GetAgentFromList(memoryFaultInfo.memoryFault.nodeId);
+    GPUAgentInfo *pAgent = GetAgentFromList(memoryFaultInfo.eventMemoryFault.nodeId);
 
 
     if (pAgent->agentStatus == AGENT_STATUS_UNSUPPORTED)
@@ -171,43 +171,43 @@ static void PrintVMFaultInfo()
         AGENT_ERROR("Can not find memory fault info when print");
         return;
     }
-     
+
     if (_r_rocm_debug_info.pDebugAgentEvent->eventType != DEBUG_AGENT_EVENT_MEMORY_FAULT)
     {
         AGENT_ERROR("Wrong event type when print memory fault info");
         return;
     }
-    
+
     EventData memoryFaultInfo =_r_rocm_debug_info.pDebugAgentEvent->eventData;
     std::stringstream err;
 
-    uint64_t fault_page_idx = memoryFaultInfo.memoryFault.virtualAddress >> 0xC;
+    uint64_t fault_page_idx = memoryFaultInfo.eventMemoryFault.virtualAddress >> 0xC;
 
     err << "\n";
-    err << "Memory access fault at GPU Node: " << memoryFaultInfo.memoryFault.nodeId <<std::endl;
+    err << "Memory access fault at GPU Node: " << memoryFaultInfo.eventMemoryFault.nodeId <<std::endl;
     err << "Address: 0x" << std::hex << std::uppercase << fault_page_idx << "xxx (";
 
-    if ((memoryFaultInfo.memoryFault.faultReasonMask & 0x00000001) > 0)
+    if ((memoryFaultInfo.eventMemoryFault.faultReasonMask & 0x00000001) > 0)
     {
         err << "page not present;";
     }
-    if ((memoryFaultInfo.memoryFault.faultReasonMask & 0x00000010) > 0)
+    if ((memoryFaultInfo.eventMemoryFault.faultReasonMask & 0x00000010) > 0)
     {
         err << "write access to a read-only page;";
     }
-    if ((memoryFaultInfo.memoryFault.faultReasonMask & 0x00000100) > 0)
+    if ((memoryFaultInfo.eventMemoryFault.faultReasonMask & 0x00000100) > 0)
     {
         err << "execute access to a non-executable page;";
     }
-    if ((memoryFaultInfo.memoryFault.faultReasonMask & 0x00001000) > 0)
+    if ((memoryFaultInfo.eventMemoryFault.faultReasonMask & 0x00001000) > 0)
     {
         err << "access to host access only;";
     }
-    if ((memoryFaultInfo.memoryFault.faultReasonMask & 0x00010000) > 0)
+    if ((memoryFaultInfo.eventMemoryFault.faultReasonMask & 0x00010000) > 0)
     {
         err << "uncorrectable ECC failure;";
     }
-    if ((memoryFaultInfo.memoryFault.faultReasonMask & 0x00100000) > 0)
+    if ((memoryFaultInfo.eventMemoryFault.faultReasonMask & 0x00100000) > 0)
     {
         err << "can't determine the exact fault address;";
     }

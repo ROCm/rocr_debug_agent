@@ -254,7 +254,7 @@ HsaDebugAgentHsaQueueDestroy(hsa_queue_t* queue)
 
     if (status != HSA_STATUS_SUCCESS)
     {
-        AGENT_ERROR("Interception: Error when destory queue: " << GetHsaStatusString(status));
+        AGENT_ERROR("Interception: Error when destroy queue: " << GetHsaStatusString(status));
         return status;
     }
 
@@ -340,8 +340,8 @@ HsaDebugAgentHsaExecutableFreeze(
     // Update event info, nodeId will be updated when update code object info
     DebugAgentEventInfo *pEventInfo = _r_rocm_debug_info.pDebugAgentEvent;
     pEventInfo->eventType = DEBUG_AGENT_EVENT_EXECUTABLE_CREATE;
-    pEventInfo->eventData.executableCreate.executableId = executable.handle;
-    pEventInfo->eventData.executableCreate.executableHandle = (uint64_t)pExec;
+    pEventInfo->eventData.eventExecutableCreate.executableId = executable.handle;
+    pEventInfo->eventData.eventExecutableCreate.executableHandle = (uint64_t)pExec;
 
     // Trigger GPU event breakpoint
     TriggerGPUEvent();
@@ -363,8 +363,8 @@ HsaDebugAgentHsaExecutableDestroy(
 
     // Update event info
     DebugAgentEventInfo *pEventInfo = _r_rocm_debug_info.pDebugAgentEvent;
-    pEventInfo->eventType = DEBUG_AGENT_EVENT_EXECUTABLE_DESTORY;
-    pEventInfo->eventData.executableDestory.executableId = executable.handle;
+    pEventInfo->eventType = DEBUG_AGENT_EVENT_EXECUTABLE_DESTROY;
+    pEventInfo->eventData.eventExecutableDestroy.executableId = executable.handle;
     ExecutableInfo *pExecInfo;
     pExecInfo = GetExecutableFromList(executable.handle);
     if (pExecInfo == nullptr)
@@ -373,7 +373,7 @@ HsaDebugAgentHsaExecutableDestroy(
         return HSA_STATUS_ERROR;
     }
 
-    pEventInfo->eventData.executableDestory.executableHandle = (uint64_t)pExecInfo;
+    pEventInfo->eventData.eventExecutableDestroy.executableHandle = (uint64_t)pExecInfo;
 
     // Trigger GPU event breakpoint before remove it
     TriggerGPUEvent();

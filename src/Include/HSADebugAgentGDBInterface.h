@@ -41,6 +41,8 @@
 // Max breakpoint number based on the trap buffer size (0x1000)
 #define AGENT_MAX_BREAKPOINT 510
 
+#include "hsa.h"
+
 #pragma pack(push,1)
 extern "C" {
 
@@ -202,8 +204,8 @@ typedef enum {
     DEBUG_AGENT_EVENT_INVALID                = 0x000,
     // Debug agent intercept executable create
     DEBUG_AGENT_EVENT_EXECUTABLE_CREATE      = 0x001,
-    // Debug agent intercept executable destory
-    DEBUG_AGENT_EVENT_EXECUTABLE_DESTORY     = 0x002,
+    // Debug agent intercept executable destroy
+    DEBUG_AGENT_EVENT_EXECUTABLE_DESTROY     = 0x002,
     // Debug agent get memory fault
     DEBUG_AGENT_EVENT_MEMORY_FAULT           = 0x003,
     // Debug agent get queue error
@@ -219,14 +221,14 @@ union EventData {
         uint32_t nodeId;
         uint64_t executableId;
         uint64_t executableHandle;
-    } executableCreate;
-    struct _EventExecutableDestory {
+    } eventExecutableCreate;
+    struct _EventExecutableDestroy {
         // FIXME: node id is not vaild, as code object can belong
         // to different agent.
         uint32_t nodeId;
         uint64_t executableId;
         uint64_t executableHandle;
-    } executableDestory;
+    } eventExecutableDestroy;
     struct _EventMemoryFault {
         uint32_t nodeId;
         uint64_t virtualAddress;
@@ -239,15 +241,15 @@ union EventData {
         // 0x00010000 ECC failure (if supported by HW).
         // 0x00100000 Can't determine the exact fault address.
         uint32_t faultReasonMask;
-    } memoryFault;
+    } eventMemoryFault;
     struct _EventQueueError {
         uint32_t nodeId;
         uint64_t queueId;
         uint64_t queueStatus;
-    } queueError;
+    } eventQueueError;
     struct _EventUserBreakpoint {
         uint32_t nodeId;
-    } userBreakpoint;
+    } eventUserBreakpoint;
 };
 
 // ROCm event info reported by debug agent

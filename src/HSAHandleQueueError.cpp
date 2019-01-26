@@ -71,9 +71,9 @@ void HSADebugAgentHandleQueueError(hsa_status_t status, hsa_queue_t* pHsaQueueT,
     // Update the queue error event in event info
     DebugAgentEventInfo *pEventInfo = _r_rocm_debug_info.pDebugAgentEvent;
     pEventInfo->eventType = DEBUG_AGENT_EVENT_QUEUE_ERROR;
-    pEventInfo->eventData.queueError.nodeId = pAgent->nodeId;
-    pEventInfo->eventData.queueError.queueId = pHsaQueueT->id;
-    pEventInfo->eventData.queueError.queueStatus = status;
+    pEventInfo->eventData.eventQueueError.nodeId = pAgent->nodeId;
+    pEventInfo->eventData.eventQueueError.queueId = pHsaQueueT->id;
+    pEventInfo->eventData.eventQueueError.queueStatus = status;
 
     if (g_gdbAttached)
     {
