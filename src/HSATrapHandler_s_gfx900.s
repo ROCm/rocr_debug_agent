@@ -100,8 +100,8 @@ L_NOT_TRAP:
 
 L_SINGLE_STEP:
   // If single-step notification enabled then signal debugger.
-  s_and_b32            ttmp2, ttmp11, TTMP11_SINGLE_STEP_DISABLED_MASK
-  s_cbranch_scc0       L_SEND_DEBUG_SIGNAL
+//  s_and_b32            ttmp2, ttmp11, TTMP11_SINGLE_STEP_DISABLED_MASK
+//  s_cbranch_scc0       L_SEND_DEBUG_SIGNAL
 
   // Mask non-PC bits for conditional breakpoint tests.
   s_and_b32            ttmp1, ttmp1, SQ_WAVE_PC_HI_ADDRESS_MASK

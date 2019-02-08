@@ -73,9 +73,6 @@ hsa_code_object_reader_t debugTrapHandlerCodeObjectReader = {0};
 // Debug trap handler executable
 hsa_executable_t debugTrapHandlerExecutable = {0};
 
-// Debug trap handler buffer
-DebugTrapBuff* pTrapHandlerBuffer = nullptr;
-
 // lock for access debug agenet
 std::mutex debugAgentAccessLock;
 
@@ -123,7 +120,6 @@ extern "C" bool OnLoad(void *pTable,
                        uint64_t runtimeVersion, uint64_t failedToolCount,
                        const char *const *pFailedToolNames)
 {
-    debugAgentAccessLock.lock();
     g_debugAgentInitialSuccess = false;
     DebugAgentStatus status = DEBUG_AGENT_STATUS_FAILURE;
     uint32_t tableVersionMajor =
@@ -136,7 +132,6 @@ extern "C" bool OnLoad(void *pTable,
     if (status != DEBUG_AGENT_STATUS_SUCCESS)
     {
         AGENT_ERROR("Cannot initialize logging");
-        debugAgentAccessLock.unlock();
         return false;
     }
 
@@ -146,7 +141,6 @@ extern "C" bool OnLoad(void *pTable,
     if (status != DEBUG_AGENT_STATUS_SUCCESS)
     {
         AGENT_ERROR("Version mismatch");
-        debugAgentAccessLock.unlock();
         return false;
     }
 
@@ -154,7 +148,6 @@ extern "C" bool OnLoad(void *pTable,
     if (tableVersionMajor < 1 || tableVersionMinor < 48)
     {
         AGENT_ERROR("Unsupported runtime version");
-        debugAgentAccessLock.unlock();
         return false;
     }
 
@@ -170,7 +163,6 @@ extern "C" bool OnLoad(void *pTable,
     if (status != DEBUG_AGENT_STATUS_SUCCESS)
     {
         AGENT_ERROR("Cannot initialize debug info");
-        debugAgentAccessLock.unlock();
         return false;
     }
 
@@ -178,7 +170,6 @@ extern "C" bool OnLoad(void *pTable,
     if (status != DEBUG_AGENT_STATUS_SUCCESS)
     {
         AGENT_ERROR("Cannot create code object directory");
-        debugAgentAccessLock.unlock();
         return false;
     }
 
@@ -187,7 +178,6 @@ extern "C" bool OnLoad(void *pTable,
     if (status != DEBUG_AGENT_STATUS_SUCCESS)
     {
         AGENT_ERROR("Interception: Cannot set GPU event handler");
-        debugAgentAccessLock.unlock();
         return false;
     }
 
@@ -196,18 +186,17 @@ extern "C" bool OnLoad(void *pTable,
     if (status != DEBUG_AGENT_STATUS_SUCCESS)
     {
         AGENT_ERROR("Cannot initialize dispatch tables");
-        debugAgentAccessLock.unlock();
         return false;
     }
 
-    // Not available for ROCm1.9
+    // Set debug trap after intercept is initialed to catch internal
+    // runtime queue create
     if (g_gdbAttached)
     {
         status = AgentSetDebugTrapHandler();
         if (status != DEBUG_AGENT_STATUS_SUCCESS)
         {
             AGENT_ERROR("Cannot set debug trap handler");
-            debugAgentAccessLock.unlock();
             return false;
         }
     }
@@ -216,14 +205,11 @@ extern "C" bool OnLoad(void *pTable,
 
     AGENT_LOG("===== Finished Loading ROC Debug Agent=====");
     g_debugAgentInitialSuccess = true;
-    debugAgentAccessLock.unlock();
     return true;
 }
 
 extern "C" void OnUnload()
 {
-    debugAgentAccessLock.lock();
-
     AGENT_LOG("===== Unload ROC Debug Agent=====");
 
     DebugAgentStatus status = DEBUG_AGENT_STATUS_FAILURE;
@@ -244,8 +230,6 @@ extern "C" void OnUnload()
     {
         AGENT_ERROR("OnUnload: Cannot close Logging");
     }
-
-    debugAgentAccessLock.unlock();
 }
 
 // Check the version based on the provided by HSA runtime's OnLoad function.
@@ -544,6 +528,8 @@ static DebugAgentStatus AgentSetDebugTrapHandler()
         uint64_t trapHandlerBufferSize = 0;
         const char* pEntryPointName = "debug_trap_handler";
         uint64_t kernelCodeAddress = 0;
+        DebugTrapBuff* pTrapHandlerBuffer = nullptr;
+
         hsa_region_t kernargSegment = {0};
         hsa_executable_symbol_t symbol = {0};
         hsa_status_t status = HSA_STATUS_SUCCESS;
@@ -558,7 +544,7 @@ static DebugAgentStatus AgentSetDebugTrapHandler()
             return DEBUG_AGENT_STATUS_FAILURE;
         }
 
-        status = hsa_code_object_reader_create_from_memory(
+        status = gs_OrigCoreApiTable.hsa_code_object_reader_create_from_memory_fn(
                 HSATrapHandler, sizeof(HSATrapHandler), &debugTrapHandlerCodeObjectReader);
         if (status != HSA_STATUS_SUCCESS)
         {
@@ -567,7 +553,7 @@ static DebugAgentStatus AgentSetDebugTrapHandler()
         }
 
         // Create executable.
-        status = hsa_executable_create_alt(
+        status = gs_OrigCoreApiTable.hsa_executable_create_alt_fn(
             HSA_PROFILE_FULL, HSA_DEFAULT_FLOAT_ROUNDING_MODE_DEFAULT, NULL, &debugTrapHandlerExecutable);
         if (status != HSA_STATUS_SUCCESS)
         {
@@ -576,7 +562,7 @@ static DebugAgentStatus AgentSetDebugTrapHandler()
         }
 
         // Load debug trap handler code object
-        status = hsa_executable_load_agent_code_object(
+        status = gs_OrigCoreApiTable.hsa_executable_load_agent_code_object_fn(
                 debugTrapHandlerExecutable, pAgent->agent, debugTrapHandlerCodeObjectReader, NULL, NULL);
         if (status != HSA_STATUS_SUCCESS)
         {
@@ -585,7 +571,7 @@ static DebugAgentStatus AgentSetDebugTrapHandler()
         }
 
         // freeze executable
-        status = hsa_executable_freeze(debugTrapHandlerExecutable, NULL);
+        status = gs_OrigCoreApiTable.hsa_executable_freeze_fn(debugTrapHandlerExecutable, NULL);
         if (status != HSA_STATUS_SUCCESS)
         {
             AGENT_ERROR("Can freeze debug trap handler executable.");
@@ -593,7 +579,7 @@ static DebugAgentStatus AgentSetDebugTrapHandler()
         }
 
         // find the kernel symbol.
-        status = hsa_executable_get_symbol_by_name(
+        status = gs_OrigCoreApiTable.hsa_executable_get_symbol_by_name_fn(
                 debugTrapHandlerExecutable, pEntryPointName, &(pAgent->agent), &symbol);
         if (status != HSA_STATUS_SUCCESS)
         {
@@ -601,7 +587,7 @@ static DebugAgentStatus AgentSetDebugTrapHandler()
             return DEBUG_AGENT_STATUS_FAILURE;
         }
 
-        status = hsa_executable_symbol_get_info(
+        status = gs_OrigCoreApiTable.hsa_executable_symbol_get_info_fn(
                 symbol, HSA_EXECUTABLE_SYMBOL_INFO_KERNEL_OBJECT, &kernelCodeAddress);
         if (status != HSA_STATUS_SUCCESS)
         {
@@ -621,7 +607,7 @@ static DebugAgentStatus AgentSetDebugTrapHandler()
             return DEBUG_AGENT_STATUS_FAILURE;
         }
 
-        status = hsa_signal_create(
+        status = gs_OrigCoreApiTable.hsa_signal_create_fn(
                 0, 0, &(pAgent->agent), &debugTrapSignal);
         if (status != HSA_STATUS_SUCCESS)
         {
@@ -632,7 +618,7 @@ static DebugAgentStatus AgentSetDebugTrapHandler()
         // find kernarg segment
         // TODO: put the trap buffer in device memory for efficiency
         //       use the copy APIs to update the value
-        status = hsa_agent_iterate_regions(
+        status = gs_OrigCoreApiTable.hsa_agent_iterate_regions_fn(
                 pAgent->agent, FindKernargSegment, &kernargSegment);
         if (!kernargSegment.handle | (status != HSA_STATUS_SUCCESS)) {
             AGENT_ERROR("Cannot find kernarg segment for trap buffer.");
@@ -640,13 +626,14 @@ static DebugAgentStatus AgentSetDebugTrapHandler()
         }
 
         // allocate memory in kernarg segment for trap buffer
-        status = hsa_memory_allocate(
+        status = gs_OrigCoreApiTable.hsa_memory_allocate_fn(
                 kernargSegment, sizeof(DebugTrapBuff), (void**)&pTrapHandlerBuffer);
         if (!kernargSegment.handle | (status != HSA_STATUS_SUCCESS)) {
             AGENT_ERROR("Cannot allocate memory for trap buffer.");
             return DEBUG_AGENT_STATUS_FAILURE;
         }
         *pTrapHandlerBuffer = {};
+        _r_rocm_debug_info.pDebugTrapBuffer = pTrapHandlerBuffer;
 
         pTrapHandlerBuffer->debugEventSignalHandle = debugTrapSignal.handle;
         if(!IsMultipleOf(pTrapHandlerBuffer, 0x100))
@@ -682,7 +669,7 @@ static DebugAgentStatus AgentSetDebugTrapHandler()
         }
 
         // Bind trap handler event signal in runtime
-        status = hsa_amd_signal_async_handler(
+        status = gs_OrigExtApiTable.hsa_amd_signal_async_handler_fn(
                 debugTrapSignal, HSA_SIGNAL_CONDITION_NE, 0,
                 HSADebugTrapSignalHandler, NULL);
         if (status != HSA_STATUS_SUCCESS)
@@ -762,9 +749,9 @@ static DebugAgentStatus AgentUnsetDebugTrapHandler()
             }
         }
 
-        if (pTrapHandlerBuffer)
+        if (_r_rocm_debug_info.pDebugTrapBuffer)
         {
-            status = gs_OrigCoreApiTable.hsa_memory_free_fn((void*)pTrapHandlerBuffer);
+            status = gs_OrigCoreApiTable.hsa_memory_free_fn((void*)_r_rocm_debug_info.pDebugTrapBuffer);
             if (status != HSA_STATUS_SUCCESS)
             {
                 AGENT_ERROR("Cannot destroy debug event signal.");

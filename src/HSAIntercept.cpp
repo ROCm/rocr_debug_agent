@@ -186,7 +186,6 @@ HsaDebugAgentHsaQueueCreate(
         uint32_t group_segment_size,
         hsa_queue_t** queue)
 {
-    debugAgentAccessLock.lock();
     AGENT_LOG("Interception: hsa_queue_create");
 
     hsa_status_t status = HSA_STATUS_SUCCESS;
@@ -223,33 +222,34 @@ HsaDebugAgentHsaQueueCreate(
         return status;
     }
 
-    pNewQueueInfo->queue = (*queue);
-    pNewQueueInfo->queueId = (**queue).id;
-
-    DebugAgentStatus agentStatus = addQueueToList(agentNode, pNewQueueInfo);
-
-    if (agentStatus != DEBUG_AGENT_STATUS_SUCCESS)
     {
-        AGENT_ERROR("Interception: Cannot add queue info to link list");
-        return HSA_STATUS_ERROR;
+        std::lock_guard<std::mutex> lock(debugAgentAccessLock);
+        pNewQueueInfo->queue = (*queue);
+        pNewQueueInfo->queueId = (**queue).id;
+
+        DebugAgentStatus agentStatus = addQueueToList(agentNode, pNewQueueInfo);
+
+        if (agentStatus != DEBUG_AGENT_STATUS_SUCCESS)
+        {
+            AGENT_ERROR("Interception: Cannot add queue info to link list");
+            return HSA_STATUS_ERROR;
+        }
     }
 
     AGENT_LOG("Interception: Exit hsa_queue_create");
-    debugAgentAccessLock.unlock();
-
     return status;
 }
 
 static hsa_status_t
 HsaDebugAgentHsaQueueDestroy(hsa_queue_t* queue)
 {
-    debugAgentAccessLock.lock();
-    AGENT_LOG("Interception: hsa_queue_destroy");
+    {
+        std::lock_guard<std::mutex> lock(debugAgentAccessLock);
+        AGENT_LOG("Interception: hsa_queue_destroy");
+        RemoveQueueFromList(queue->id);
+    }
 
     hsa_status_t status = HSA_STATUS_SUCCESS;
-
-    RemoveQueueFromList(queue->id);
-
     status = gs_OrigCoreApiTable.hsa_queue_destroy_fn(queue);
 
     if (status != HSA_STATUS_SUCCESS)
@@ -259,7 +259,6 @@ HsaDebugAgentHsaQueueDestroy(hsa_queue_t* queue)
     }
 
     AGENT_LOG("Interception: Exit hsa_queue_destroy");
-    debugAgentAccessLock.unlock();
 
     return status;
 
@@ -270,6 +269,7 @@ HsaDebugAgentInternalQueueCreateCallback(const hsa_queue_t* queue,
                                          hsa_agent_t agent,
                                          void* data)
 {
+    std::lock_guard<std::mutex> lock(debugAgentAccessLock);
     AGENT_LOG("Interception: internal queue create");
 
     hsa_status_t status = HSA_STATUS_SUCCESS;
@@ -306,7 +306,6 @@ HsaDebugAgentHsaExecutableFreeze(
         hsa_executable_t executable,
         const char *options)
 {
-    debugAgentAccessLock.lock();
     AGENT_LOG("Interception: hsa_executable_freeze");
 
     hsa_status_t status = HSA_STATUS_SUCCESS;
@@ -319,36 +318,38 @@ HsaDebugAgentHsaExecutableFreeze(
         return status;
     }
 
-    // Create and add exec info to _r_rocm_debug_info
-    ExecutableInfo *pExec;
-    pExec = AddExecutableInfo(executable);
-    if (pExec == nullptr)
     {
-        AGENT_ERROR("Interception: Cannot add executable info");
-        return HSA_STATUS_ERROR;
+        std::lock_guard<std::mutex> lock(debugAgentAccessLock);
+
+        // Create and add exec info to _r_rocm_debug_info
+        ExecutableInfo *pExec;
+        pExec = AddExecutableInfo(executable);
+        if (pExec == nullptr)
+        {
+            AGENT_ERROR("Interception: Cannot add executable info");
+            return HSA_STATUS_ERROR;
+        }
+
+        // Get loaded code object info of the freezed executable
+        // and update _r_rocm_debug_info
+        status = AddExecCodeObjectInfo(executable, pExec);
+        if (status != HSA_STATUS_SUCCESS)
+        {
+            AGENT_ERROR("Interception: Cannot add code object info");
+            return status;
+        }
+
+        // Update event info, nodeId will be updated when update code object info
+        DebugAgentEventInfo *pEventInfo = _r_rocm_debug_info.pDebugAgentEvent;
+        pEventInfo->eventType = DEBUG_AGENT_EVENT_EXECUTABLE_CREATE;
+        pEventInfo->eventData.eventExecutableCreate.executableId = executable.handle;
+        pEventInfo->eventData.eventExecutableCreate.executableHandle = (uint64_t)pExec;
+
+        // Trigger GPU event breakpoint
+        TriggerGPUEvent();
     }
-
-    // Get loaded code object info of the freezed executable
-    // and update _r_rocm_debug_info
-    status = AddExecCodeObjectInfo(executable, pExec);
-    if (status != HSA_STATUS_SUCCESS)
-    {
-        AGENT_ERROR("Interception: Cannot add code object info");
-        return status;
-    }
-
-    // Update event info, nodeId will be updated when update code object info
-    DebugAgentEventInfo *pEventInfo = _r_rocm_debug_info.pDebugAgentEvent;
-    pEventInfo->eventType = DEBUG_AGENT_EVENT_EXECUTABLE_CREATE;
-    pEventInfo->eventData.eventExecutableCreate.executableId = executable.handle;
-    pEventInfo->eventData.eventExecutableCreate.executableHandle = (uint64_t)pExec;
-
-    // Trigger GPU event breakpoint
-    TriggerGPUEvent();
 
     AGENT_LOG("Interception: Exit hsa_executable_freeze");
-    debugAgentAccessLock.unlock();
-
     return status;
 }
 
@@ -356,32 +357,33 @@ static hsa_status_t
 HsaDebugAgentHsaExecutableDestroy(
         hsa_executable_t executable)
 {
-    debugAgentAccessLock.unlock();
-    AGENT_LOG("Interception: hsa_executable_destroy");
-
-    hsa_status_t status = HSA_STATUS_SUCCESS;
-
-    // Update event info
-    DebugAgentEventInfo *pEventInfo = _r_rocm_debug_info.pDebugAgentEvent;
-    pEventInfo->eventType = DEBUG_AGENT_EVENT_EXECUTABLE_DESTROY;
-    pEventInfo->eventData.eventExecutableDestroy.executableId = executable.handle;
-    ExecutableInfo *pExecInfo;
-    pExecInfo = GetExecutableFromList(executable.handle);
-    if (pExecInfo == nullptr)
     {
-        AGENT_ERROR("Interception: Cannot find executable info when destroy.");
-        return HSA_STATUS_ERROR;
+        std::lock_guard<std::mutex> lock(debugAgentAccessLock);
+        AGENT_LOG("Interception: hsa_executable_destroy");
+
+        // Update event info
+        DebugAgentEventInfo *pEventInfo = _r_rocm_debug_info.pDebugAgentEvent;
+        pEventInfo->eventType = DEBUG_AGENT_EVENT_EXECUTABLE_DESTROY;
+        pEventInfo->eventData.eventExecutableDestroy.executableId = executable.handle;
+        ExecutableInfo *pExecInfo;
+        pExecInfo = GetExecutableFromList(executable.handle);
+        if (pExecInfo == nullptr)
+        {
+            AGENT_ERROR("Interception: Cannot find executable info when destroy.");
+            return HSA_STATUS_ERROR;
+        }
+
+        pEventInfo->eventData.eventExecutableDestroy.executableHandle = (uint64_t)pExecInfo;
+
+        // Trigger GPU event breakpoint before remove it
+        TriggerGPUEvent();
+
+        // Remove loaded code object info of the deleted executable
+        // and update _r_rocm_debug_info
+        DeleteExecutableFromList(executable.handle);
     }
 
-    pEventInfo->eventData.eventExecutableDestroy.executableHandle = (uint64_t)pExecInfo;
-
-    // Trigger GPU event breakpoint before remove it
-    TriggerGPUEvent();
-
-    // Remove loaded code object info of the deleted executable
-    // and update _r_rocm_debug_info
-    DeleteExecutableFromList(executable.handle);
-
+    hsa_status_t status = HSA_STATUS_SUCCESS;
     status = gs_OrigCoreApiTable.hsa_executable_destroy_fn(
             executable);
     if (status != HSA_STATUS_SUCCESS)
@@ -389,9 +391,7 @@ HsaDebugAgentHsaExecutableDestroy(
         AGENT_ERROR("Interception: Cannot destroy executable");
         return status;
     }
-
     AGENT_LOG("Interception: Exit hsa_executable_destroy");
-    debugAgentAccessLock.unlock();
 
     return status;
 }

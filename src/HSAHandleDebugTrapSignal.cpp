@@ -47,12 +47,19 @@ bool HSADebugTrapSignalHandler(hsa_signal_value_t signalValue, void* arg)
         return false;
     }
 
-    debugAgentAccessLock.lock();
-    
-    PreemptAllQueues();
-    TriggerGPUUserBreakpoint();
-    ResumeAllQueues();
-    
-    debugAgentAccessLock.unlock();
+    {
+        std::lock_guard<std::mutex> lock(debugAgentAccessLock);
+        PreemptAllQueues();
+
+        // Update event info, nodeId will be updated when update code object info
+        DebugAgentEventInfo *pEventInfo = _r_rocm_debug_info.pDebugAgentEvent;
+        pEventInfo->eventType = DEBUG_AGENT_EVENT_USER_BREAKPOINT;
+        // No other info about the brekapoint is available at this point.
+        // GDB needs to figure out the info.
+
+        TriggerGPUUserBreakpoint();
+        ResumeAllQueues();
+    }
+
     return true;
 }

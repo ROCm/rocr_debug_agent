@@ -61,35 +61,36 @@ void HSADebugAgentHandleQueueError(hsa_status_t status, hsa_queue_t* pHsaQueueT,
         return;
     }
 
-    debugAgentAccessLock.lock();
-
-    GPUAgentInfo* pAgent = GetAgentByQueueID(pHsaQueueT->id);
-    PreemptAgentQueues(pAgent);
     QueueInfo* pQueue = (QueueInfo*)pData;
-    pQueue->queueStatus = status;
-
-    // Update the queue error event in event info
-    DebugAgentEventInfo *pEventInfo = _r_rocm_debug_info.pDebugAgentEvent;
-    pEventInfo->eventType = DEBUG_AGENT_EVENT_QUEUE_ERROR;
-    pEventInfo->eventData.eventQueueError.nodeId = pAgent->nodeId;
-    pEventInfo->eventData.eventQueueError.queueId = pHsaQueueT->id;
-    pEventInfo->eventData.eventQueueError.queueStatus = status;
-
-    if (g_gdbAttached)
     {
-        // GDB breakpoint, it triggers GDB to probe wave state info.
-        TriggerGPUEvent();
+        std::lock_guard<std::mutex> lock(debugAgentAccessLock);
+
+        GPUAgentInfo* pAgent = GetAgentByQueueID(pHsaQueueT->id);
+        PreemptAgentQueues(pAgent);
+        pQueue->queueStatus = status;
+
+        // Update the queue error event in event info
+        DebugAgentEventInfo *pEventInfo = _r_rocm_debug_info.pDebugAgentEvent;
+        pEventInfo->eventType = DEBUG_AGENT_EVENT_QUEUE_ERROR;
+        pEventInfo->eventData.eventQueueError.nodeId = pAgent->nodeId;
+        pEventInfo->eventData.eventQueueError.queueId = pHsaQueueT->id;
+        pEventInfo->eventData.eventQueueError.queueStatus = status;
+
+        if (g_gdbAttached)
+        {
+            // GDB breakpoint, it triggers GDB to probe wave state info.
+            TriggerGPUEvent();
+        }
+        else
+        {
+            std::map<uint64_t, std::pair<uint64_t, WaveStateInfo*>> waves =
+                FindWavesByQueue(pQueue);
+            PrintQueueErrorInfo(status, pQueue);
+            PrintWaves(pAgent, waves);
+        }
+        // resume all quueues in HSA_Status_success
+        ResumeAgentQueues(pAgent);
     }
-    else
-    {
-        std::map<uint64_t, std::pair<uint64_t, WaveStateInfo*>> waves =
-            FindWavesByQueue(pQueue);
-        PrintQueueErrorInfo(status, pQueue);
-        PrintWaves(pAgent, waves);
-    }
-    // resume all quueues in HSA_Status_success
-    ResumeAgentQueues(pAgent);
-    debugAgentAccessLock.unlock();
 
     // Call the original callback registered when create queue in runtime
     if (pQueue->callback != nullptr)

@@ -81,35 +81,36 @@ void INThandler(int sig)
         std::abort();
     }
 
-    debugAgentAccessLock.lock();
+    {
+        std::lock_guard<std::mutex> lock(debugAgentAccessLock);
 
-    if (sig == SIGINT)
-    {
-        signal(sig, SIG_IGN);
-        printf("\nDumping wave state due to SIGINT\n\n");
-    }
-    else if (sig == SIGTERM)
-    {
-        signal(sig, SIG_IGN);
-        printf("\nDumping wave state due to SIGTERM\n\n");
-    }
-
-    GPUAgentInfo *pAgent = _r_rocm_debug_info.pAgentList;
-    while (pAgent != nullptr)
-    {
-        DebugAgentStatus status = DEBUG_AGENT_STATUS_SUCCESS;
-        status = PreemptAgentQueues(pAgent);
-        if (status != DEBUG_AGENT_STATUS_SUCCESS)
+        if (sig == SIGINT)
         {
-            AGENT_ERROR("Cannot get queue preemption.");
+            signal(sig, SIG_IGN);
+            printf("\nDumping wave state due to SIGINT\n\n");
         }
-        std::map<uint64_t, std::pair<uint64_t, WaveStateInfo *>> waves = FindWavesAllQueues();
-        PrintWaves(pAgent, waves);
-        pAgent = pAgent->pNext;
-    }
+        else if (sig == SIGTERM)
+        {
+            signal(sig, SIG_IGN);
+            printf("\nDumping wave state due to SIGTERM\n\n");
+        }
 
-    debugAgentAccessLock.unlock();
-    std::abort();
+        GPUAgentInfo *pAgent = _r_rocm_debug_info.pAgentList;
+        while (pAgent != nullptr)
+        {
+            DebugAgentStatus status = DEBUG_AGENT_STATUS_SUCCESS;
+            status = PreemptAgentQueues(pAgent);
+            if (status != DEBUG_AGENT_STATUS_SUCCESS)
+            {
+                AGENT_ERROR("Cannot get queue preemption.");
+            }
+            std::map<uint64_t, std::pair<uint64_t, WaveStateInfo *>> waves = FindWavesAllQueues();
+            PrintWaves(pAgent, waves);
+            pAgent = pAgent->pNext;
+        }
+
+        std::abort();
+    }
 }
 
 static std::map<uint64_t, std::pair<uint64_t, WaveStateInfo *>> FindWavesAllQueues()

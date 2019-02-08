@@ -64,57 +64,57 @@ HSADebugAgentHandleMemoryFault(hsa_amd_event_t event, void* pData)
         return HSA_STATUS_ERROR;
     }
 
-    debugAgentAccessLock.lock();
-
-    DebugAgentStatus status = DEBUG_AGENT_STATUS_SUCCESS;
-    GPUAgentInfo* pAgent = GetAgentFromList(event.memory_fault.agent);
-
-    DebugAgentEventInfo *pEventInfo = _r_rocm_debug_info.pDebugAgentEvent;
-    if (pEventInfo == nullptr)
     {
-        AGENT_ERROR("Can not locate event info in _r_rocm_debug_info");
-        return HSA_STATUS_ERROR;
-    }
+        std::lock_guard<std::mutex> lock(debugAgentAccessLock);
 
-    // Update event info
-    pEventInfo->eventType = DEBUG_AGENT_EVENT_MEMORY_FAULT;
-    pEventInfo->eventData.eventMemoryFault.nodeId = pAgent->nodeId;
-    pEventInfo->eventData.eventMemoryFault.virtualAddress = event.memory_fault.virtual_address;
-    pEventInfo->eventData.eventMemoryFault.faultReasonMask = event.memory_fault.fault_reason_mask;
+        DebugAgentStatus status = DEBUG_AGENT_STATUS_SUCCESS;
+        GPUAgentInfo* pAgent = GetAgentFromList(event.memory_fault.agent);
 
-
-    if (g_gdbAttached)
-    {
-        // GDB breakpoint, it triggers GDB to probe wave state info.
-        TriggerGPUEvent();
-    }
-    else
-    {
-        // TODO: Get all waves of all agents, force preempt the active ones.
-        // Get all the waves for the faulty agent.
-        QueueInfo* pQueue = pAgent->pQueueList;
-        while (pQueue != nullptr)
+        DebugAgentEventInfo *pEventInfo = _r_rocm_debug_info.pDebugAgentEvent;
+        if (pEventInfo == nullptr)
         {
-            CleanUpQueueWaveState(pAgent->nodeId, pQueue->queueId);
-            status = ProcessQueueWaveStates(pAgent->nodeId, pQueue->queueId);
-            if (status != DEBUG_AGENT_STATUS_SUCCESS)
-            {
-                debugAgentAccessLock.unlock();
-                return HSA_STATUS_ERROR;
-            }
-            pQueue = pQueue->pNext;
+            AGENT_ERROR("Can not locate event info in _r_rocm_debug_info");
+            return HSA_STATUS_ERROR;
         }
 
-        // Print general mempry fault info.
-        PrintVMFaultInfo();
+        // Update event info
+        pEventInfo->eventType = DEBUG_AGENT_EVENT_MEMORY_FAULT;
+        pEventInfo->eventData.eventMemoryFault.nodeId = pAgent->nodeId;
+        pEventInfo->eventData.eventMemoryFault.virtualAddress = event.memory_fault.virtual_address;
+        pEventInfo->eventData.eventMemoryFault.faultReasonMask = event.memory_fault.fault_reason_mask;
 
-        // Gather fault wave state info (vGPR, sGPR, LDS), and print
-        std::map<uint64_t, std::pair<uint64_t, WaveStateInfo*>> waves =
-            FindFaultyWaves();
-        PrintWaves(pAgent, waves);
+
+        if (g_gdbAttached)
+        {
+            // GDB breakpoint, it triggers GDB to probe wave state info.
+            TriggerGPUEvent();
+        }
+        else
+        {
+            // TODO: Get all waves of all agents, force preempt the active ones.
+            // Get all the waves for the faulty agent.
+            QueueInfo* pQueue = pAgent->pQueueList;
+            while (pQueue != nullptr)
+            {
+                CleanUpQueueWaveState(pAgent->nodeId, pQueue->queueId);
+                status = ProcessQueueWaveStates(pAgent->nodeId, pQueue->queueId);
+                if (status != DEBUG_AGENT_STATUS_SUCCESS)
+                {
+                    return HSA_STATUS_ERROR;
+                }
+                pQueue = pQueue->pNext;
+            }
+
+            // Print general mempry fault info.
+            PrintVMFaultInfo();
+
+            // Gather fault wave state info (vGPR, sGPR, LDS), and print
+            std::map<uint64_t, std::pair<uint64_t, WaveStateInfo*>> waves =
+                FindFaultyWaves();
+            PrintWaves(pAgent, waves);
+        }
     }
 
-    debugAgentAccessLock.unlock();
     return HSA_STATUS_SUCCESS;
 }
 
