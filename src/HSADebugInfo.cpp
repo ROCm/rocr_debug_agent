@@ -77,9 +77,12 @@ DebugAgentStatus ProcessQueueWaveStates(uint32_t nodeId, uint64_t queueId)
     uint32_t ctl_stack_ndw = uint32_t(queue_info.ControlStackUsedInBytes / sizeof(uint32_t));
 
     // Control stack persists resource allocation until changed by a command.
-    uint32_t n_vgprs = 0;
-    uint32_t n_sgprs = 0;
+    uint32_t vgprs_size_dw = 0;
+    uint32_t sgprs_size_dw = 0;
+    uint32_t trap_temp_size_dw = 0;
     uint32_t lds_size_dw = 0;
+    uint32_t wave_front_size = 0;
+    uint32_t hwreg_size_dw = 0;
 
     // LDS is saved per-workgroup but the stack is parsed per-wavefront.
     // Track the LDS save area for the current workgroup.
@@ -93,12 +96,20 @@ DebugAgentStatus ProcessQueueWaveStates(uint32_t nodeId, uint64_t queueId)
         bool is_event = COMPUTE_RELAUNCH_IS_EVENT(relaunch);
         bool is_state = COMPUTE_RELAUNCH_IS_STATE(relaunch);
 
+        // TODO: check control records are present, and their values first.
         if (is_state && !is_event)
         {
             // Resource allocation state change, update tracked state.
-            n_vgprs = (0x1 + COMPUTE_RELAUNCH_PAYLOAD_VGPRS(relaunch)) * 0x4;
-            n_sgprs = ((0x1 + COMPUTE_RELAUNCH_PAYLOAD_SGPRS(relaunch)) - 0x1 /* no trap SGPRs */) * 0x10;
+            vgprs_size_dw = (0x1 + COMPUTE_RELAUNCH_PAYLOAD_VGPRS(relaunch)) * 0x4;
+            // SGPRs do not include trap temp.
+            sgprs_size_dw = ((0x1 + COMPUTE_RELAUNCH_PAYLOAD_SGPRS(relaunch)) - 0x1) * 0x10;
             lds_size_dw = COMPUTE_RELAUNCH_PAYLOAD_LDS_SIZE(relaunch) * 0x80;
+
+            // TODO: check if the trap handler is enable, to set trap_temp_size_dw.
+            //       check wave front size and hw regsiter size for arch
+            wave_front_size = 0x40;
+            hwreg_size_dw = 0x20;
+            trap_temp_size_dw = 0x10;
         }
         else if (!is_state && !is_event)
         {
@@ -107,11 +118,11 @@ DebugAgentStatus ProcessQueueWaveStates(uint32_t nodeId, uint64_t queueId)
 
             // Save area layout is fixed by context save trap handler and SPI.
             uint32_t vgprs_offset = 0x0;
-            uint32_t sgprs_offset = vgprs_offset + n_vgprs * 0x40;
-            uint32_t hwregs_offset = sgprs_offset + n_sgprs;
-            uint32_t lds_offset = hwregs_offset + 0x20;
-            uint32_t unused_offset = lds_offset + (first_wave_in_group ? lds_size_dw : 0x0);
-            uint32_t wave_area_size = unused_offset + 0x10; // trap SGPRs were allocated but not saved
+            uint32_t sgprs_offset = vgprs_offset + vgprs_size_dw * wave_front_size;
+            uint32_t hwregs_offset = sgprs_offset + sgprs_size_dw;
+            uint32_t trap_temp_sgprs_offset = hwregs_offset + hwreg_size_dw;
+            uint32_t lds_offset = trap_temp_sgprs_offset + trap_temp_size_dw;
+            uint32_t wave_area_size = lds_offset + (first_wave_in_group ? lds_size_dw : 0x0);
             uint32_t hwreg_m0_offset = hwregs_offset + 0x0;
             uint32_t hwreg_pc_lo_offset = hwregs_offset + 0x1;
             uint32_t hwreg_pc_hi_offset = hwregs_offset + 0x2;
@@ -141,10 +152,12 @@ DebugAgentStatus ProcessQueueWaveStates(uint32_t nodeId, uint64_t queueId)
             pWaveList->pPrev = nullptr;
             pWaveList->pNext = nullptr;
 
-            pWaveList->numSgprs = n_sgprs;
+            pWaveList->numSgprs = sgprs_size_dw;
             pWaveList->sgprs = wave_area + sgprs_offset;
-            pWaveList->numVgprs = n_vgprs;
-            pWaveList->numVgprLanes = 0x40;
+            pWaveList->trapTempSgprs = wave_area + trap_temp_sgprs_offset;
+            pWaveList->numTrapTempSgprs = trap_temp_size_dw;
+            pWaveList->numVgprs = vgprs_size_dw;
+            pWaveList->numVgprLanes = wave_front_size;
             pWaveList->vgprs = wave_area + vgprs_offset;
             pWaveList->regs.pc = (uint64_t(wave_area[hwreg_pc_lo_offset]) |
                                   (uint64_t(wave_area[hwreg_pc_hi_offset]) << 0x20));

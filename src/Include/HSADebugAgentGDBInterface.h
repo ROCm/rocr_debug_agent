@@ -118,6 +118,10 @@ typedef struct _WaveStateInfo
     uint32_t numSgprs;
     // Array of packed SGPR data.
     uint32_t* sgprs;
+    // Number of trap temp SGPRs
+    uint32_t numTrapTempSgprs;
+    // Array of packed trap temp SGPR.
+    uint32_t* trapTempSgprs;
     // Number of VGPRs allocated per wavefront.
     uint32_t numVgprs;
     // Number of lanes in each VGPR.
@@ -263,8 +267,6 @@ typedef struct
 typedef struct _DebugTrapBuff
 {
     uint64_t debugEventSignalHandle;
-    uint32_t numMaxBreakPoint;
-    uint32_t numCurrectBreakPoint;
     uint64_t breakPointPC[AGENT_MAX_BREAKPOINT];
 } DebugTrapBuff;
 
