@@ -79,10 +79,9 @@ DebugAgentStatus ProcessQueueWaveStates(uint32_t nodeId, uint64_t queueId)
     // Control stack persists resource allocation until changed by a command.
     uint32_t vgprs_size_dw = 0;
     uint32_t sgprs_size_dw = 0;
-    uint32_t trap_temp_size_dw = 0;
     uint32_t lds_size_dw = 0;
-    uint32_t wave_front_size = 0;
-    uint32_t hwreg_size_dw = 0;
+    //  TODO: check wave front size and hw regsiter size for arch
+    const uint32_t wave_front_size = 0x40;
 
     // LDS is saved per-workgroup but the stack is parsed per-wavefront.
     // Track the LDS save area for the current workgroup.
@@ -90,6 +89,7 @@ DebugAgentStatus ProcessQueueWaveStates(uint32_t nodeId, uint64_t queueId)
 
     // Parse each write to COMPUTE_RELAUNCH in sequence.
     // First two dwords are SET_SH_REG leader.
+    // TODO:
     for (uint32_t idx = 2; idx < ctl_stack_ndw; ++idx)
     {
         uint32_t relaunch = ctl_stack[idx];
@@ -99,17 +99,13 @@ DebugAgentStatus ProcessQueueWaveStates(uint32_t nodeId, uint64_t queueId)
         // TODO: check control records are present, and their values first.
         if (is_state && !is_event)
         {
+            // TODO: validate the values, to ensure they are within range
             // Resource allocation state change, update tracked state.
             vgprs_size_dw = (0x1 + COMPUTE_RELAUNCH_PAYLOAD_VGPRS(relaunch)) * 0x4;
             // SGPRs do not include trap temp.
             sgprs_size_dw = ((0x1 + COMPUTE_RELAUNCH_PAYLOAD_SGPRS(relaunch)) - 0x1) * 0x10;
             lds_size_dw = COMPUTE_RELAUNCH_PAYLOAD_LDS_SIZE(relaunch) * 0x80;
 
-            // TODO: check if the trap handler is enable, to set trap_temp_size_dw.
-            //       check wave front size and hw regsiter size for arch
-            wave_front_size = 0x40;
-            hwreg_size_dw = 0x20;
-            trap_temp_size_dw = 0x10;
         }
         else if (!is_state && !is_event)
         {
@@ -120,9 +116,9 @@ DebugAgentStatus ProcessQueueWaveStates(uint32_t nodeId, uint64_t queueId)
             uint32_t vgprs_offset = 0x0;
             uint32_t sgprs_offset = vgprs_offset + vgprs_size_dw * wave_front_size;
             uint32_t hwregs_offset = sgprs_offset + sgprs_size_dw;
-            uint32_t trap_temp_sgprs_offset = hwregs_offset + hwreg_size_dw;
-            uint32_t lds_offset = trap_temp_sgprs_offset + trap_temp_size_dw;
-            uint32_t wave_area_size = lds_offset + (first_wave_in_group ? lds_size_dw : 0x0);
+            uint32_t lds_offset = hwregs_offset + 0x20;
+            uint32_t unused_offset = lds_offset + (first_wave_in_group ? lds_size_dw : 0x0);
+            uint32_t wave_area_size = unused_offset + 0x10;
             uint32_t hwreg_m0_offset = hwregs_offset + 0x0;
             uint32_t hwreg_pc_lo_offset = hwregs_offset + 0x1;
             uint32_t hwreg_pc_hi_offset = hwregs_offset + 0x2;
@@ -130,6 +126,18 @@ DebugAgentStatus ProcessQueueWaveStates(uint32_t nodeId, uint64_t queueId)
             uint32_t hwreg_exec_hi_offset = hwregs_offset + 0x4;
             uint32_t hwreg_status_offset = hwregs_offset + 0x5;
             uint32_t hwreg_trapsts_offset = hwregs_offset + 0x6;
+            // uint32_t hwreg_xnack_mask_lo_offset = hwregs_offset + 0x7;
+            // uint32_t hwreg_xnack_mask_hi_offset = hwregs_offset + 0x8;
+            // uint32_t hwreg_mode_offset = hwregs_offset + 0x9;
+            // uint32_t hwreg_ttmp6_offset = hwregs_offset + 0x10;
+            // uint32_t hwreg_ttmp7_offset = hwregs_offset + 0x11;
+            // uint32_t hwreg_ttmp8_offset = hwregs_offset + 0x12;
+            // uint32_t hwreg_ttmp9_offset = hwregs_offset + 0x13;
+            // uint32_t hwreg_ttmp10_offset = hwregs_offset + 0x14;
+            // uint32_t hwreg_ttmp11_offset = hwregs_offset + 0x15;
+            // uint32_t hwreg_ttmp13_offset = hwregs_offset + 0x16;
+            // uint32_t hwreg_ttmp14_offset = hwregs_offset + 0x17;
+            // uint32_t hwreg_ttmp15_offset = hwregs_offset + 0x18;
 
             // Find beginning of wavefront state in the save area.
             wave_area -= wave_area_size;
@@ -152,10 +160,9 @@ DebugAgentStatus ProcessQueueWaveStates(uint32_t nodeId, uint64_t queueId)
             pWaveList->pPrev = nullptr;
             pWaveList->pNext = nullptr;
 
+            // TODO: check the value from context save area
             pWaveList->numSgprs = sgprs_size_dw;
             pWaveList->sgprs = wave_area + sgprs_offset;
-            pWaveList->trapTempSgprs = wave_area + trap_temp_sgprs_offset;
-            pWaveList->numTrapTempSgprs = trap_temp_size_dw;
             pWaveList->numVgprs = vgprs_size_dw;
             pWaveList->numVgprLanes = wave_front_size;
             pWaveList->vgprs = wave_area + vgprs_offset;
@@ -168,6 +175,10 @@ DebugAgentStatus ProcessQueueWaveStates(uint32_t nodeId, uint64_t queueId)
             pWaveList->regs.m0 = wave_area[hwreg_m0_offset];
             pWaveList->ldsSizeDw = lds_size_dw;
             pWaveList->lds = lds;
+
+            pWaveList->waveArea = wave_area;
+            pWaveList->waveAreaSize = wave_area_size;
+
 
             QueueInfo *pQueue = GetQueueFromList(nodeId, queueId);
             DebugAgentStatus statusAddToList = AddToLinkListEnd<WaveStateInfo>(pWaveList,

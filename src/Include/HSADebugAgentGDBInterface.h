@@ -114,6 +114,10 @@ typedef struct _MemoryFaultInfo
 // Wave states of a queue for ROCm-GDB to probe.
 typedef struct _WaveStateInfo
 {
+    // Wave context save area
+    uint32_t* waveArea;
+    // Wave context save area size
+    uint32_t waveAreaSize;
     // Number of SGPRs allocated per wavefront.
     uint32_t numSgprs;
     // Array of packed SGPR data.
