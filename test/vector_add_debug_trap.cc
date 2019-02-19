@@ -17,7 +17,7 @@ static const uint32_t kNumBufferElements = 256;
 static void TestDebugTrap(hsa_status_t status, hsa_queue_t *source, void *data);
 static arguments *vectorAddKernArgs = NULL;
 static const char CODE_OBJECT_NAME[] = "vector_add_debug_trap_kernel.o";
-static const char KERNEL_NAME[] = "vector_add_debug_trap";
+static const char KERNEL_NAME[] = "vector_add_debug_trap.kd";
 
 void VectorAddDebugTrapTest(hsa_agent_t cpuAgent, hsa_agent_t gpuAgent) {
   hsa_status_t err;

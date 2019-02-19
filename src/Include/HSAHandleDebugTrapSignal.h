@@ -35,6 +35,6 @@
 #ifndef HSA_HANDLE_DEBUG_TRAP_SIGNAL_H_
 #define HSA_HANDLE_DEBUG_TRAP_SIGNAL_H_
 
-bool HSADebugTrapSignalHandler(hsa_signal_value_t signalValue, void* arg);
+bool __attribute__((optimize("O0"))) HSADebugTrapSignalHandler(hsa_signal_value_t signalValue, void* arg);
 
 #endif // HSA_HANDLE_DEBUG_TRAP_SIGNAL_H_

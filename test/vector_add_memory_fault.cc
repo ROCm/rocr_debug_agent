@@ -11,7 +11,7 @@
 static const uint32_t kNumBufferElements = 256;
 static arguments *vectorAddKernArgs = NULL;
 static const char CODE_OBJECT_NAME[] = "vector_add_memory_fault_kernel.o";
-static const char KERNEL_NAME[] = "vector_add_memory_fault";
+static const char KERNEL_NAME[] = "vector_add_memory_fault.kd";
 
 void VectorAddMemoryFaultTest(hsa_agent_t cpuAgent, hsa_agent_t gpuAgent) {
   hsa_status_t err;

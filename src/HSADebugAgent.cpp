@@ -210,6 +210,7 @@ extern "C" bool OnLoad(void *pTable,
 
 extern "C" void OnUnload()
 {
+    std::lock_guard<std::mutex> lock(debugAgentAccessLock);
     AGENT_LOG("===== Unload ROC Debug Agent=====");
 
     DebugAgentStatus status = DEBUG_AGENT_STATUS_FAILURE;

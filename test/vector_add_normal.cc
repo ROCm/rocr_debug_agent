@@ -11,7 +11,7 @@
 static const uint32_t kNumBufferElements = 256;
 static arguments *vectorAddKernArgs = NULL;
 static const std::string CODE_OBJECT_NAME = "vector_add_normal_kernel.o";
-static const char KERNEL_NAME[] = "vector_add_normal";
+static const char KERNEL_NAME[] = "vector_add_normal.kd";
 
 void VectorAddNormalTest(hsa_agent_t cpuAgent, hsa_agent_t gpuAgent) {
   hsa_status_t err;
