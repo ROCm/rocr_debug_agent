@@ -220,6 +220,10 @@ typedef enum {
     DEBUG_AGENT_EVENT_QUEUE_ERROR            = 0x004,
     // Debug agent get user breakpoint
     DEBUG_AGENT_EVENT_USER_BREAKPOINT        = 0x005,
+    // Debug agent is loaded
+    DEBUG_AGENT_EVENT_LOADED                 = 0x006,
+    // Debug agent is unloading
+    DEBUG_AGENT_EVENT_UNLOADING              = 0x007,
 } DebugAgentEventType;
 
 union EventData {
