@@ -806,6 +806,8 @@ void DeleteCodeObjectFromList(uint64_t addrLoaded, ExecutableInfo *pExecutable)
         {
             AgentDeleteFile(pListCurrent->path);
         }
+
+        delete[] (char*) pListCurrent->addrMemory;
         delete pListCurrent;
     }
 }

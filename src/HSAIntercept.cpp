@@ -531,6 +531,9 @@ AddCodeObjectInfoCallback(
 
     CodeObjectInfo* pList = new CodeObjectInfo;
     pList->nodeId = pAgent->nodeId;
+    pList->addrMemory = (uintptr_t) new char[elfSize];
+    memcpy((void*) pList->addrMemory, (const void*) elfBaseAddress, elfSize);
+    pList->sizeMemory = elfSize;
     pList->addrDelta = addrDelta;
     pList->addrLoaded = loadedBaseAddress;
     pList->sizeLoaded = loadedSize;

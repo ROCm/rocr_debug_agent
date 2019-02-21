@@ -75,8 +75,12 @@ typedef struct _CodeObjectInfo
     uint64_t addrDelta;
     // Absolute temp code object file path.
     char path[AGENT_MAX_FILE_PATH_LEN];
+    // Address of the ELF file in host memory.
+    uint64_t addrMemory;
+    // Size of the ELF file in host memory.
+    size_t sizeMemory;
     // Loaded address of the code object.
-    size_t addrLoaded;
+    uint64_t addrLoaded;
     // Loaded size of the code object.
     size_t sizeLoaded;
     // Chain of loaded objects.
