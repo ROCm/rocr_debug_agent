@@ -113,6 +113,18 @@ elseif("${CMAKE_SYSTEM_PROCESSOR}" STREQUAL "x86")
   set(NBIT 32)
 endif()
 
+# Check if dtrace is installed
+find_program(DTRACE dtrace)
+
+# Check if sys/sdt.h is avaialable
+include(CheckIncludeFile)
+check_include_file("sys/sdt.h" HAVE_SYS_SDT_H)
+if(NOT DTRACE OR NOT HAVE_SYS_SDT_H)
+  message(FATAL_ERROR "SystemTap not found, "
+      "please install systemtap-sdt-dev (debian), "
+      "or systemtap-sdt-devel (rpm).")
+endif()
+
 # Set project requirements
 set(ROC_THUNK_NAME "hsakmt")
 set(CORE_RUNTIME_NAME "hsa-runtime")
@@ -188,6 +200,7 @@ message("---CMAKE_PREFIX_PATH: ${CMAKE_PREFIX_PATH}")
 message(" ")
 
 # Add directories to look for header files to compile
+set(CMAKE_INCLUDE_CURRENT_DIR ON)
 include_directories (${HSAKMT_INC})
 include_directories (${ROCR_INC})
 include_directories (${CMAKE_CURRENT_SOURCE_DIR}/Include)
@@ -227,6 +240,19 @@ set(ASM_SRCS
   "${CMAKE_CURRENT_SOURCE_DIR}/HSATrapHandler_s_gfx906.s"
 )
 
+macro(DTraceGenerateHeader ScriptPath HdrPath)
+  add_custom_command(
+    OUTPUT ${HdrPath}
+    DEPENDS ${SriptPath}
+    COMMAND ${DTRACE} -h -s ${ScriptPath} -o ${HdrPath}
+    COMMENT "Generating SystemTap probes header ${HdrPath}..."
+  )
+endmacro()
+
+set(DTRACE_SCRIPTS
+  "${CMAKE_CURRENT_SOURCE_DIR}/HSADebugAgentGDBProbes.d"
+)
+
 # Build and generate header file for debug trap handler
 set(ASM_HDR_PATHS "")
 foreach(ASM_SRC IN LISTS ASM_SRCS)
@@ -234,7 +260,7 @@ foreach(ASM_SRC IN LISTS ASM_SRCS)
   set(OUT_BASE_NAME ${SRC_BASE_NAME})
   set(OBJ_PATH ${OUT_BASE_NAME}.o)
   set(CODE_OBJ_PATH ${OUT_BASE_NAME}.co)
-  set(HDR_PATH ${CMAKE_CURRENT_SOURCE_DIR}/Include/${OUT_BASE_NAME}.h)
+  set(HDR_PATH ${CMAKE_CURRENT_BINARY_DIR}/${OUT_BASE_NAME}.h)
   STRING(REGEX MATCH "gfx([A-Za-z0-9]+)" LLVM_TARGET "${SRC_BASE_NAME}")
 
   LLVMAssemble("${ASM_SRC}" ${OBJ_PATH} ${LLVM_TARGET})
@@ -243,8 +269,19 @@ foreach(ASM_SRC IN LISTS ASM_SRCS)
   list(APPEND ASM_HDR_PATHS ${HDR_PATH})
 endforeach()
 
+# Generate the header files for the GDB probes
+set(PROBES_HDR_PATHS "")
+foreach(DTRACE_SCRIPT IN LISTS DTRACE_SCRIPTS)
+  get_filename_component(SRC_BASE_NAME "${DTRACE_SCRIPT}" NAME_WE)
+  set(OUT_BASE_NAME ${SRC_BASE_NAME})
+  set(HDR_PATH ${CMAKE_CURRENT_BINARY_DIR}/${OUT_BASE_NAME}.h)
+  DTraceGenerateHeader(${DTRACE_SCRIPT} ${HDR_PATH})
+  list(APPEND PROBES_HDR_PATHS ${HDR_PATH})
+endforeach()
+
+
 # Build and link the program
-add_library(${TARGET_NAME} SHARED ${Src} ${ASM_HDR_PATHS})
+add_library(${TARGET_NAME} SHARED ${Src} ${ASM_HDR_PATHS} ${PROBES_HDR_PATHS})
 target_link_libraries(${TARGET_NAME} PRIVATE ${ROCR_LIB} ${HSAKMT_LIB} c stdc++ dl pthread rt)
 
 # Add install directives for rocr_debug_agent

@@ -53,6 +53,11 @@
 #include "HSADebugAgent.h"
 #include "HSADebugInfo.h"
 
+// Debug Agent Probes. To skip dependence upon semaphore variables,
+// include "<sys/sdt.h>" first.
+#include <sys/sdt.h>
+#include "HSADebugAgentGDBProbes.h"
+
 // Total number of loaded code object during execution (only increase)
 static uint32_t gs_numCodeObject = 0;
 
@@ -667,6 +672,7 @@ DebugAgentStatus AddExecutableToList(ExecutableInfo *pExec)
         return agentStatus;
     }
 
+    ROCR_DEBUG_AGENT_EXECUTABLE_ADDED(pExec);
     return agentStatus;
 }
 
@@ -699,6 +705,7 @@ DebugAgentStatus AddCodeObjectToList(CodeObjectInfo *pCodeObject, ExecutableInfo
 
     gs_numCodeObject++;
 
+    ROCR_DEBUG_AGENT_CODE_OBJECT_ADDED(pCodeObject);
     return agentStatus;
 }
 
@@ -762,6 +769,8 @@ void DeleteExecutableFromList(uint64_t execId)
             DeleteCodeObjectFromList(pCodeObject->addrLoaded, pListCurrent);
             pCodeObject = pCodeObjectNext;
         }
+
+        ROCR_DEBUG_AGENT_EXECUTABLE_REMOVED(pListCurrent);
         delete pListCurrent;
     }
 }
@@ -808,6 +817,7 @@ void DeleteCodeObjectFromList(uint64_t addrLoaded, ExecutableInfo *pExecutable)
             AgentDeleteFile(pListCurrent->path);
         }
 
+        ROCR_DEBUG_AGENT_CODE_OBJECT_REMOVED(pListCurrent);
         delete[] (char*) pListCurrent->addrMemory;
         delete pListCurrent;
     }
