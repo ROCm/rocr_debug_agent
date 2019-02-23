@@ -113,6 +113,7 @@ DebugAgentStatus ProcessQueueWaveStates(uint32_t nodeId, uint64_t queueId)
             bool first_wave_in_group = COMPUTE_RELAUNCH_PAYLOAD_FIRST_WAVE(relaunch);
 
             // Save area layout is fixed by context save trap handler and SPI.
+            // offset of dw
             uint32_t vgprs_offset = 0x0;
             uint32_t sgprs_offset = vgprs_offset + vgprs_size_dw * wave_front_size;
             uint32_t hwregs_offset = sgprs_offset + sgprs_size_dw;
