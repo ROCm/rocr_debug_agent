@@ -304,7 +304,7 @@ typedef struct _RocmGpuDebug
 /// as it is done in the in-process agent library.
 
 // Regular GPU breakpoint
-void __attribute__((optimize("O0"))) TriggerGPUUserBreakpoint(void);
+void __attribute__((optimize("O0"))) TriggerGPUUserBreakpointWrapper(void);
 
 // Breakpoint for GPU fault
 void __attribute__((optimize("O0"))) TriggerGPUEvent(void);

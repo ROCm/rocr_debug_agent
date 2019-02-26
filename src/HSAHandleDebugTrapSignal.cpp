@@ -60,7 +60,7 @@ bool HSADebugTrapSignalHandler(hsa_signal_value_t signalValue, void* arg)
         // No other info about the brekapoint is available at this point.
         // GDB needs to figure out the info.
 
-        TriggerGPUUserBreakpoint();
+        TriggerGPUUserBreakpointWrapper();
         ResumeAllQueues();
     }
 
