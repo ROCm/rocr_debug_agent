@@ -243,7 +243,7 @@ set(ASM_SRCS
 macro(DTraceGenerateHeader ScriptPath HdrPath)
   add_custom_command(
     OUTPUT ${HdrPath}
-    DEPENDS ${SriptPath}
+    DEPENDS ${ScriptPath}
     COMMAND ${DTRACE} -h -s ${ScriptPath} -o ${HdrPath}
     COMMENT "Generating SystemTap probes header ${HdrPath}..."
   )

@@ -49,6 +49,11 @@
 #include "HSAHandleLinuxSignals.h"
 #include "HSAHandleMemoryFault.h"
 
+// Debug Agent Probes. To skip dependence upon semaphore variables,
+// include "<sys/sdt.h>" first.
+#include <sys/sdt.h>
+#include "HSADebugAgentGDBProbes.h"
+
 // Debug info tracked by debug agent, it is probed by ROCm-GDB
 RocmGpuDebug _r_rocm_debug_info =
 {
@@ -123,6 +128,8 @@ extern "C" bool OnLoad(void *pTable,
                        uint64_t runtimeVersion, uint64_t failedToolCount,
                        const char *const *pFailedToolNames)
 {
+    ROCR_DEBUG_AGENT_LOAD_START();
+
     g_debugAgentInitialSuccess = false;
     DebugAgentStatus status = DEBUG_AGENT_STATUS_FAILURE;
     uint32_t tableVersionMajor =
@@ -216,6 +223,7 @@ extern "C" bool OnLoad(void *pTable,
 
     // Trigger GPU event breakpoint
     TriggerGPUEvent();
+    ROCR_DEBUG_AGENT_LOAD_COMPLETE();
 
     return true;
 }
@@ -230,6 +238,7 @@ extern "C" void OnUnload()
 
     // Trigger GPU event breakpoint
     TriggerGPUEvent();
+    ROCR_DEBUG_AGENT_UNLOAD_START();
 
     AGENT_LOG("===== Unload ROC Debug Agent=====");
 
@@ -251,6 +260,8 @@ extern "C" void OnUnload()
     {
         AGENT_ERROR("OnUnload: Cannot close Logging");
     }
+
+    ROCR_DEBUG_AGENT_UNLOAD_COMPLETE();
 }
 
 // Check the version based on the provided by HSA runtime's OnLoad function.

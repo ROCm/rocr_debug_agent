@@ -40,6 +40,11 @@
 #include "HSADebugInfo.h"
 #include "HSAHandleDebugTrapSignal.h"
 
+// Debug Agent Probes. To skip dependence upon semaphore variables,
+// include "<sys/sdt.h>" first.
+#include <sys/sdt.h>
+#include "HSADebugAgentGDBProbes.h"
+
 bool HSADebugTrapSignalHandler(hsa_signal_value_t signalValue, void* arg)
 {
     if (!g_debugAgentInitialSuccess)
@@ -60,7 +65,9 @@ bool HSADebugTrapSignalHandler(hsa_signal_value_t signalValue, void* arg)
         // No other info about the brekapoint is available at this point.
         // GDB needs to figure out the info.
 
-        TriggerGPUUserBreakpointWrapper();
+        TriggerGPUUserBreakpoint();
+        ROCR_DEBUG_AGENT_GPU_USER_BREAKPOINT();
+
         ResumeAllQueues();
     }
 

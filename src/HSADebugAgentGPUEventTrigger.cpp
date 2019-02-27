@@ -43,15 +43,8 @@
 ///
 extern "C"
 {
-    void __attribute__((optimize("O0"))) TriggerGPUUserBreakpointWrapper(void)
+    void __attribute__((optimize("O0"))) TriggerGPUUserBreakpoint(void)
     {
-	__asm__ __volatile__
-        (
-            "TriggerGPUUserBreakpoint:\n"
-            "nop\n"
-
-            ".global TriggerGPUUserBreakpoint\n"
-        );
         AGENT_LOG("TriggerGPUUserBreakpoint() called.");
         return;
     }
