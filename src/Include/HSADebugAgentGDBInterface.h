@@ -170,6 +170,14 @@ typedef struct _QueueInfo
     void (*callback)(hsa_status_t status, hsa_queue_t* source, void* data);
     // Orignal application data that is passed to the callback.
     void* data;
+    // Context save area
+    void* pContextSaveArea;
+    // Context save area size
+    uint32_t contextSaveAreaSize;
+    // Control stack
+    void* pControlStack;
+    // Control stack size
+    uint32_t controlStackSize;
     // Link list of wave states of the queue
     WaveStateInfo* pWaveList;
     // Next element of the queue link list.
