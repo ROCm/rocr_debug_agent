@@ -49,6 +49,11 @@
 #include "HSAHandleQueueError.h"
 #include "HSAIntercept.h"
 
+// Debug Agent Probes. To skip dependence upon semaphore variables,
+// include "<sys/sdt.h>" first.
+#include <sys/sdt.h>
+#include "HSADebugAgentGDBProbes.h"
+
 // The HSA Runtime's versions of HSA core API functions
 CoreApiTable gs_OrigCoreApiTable;
 
@@ -347,6 +352,7 @@ HsaDebugAgentHsaExecutableFreeze(
 
         // Trigger GPU event breakpoint
         TriggerGPUEvent();
+        ROCM_GDB_AGENT_EXEC_LOAD(pExec);
     }
 
     AGENT_LOG("Interception: Exit hsa_executable_freeze");
@@ -377,6 +383,7 @@ HsaDebugAgentHsaExecutableDestroy(
 
         // Trigger GPU event breakpoint before remove it
         TriggerGPUEvent();
+        ROCM_GDB_AGENT_EXEC_UNLOAD(pExecInfo);
 
         // Remove loaded code object info of the deleted executable
         // and update _r_rocm_debug_info

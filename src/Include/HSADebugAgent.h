@@ -42,8 +42,8 @@ typedef struct _RocmGpuDebug RocmGpuDebug;
 
 typedef enum
 {
-    DEBUG_AGENT_STATUS_FAILURE, // A failure in the debug agent
-    DEBUG_AGENT_STATUS_SUCCESS  // A success
+    DEBUG_AGENT_STATUS_SUCCESS = 0,  // A success
+    DEBUG_AGENT_STATUS_FAILURE       // A failure in the debug agent
 } DebugAgentStatus;
 
 // This is the instance of the structure probed by the GDB.

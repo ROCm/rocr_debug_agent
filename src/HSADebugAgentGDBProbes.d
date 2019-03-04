@@ -1,14 +1,19 @@
 #!/usr/bin/dtrace -s
 
-provider rocr_debug_agent
+provider rocm_gdb_agent
 {
-    probe load_start ();
-    probe load_complete ();
-    probe unload_start ();
-    probe unload_complete ();
+    // A GPU user breakpoint has been hit.
     probe gpu_user_breakpoint ();
-    probe executable_added (ExecutableInfo *executable);
-    probe executable_removed (ExecutableInfo *executable);
-    probe code_object_added (CodeObjectInfo *code_object);
-    probe code_object_removed (CodeObjectInfo *code_object);
+
+    // Agent initialization.
+    probe init_start();
+    probe init_complete(int status);
+
+    // Agent finalization.
+    probe fini_start();
+    probe fini_complete(int status);
+
+    // Executable loading/unloading.
+    probe exec_load (ExecutableInfo* exec);
+    probe exec_unload (ExecutableInfo* exec);
 };

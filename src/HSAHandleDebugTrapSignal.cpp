@@ -66,7 +66,7 @@ bool HSADebugTrapSignalHandler(hsa_signal_value_t signalValue, void* arg)
         // GDB needs to figure out the info.
 
         TriggerGPUUserBreakpoint();
-        ROCR_DEBUG_AGENT_GPU_USER_BREAKPOINT();
+        ROCM_GDB_AGENT_GPU_USER_BREAKPOINT();
 
         ResumeAllQueues();
     }

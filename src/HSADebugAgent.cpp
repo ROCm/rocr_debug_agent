@@ -128,7 +128,7 @@ extern "C" bool OnLoad(void *pTable,
                        uint64_t runtimeVersion, uint64_t failedToolCount,
                        const char *const *pFailedToolNames)
 {
-    ROCR_DEBUG_AGENT_LOAD_START();
+    ROCM_GDB_AGENT_INIT_START();
 
     g_debugAgentInitialSuccess = false;
     DebugAgentStatus status = DEBUG_AGENT_STATUS_FAILURE;
@@ -136,6 +136,12 @@ extern "C" bool OnLoad(void *pTable,
             (reinterpret_cast<HsaApiTable *>(pTable))->version.major_id;
     uint32_t tableVersionMinor =
             (reinterpret_cast<HsaApiTable *>(pTable))->version.minor_id;
+    struct _AgentInitCompleteOnExit
+    {
+        DebugAgentStatus& _status;
+        _AgentInitCompleteOnExit(DebugAgentStatus& status) : _status(status) {}
+        ~_AgentInitCompleteOnExit() { ROCM_GDB_AGENT_INIT_COMPLETE(_status); }
+    } agentInitCompleteOnExit(status);
 
     status = AgentInitLogger();
 
@@ -223,7 +229,6 @@ extern "C" bool OnLoad(void *pTable,
 
     // Trigger GPU event breakpoint
     TriggerGPUEvent();
-    ROCR_DEBUG_AGENT_LOAD_COMPLETE();
 
     return true;
 }
@@ -238,10 +243,11 @@ extern "C" void OnUnload()
 
     // Trigger GPU event breakpoint
     TriggerGPUEvent();
-    ROCR_DEBUG_AGENT_UNLOAD_START();
+    ROCM_GDB_AGENT_FINI_START();
 
     AGENT_LOG("===== Unload ROC Debug Agent=====");
 
+    DebugAgentStatus retVal = DEBUG_AGENT_STATUS_SUCCESS;
     DebugAgentStatus status = DEBUG_AGENT_STATUS_FAILURE;
 
     AgentCleanDebugInfo();
@@ -251,6 +257,10 @@ extern "C" void OnUnload()
         status = AgentUnsetDebugTrapHandler();
         if (status != DEBUG_AGENT_STATUS_SUCCESS)
         {
+            if (retVal == DEBUG_AGENT_STATUS_SUCCESS)
+            {
+                retVal = status;
+            }
             AGENT_ERROR("OnUnload: Cannot unset debug trap handler");
         }
     }
@@ -258,10 +268,14 @@ extern "C" void OnUnload()
     status = AgentCloseLogger();
     if (status != DEBUG_AGENT_STATUS_SUCCESS)
     {
+        if (retVal == DEBUG_AGENT_STATUS_SUCCESS)
+        {
+            retVal = status;
+        }
         AGENT_ERROR("OnUnload: Cannot close Logging");
     }
 
-    ROCR_DEBUG_AGENT_UNLOAD_COMPLETE();
+    ROCM_GDB_AGENT_FINI_COMPLETE(retVal);
 }
 
 // Check the version based on the provided by HSA runtime's OnLoad function.
