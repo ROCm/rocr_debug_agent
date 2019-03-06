@@ -78,7 +78,7 @@ void PrintWaves(GPUAgentInfo* pAgent, std::map<uint64_t, std::pair<uint64_t, Wav
 GPUAgentInfo* GetAgentFromList(uint32_t node);
 
 // Get the pointer of specified agent info by agent handle from the agent link list.
-GPUAgentInfo* GetAgentFromList(hsa_agent_t agentHandle);
+GPUAgentInfo* GetAgentFromList(void* agentHandle);
 
 // Get the pointer of specified agent info by a queue id of it.
 GPUAgentInfo* GetAgentByQueueID(uint64_t queueId);

@@ -373,7 +373,7 @@ static hsa_status_t QueryAgentCallback(hsa_agent_t agent, void *pData)
     GPUAgentInfo *pGpuAgent = new GPUAgentInfo;
     memset(pGpuAgent, 0, sizeof(GPUAgentInfo));
 
-    pGpuAgent->agent = agent;
+    pGpuAgent->agent = reinterpret_cast<void*>(agent.handle);
     pGpuAgent->pQueueList = nullptr;
     pGpuAgent->agentStatus = AGENT_STATUS_UNSUPPORTED;
 
@@ -574,6 +574,7 @@ static DebugAgentStatus AgentSetDebugTrapHandler()
         uint64_t kernelCodeAddress = 0;
         DebugTrapBuff* pTrapHandlerBuffer = nullptr;
 
+        hsa_agent_t& agent = *reinterpret_cast<hsa_agent_s*>(&pAgent->agent);
         hsa_region_t kernargSegment = {0};
         hsa_executable_symbol_t symbol = {0};
         hsa_status_t status = HSA_STATUS_SUCCESS;
@@ -607,7 +608,7 @@ static DebugAgentStatus AgentSetDebugTrapHandler()
 
         // Load debug trap handler code object
         status = gs_OrigCoreApiTable.hsa_executable_load_agent_code_object_fn(
-                debugTrapHandlerExecutable, pAgent->agent, debugTrapHandlerCodeObjectReader, NULL, NULL);
+                debugTrapHandlerExecutable, agent, debugTrapHandlerCodeObjectReader, NULL, NULL);
         if (status != HSA_STATUS_SUCCESS)
         {
             AGENT_ERROR("Cannot load debug trap handler code object.");
@@ -624,7 +625,7 @@ static DebugAgentStatus AgentSetDebugTrapHandler()
 
         // find the kernel symbol.
         status = gs_OrigCoreApiTable.hsa_executable_get_symbol_by_name_fn(
-                debugTrapHandlerExecutable, pEntryPointName, &(pAgent->agent), &symbol);
+                debugTrapHandlerExecutable, pEntryPointName, &(agent), &symbol);
         if (status != HSA_STATUS_SUCCESS)
         {
             AGENT_ERROR("Cannot find debug trap handler symbol.");
@@ -652,7 +653,7 @@ static DebugAgentStatus AgentSetDebugTrapHandler()
         }
 
         status = gs_OrigCoreApiTable.hsa_signal_create_fn(
-                0, 0, &(pAgent->agent), &debugTrapSignal);
+                0, 0, &(agent), &debugTrapSignal);
         if (status != HSA_STATUS_SUCCESS)
         {
             AGENT_ERROR("Cannot create debug event signal.");
@@ -663,7 +664,7 @@ static DebugAgentStatus AgentSetDebugTrapHandler()
         // TODO: put the trap buffer in device memory for efficiency
         //       use the copy APIs to update the value
         status = gs_OrigCoreApiTable.hsa_agent_iterate_regions_fn(
-                pAgent->agent, FindKernargSegment, &kernargSegment);
+                agent, FindKernargSegment, &kernargSegment);
         if (!kernargSegment.handle | (status != HSA_STATUS_SUCCESS)) {
             AGENT_ERROR("Cannot find kernarg segment for trap buffer.");
             return DEBUG_AGENT_STATUS_FAILURE;
