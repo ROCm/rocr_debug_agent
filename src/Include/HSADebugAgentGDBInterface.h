@@ -164,6 +164,8 @@ typedef struct _QueueInfo
     void*    queue;
     // Runtime queue id.
     uint64_t queueId;
+    // Agent node id the queue belongs to.
+    uint32_t nodeId;
     // Orignal callback registered by the HSA runtime for asynchronous event.
     void* callback;
     // Orignal application data that is passed to the callback.
@@ -234,9 +236,19 @@ typedef enum {
     DEBUG_AGENT_EVENT_LOADED                 = 0x006,
     // Debug agent is unloading
     DEBUG_AGENT_EVENT_UNLOADING              = 0x007,
+    // Debug agent intercept queue create
+    DEBUG_AGENT_EVENT_QUEUE_CREATE           = 0x008,
+    // Debug agent intercept queue destroy
+    DEBUG_AGENT_EVENT_QUEUE_DESTROY          = 0x009,
 } DebugAgentEventType;
 
 union EventData {
+    struct _EventQueueCreate {
+        uint64_t queueInfoHandle;
+    } eventQueueCreate;
+    struct _EventQueueDestroy {
+        uint64_t queueInfoHandle;
+    } eventQueueDestroy;
     struct _EventExecutableCreate {
         // FIXME: node id is not vaild, as code object can belong
         // to different agent.
@@ -289,6 +301,7 @@ typedef struct _DebugTrapBuff
 } DebugTrapBuff;
 
 // Struct that maintains all debug info for ROCm-GDB to probe.
+// TODO: atomic update this, when GDB interacts with GPU directly.
 typedef struct _RocmGpuDebug
 {
     // Version number for the debug agent.

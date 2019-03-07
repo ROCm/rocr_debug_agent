@@ -38,6 +38,7 @@
 // HSA headers
 #include <hsa_api_trace.h>
 #include <hsa_ven_amd_loader.h>
+#include <hsakmt.h>
 
 // Debug Agent Headers
 #include "AgentLogging.h"
@@ -194,8 +195,10 @@ HsaDebugAgentHsaQueueCreate(
     AGENT_LOG("Interception: hsa_queue_create");
 
     hsa_status_t status = HSA_STATUS_SUCCESS;
-
+    HsaQueueInfo queue_info;
     uint32_t agentNode;
+    HSAKMT_STATUS kmt_status;
+
     status = gs_OrigCoreApiTable.hsa_agent_get_info_fn(agent, HSA_AGENT_INFO_NODE , &agentNode);
     if (status != HSA_STATUS_SUCCESS)
     {
@@ -210,6 +213,7 @@ HsaDebugAgentHsaQueueCreate(
     pNewQueueInfo->pWaveList = nullptr;
     pNewQueueInfo->pPrev = nullptr;
     pNewQueueInfo->pNext = nullptr;
+    pNewQueueInfo->nodeId = agentNode;
 
     status = gs_OrigCoreApiTable.hsa_queue_create_fn(agent,
                                                       size,
@@ -227,18 +231,68 @@ HsaDebugAgentHsaQueueCreate(
         return status;
     }
 
+    pNewQueueInfo->queue = (*queue);
+    pNewQueueInfo->queueId = (**queue).id;
+
+    // preempt the queue
+    kmt_status = hsaKmtUpdateQueue(pNewQueueInfo->queueId ,
+                                   0,
+                                   HSA_QUEUE_PRIORITY_NORMAL,
+                                   NULL,
+                                   size,
+                                   NULL);
+    if (kmt_status != HSAKMT_STATUS_SUCCESS)
+    {
+        AGENT_ERROR("Cannot preempt queues.");
+        return HSA_STATUS_ERROR;
+    }
+
+    // Retrieve the control stack and context save area for the queue.
+    kmt_status = hsaKmtGetQueueInfo(pNewQueueInfo->queueId, &queue_info);
+
+    if (kmt_status != HSAKMT_STATUS_SUCCESS)
+    {
+        AGENT_ERROR("Cannot get queue info from KMT.");
+        return HSA_STATUS_ERROR;
+    }
+
+    pNewQueueInfo->pControlStack = reinterpret_cast<void *>(queue_info.ControlStackTop);
+    pNewQueueInfo->controlStackSize = queue_info.ControlStackUsedInBytes;
+    pNewQueueInfo->pContextSaveArea = reinterpret_cast<uint32_t *>(uintptr_t(queue_info.UserContextSaveArea) +
+                                                       queue_info.SaveAreaSizeInBytes);
+    pNewQueueInfo->contextSaveAreaSize = queue_info.SaveAreaSizeInBytes;
+
     {
         std::lock_guard<std::mutex> lock(debugAgentAccessLock);
-        pNewQueueInfo->queue = (*queue);
-        pNewQueueInfo->queueId = (**queue).id;
 
         DebugAgentStatus agentStatus = addQueueToList(agentNode, pNewQueueInfo);
-
         if (agentStatus != DEBUG_AGENT_STATUS_SUCCESS)
         {
             AGENT_ERROR("Interception: Cannot add queue info to link list");
             return HSA_STATUS_ERROR;
         }
+
+        // Update event info
+        DebugAgentEventInfo *pEventInfo = _r_rocm_debug_info.pDebugAgentEvent;
+        pEventInfo->eventType = DEBUG_AGENT_EVENT_QUEUE_CREATE;
+        pEventInfo->eventData.eventQueueCreate.queueInfoHandle = (uint64_t)pNewQueueInfo;
+
+        // Trigger GPU event breakpoint before remove it
+        TriggerGPUEvent();
+        ROCM_GDB_AGENT_QUEUE_CREATE(pNewQueueInfo);
+    }
+
+    // resume the queue
+    kmt_status = hsaKmtUpdateQueue(pNewQueueInfo->queueId ,
+                                   100,
+                                   HSA_QUEUE_PRIORITY_NORMAL,
+                                   (*queue)->base_address,
+                                   (*queue)->size,
+                                   NULL);
+    if (kmt_status != HSAKMT_STATUS_SUCCESS)
+    {
+        AGENT_ERROR("Cannot resume queues.");
+        return HSA_STATUS_ERROR;
     }
 
     AGENT_LOG("Interception: Exit hsa_queue_create");
@@ -251,6 +305,24 @@ HsaDebugAgentHsaQueueDestroy(hsa_queue_t* queue)
     {
         std::lock_guard<std::mutex> lock(debugAgentAccessLock);
         AGENT_LOG("Interception: hsa_queue_destroy");
+
+        // Update event info
+        DebugAgentEventInfo *pEventInfo = _r_rocm_debug_info.pDebugAgentEvent;
+        pEventInfo->eventType = DEBUG_AGENT_EVENT_QUEUE_DESTROY;
+        QueueInfo *pQueueInfo;
+        pQueueInfo = GetQueueFromList(queue->id);
+        if (pQueueInfo == nullptr)
+        {
+            AGENT_ERROR("Interception: Cannot find queue info when destroy.");
+            return HSA_STATUS_ERROR;
+        }
+
+        pEventInfo->eventData.eventQueueDestroy.queueInfoHandle = (uint64_t)pQueueInfo;
+
+        // Trigger GPU event breakpoint before remove it
+        TriggerGPUEvent();
+        ROCM_GDB_AGENT_QUEUE_DESTROY(pQueueInfo);
+
         RemoveQueueFromList(queue->id);
     }
 
@@ -278,8 +350,10 @@ HsaDebugAgentInternalQueueCreateCallback(const hsa_queue_t* queue,
     AGENT_LOG("Interception: internal queue create");
 
     hsa_status_t status = HSA_STATUS_SUCCESS;
-
+    HsaQueueInfo queue_info;
     uint32_t agentNode;
+    HSAKMT_STATUS kmt_status;
+
     status = gs_OrigCoreApiTable.hsa_agent_get_info_fn(agent, HSA_AGENT_INFO_NODE , &agentNode);
     if (status != HSA_STATUS_SUCCESS)
     {
@@ -296,11 +370,64 @@ HsaDebugAgentInternalQueueCreateCallback(const hsa_queue_t* queue,
 
     pNewQueueInfo->queue = (hsa_queue_t*)queue;
     pNewQueueInfo->queueId = queue->id;
+    pNewQueueInfo->nodeId = agentNode;
+
+    // preempt the queue
+    kmt_status = hsaKmtUpdateQueue(pNewQueueInfo->queueId ,
+                                   0,
+                                   HSA_QUEUE_PRIORITY_NORMAL,
+                                   NULL,
+                                   queue->size,
+                                   NULL);
+    if (kmt_status != HSAKMT_STATUS_SUCCESS)
+    {
+        AGENT_ERROR("Cannot preempt queues.");
+        return;
+    }
+
+    // Retrieve the control stack and context save area for the queue.
+    kmt_status = hsaKmtGetQueueInfo(pNewQueueInfo->queueId, &queue_info);
+
+    if (kmt_status != HSAKMT_STATUS_SUCCESS)
+    {
+        AGENT_ERROR("Cannot get queue info from KMT.");
+        return;
+    }
+
+    pNewQueueInfo->pControlStack = reinterpret_cast<void *>(queue_info.ControlStackTop);
+    pNewQueueInfo->controlStackSize = queue_info.ControlStackUsedInBytes;
+    pNewQueueInfo->pContextSaveArea = reinterpret_cast<uint32_t *>(uintptr_t(queue_info.UserContextSaveArea) +
+                                                       queue_info.SaveAreaSizeInBytes);
+    pNewQueueInfo->contextSaveAreaSize = queue_info.SaveAreaSizeInBytes;
+
 
     DebugAgentStatus agentStatus = addQueueToList(agentNode, pNewQueueInfo);
     if (agentStatus != DEBUG_AGENT_STATUS_SUCCESS)
     {
         AGENT_ERROR("Interception: Cannot add queue info to link list");
+        return;
+    }
+
+    // Update event info
+    DebugAgentEventInfo *pEventInfo = _r_rocm_debug_info.pDebugAgentEvent;
+    pEventInfo->eventType = DEBUG_AGENT_EVENT_QUEUE_CREATE;
+    pEventInfo->eventData.eventQueueCreate.queueInfoHandle = (uint64_t)pNewQueueInfo;
+
+    // Trigger GPU event breakpoint before remove it
+    TriggerGPUEvent();
+    ROCM_GDB_AGENT_QUEUE_CREATE(pNewQueueInfo);
+
+    // resume the queue
+    kmt_status = hsaKmtUpdateQueue(pNewQueueInfo->queueId ,
+                                   100,
+                                   HSA_QUEUE_PRIORITY_NORMAL,
+                                   queue->base_address,
+                                   queue->size,
+                                   NULL);
+    if (kmt_status != HSAKMT_STATUS_SUCCESS)
+    {
+        AGENT_ERROR("Cannot resume queues.");
+        return;
     }
 
     AGENT_LOG("Interception: Exit internal queue create callback");

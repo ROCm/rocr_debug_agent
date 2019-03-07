@@ -16,4 +16,8 @@ provider rocm_gdb_agent
     // Executable loading/unloading.
     probe exec_load (ExecutableInfo* exec);
     probe exec_unload (ExecutableInfo* exec);
+
+    // Queue created/destoryed.
+    probe queue_create (QueueInfo* queue);
+    probe queue_destroy (QueueInfo* queue);
 };

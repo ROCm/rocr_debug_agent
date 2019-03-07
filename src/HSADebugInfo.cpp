@@ -87,6 +87,12 @@ DebugAgentStatus ProcessQueueWaveStates(uint32_t nodeId, uint64_t queueId)
     // Track the LDS save area for the current workgroup.
     uint32_t *lds = nullptr;
 
+    QueueInfo *pQueue = GetQueueFromList(nodeId, queueId);
+    pQueue->pControlStack = queue_info.ControlStackTop;
+    pQueue->controlStackSize = queue_info.ControlStackUsedInBytes;
+    pQueue->pContextSaveArea = queue_info.UserContextSaveArea;
+    pQueue->contextSaveAreaSize = queue_info.SaveAreaSizeInBytes;
+
     // Parse each write to COMPUTE_RELAUNCH in sequence.
     // First two dwords are SET_SH_REG leader.
     // TODO:
@@ -181,7 +187,6 @@ DebugAgentStatus ProcessQueueWaveStates(uint32_t nodeId, uint64_t queueId)
             pWaveList->waveAreaSize = wave_area_size;
 
 
-            QueueInfo *pQueue = GetQueueFromList(nodeId, queueId);
             DebugAgentStatus statusAddToList = AddToLinkListEnd<WaveStateInfo>(pWaveList,
                                                                                &(pQueue->pWaveList));
 
