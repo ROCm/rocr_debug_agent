@@ -208,7 +208,7 @@ HsaDebugAgentHsaQueueCreate(
 
     QueueInfo* pNewQueueInfo = new QueueInfo;
     pNewQueueInfo->queueStatus = HSA_STATUS_SUCCESS;
-    pNewQueueInfo->callback = callback;
+    pNewQueueInfo->callback = reinterpret_cast<void*>(callback);
     pNewQueueInfo->data = data;
     pNewQueueInfo->pWaveList = nullptr;
     pNewQueueInfo->pPrev = nullptr;
@@ -660,7 +660,7 @@ AddCodeObjectInfoCallback(
         return status;
     }
 
-    GPUAgentInfo *pAgent = GetAgentFromList(loadedAgent);
+    GPUAgentInfo *pAgent = GetAgentFromList(reinterpret_cast<void*>(loadedAgent.handle));
     ((ExecutableInfo *)data)->nodeId = pAgent->nodeId;
 
     CodeObjectInfo* pList = new CodeObjectInfo;

@@ -95,7 +95,10 @@ void HSADebugAgentHandleQueueError(hsa_status_t status, hsa_queue_t* pHsaQueueT,
     // Call the original callback registered when create queue in runtime
     if (pQueue->callback != nullptr)
     {
-        pQueue->callback(status, pHsaQueueT, pQueue->data);
+        auto* callback
+            = reinterpret_cast<void (*)(hsa_status_t, hsa_queue_t*, void*)>(pQueue->callback);
+
+        (*callback)(status, pHsaQueueT, pQueue->data);
     }
 }
 

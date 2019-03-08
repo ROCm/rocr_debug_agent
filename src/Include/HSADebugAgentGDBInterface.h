@@ -41,8 +41,6 @@
 // Max breakpoint number based on the trap buffer size (0x1000)
 #define AGENT_MAX_BREAKPOINT 510
 
-#include "hsa.h"
-
 #pragma pack(push,1)
 extern "C" {
 
@@ -163,13 +161,13 @@ typedef struct _QueueInfo
     // Queue status. Value is QueueStatus. TODO: hold runtime queue error state
     uint64_t queueStatus;
     // Pointer to the queue.
-    hsa_queue_t* queue;
+    void*    queue;
     // Runtime queue id.
     uint64_t queueId;
     // Agent node id the queue belongs to.
     uint32_t nodeId;
     // Orignal callback registered by the HSA runtime for asynchronous event.
-    void (*callback)(hsa_status_t status, hsa_queue_t* source, void* data);
+    void* callback;
     // Orignal application data that is passed to the callback.
     void* data;
     // Context save area
@@ -194,7 +192,7 @@ typedef struct _GPUAgentInfo
     // Agent status. Vaule is AgentStatus.
     uint64_t agentStatus;
     // GPU Agent handle.
-    hsa_agent_t agent;
+    void*    agent;
     // Agent node id.
     uint32_t nodeId;
     // Agent name.
