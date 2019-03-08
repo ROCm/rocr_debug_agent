@@ -68,7 +68,7 @@ HSADebugAgentHandleMemoryFault(hsa_amd_event_t event, void* pData)
         std::lock_guard<std::mutex> lock(debugAgentAccessLock);
 
         DebugAgentStatus status = DEBUG_AGENT_STATUS_SUCCESS;
-        GPUAgentInfo* pAgent = GetAgentFromList(reinterpret_cast<void*>(event.memory_fault.agent.handle));
+        GPUAgentInfo* pAgent = GetAgentFromList(event.memory_fault.agent);
 
         DebugAgentEventInfo *pEventInfo = _r_rocm_debug_info.pDebugAgentEvent;
         if (pEventInfo == nullptr)

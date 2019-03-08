@@ -211,14 +211,12 @@ DebugAgentStatus PreemptAgentQueues(GPUAgentInfo* pAgent)
     QueueInfo *pQueue = pAgent->pQueueList;
     while (pQueue != nullptr)
     {
-        hsa_queue_t* queue = reinterpret_cast<hsa_queue_t*>(pQueue->queue);
-
         // preempt the queue
-        kmt_status = hsaKmtUpdateQueue(queue->id,
+        kmt_status = hsaKmtUpdateQueue(pQueue->queue->id,
                                        0,
                                        HSA_QUEUE_PRIORITY_NORMAL,
                                        NULL,
-                                       queue->size,
+                                       pQueue->queue->size,
                                        NULL);
         if (kmt_status != HSAKMT_STATUS_SUCCESS)
         {
@@ -263,18 +261,16 @@ DebugAgentStatus ResumeAgentQueues(GPUAgentInfo* pAgent)
     QueueInfo *pQueue = pAgent->pQueueList;
     while (pQueue != nullptr)
     {
-        hsa_queue_t* queue = reinterpret_cast<hsa_queue_t*>(pQueue->queue);
-
         if (pQueue->queueStatus != HSA_STATUS_SUCCESS)
         {
             break;
         }
 
-        kmt_status = hsaKmtUpdateQueue(queue->id,
+        kmt_status = hsaKmtUpdateQueue(pQueue->queue->id,
                                        100,
                                        HSA_QUEUE_PRIORITY_NORMAL,
-                                       queue->base_address,
-                                       queue->size,
+                                       pQueue->queue->base_address,
+                                       pQueue->queue->size,
                                        NULL);
         if (kmt_status != HSAKMT_STATUS_SUCCESS)
         {
@@ -521,12 +517,12 @@ GPUAgentInfo *GetAgentFromList(uint32_t nodeId)
     return nullptr;
 }
 
-GPUAgentInfo *GetAgentFromList(void* agentHandle)
+GPUAgentInfo *GetAgentFromList(hsa_agent_t agentHandle)
 {
     GPUAgentInfo *pList = _r_rocm_debug_info.pAgentList;
     while (pList != nullptr)
     {
-        if (pList->agent == agentHandle)
+        if (pList->agent.handle == agentHandle.handle)
         {
             return pList;
         }
