@@ -59,7 +59,7 @@ HSADebugAgentHandleMemoryFault(hsa_amd_event_t event, void* pData)
         return HSA_STATUS_ERROR;
     }
 
-    if (event.event_type != GPU_MEMORY_FAULT_EVENT)
+    if (event.event_type != HSA_AMD_GPU_MEMORY_FAULT_EVENT)
     {
         return HSA_STATUS_ERROR;
     }
@@ -187,29 +187,37 @@ static void PrintVMFaultInfo()
     err << "Memory access fault at GPU Node: " << memoryFaultInfo.eventMemoryFault.nodeId <<std::endl;
     err << "Address: 0x" << std::hex << std::uppercase << fault_page_idx << "xxx (";
 
-    if ((memoryFaultInfo.eventMemoryFault.faultReasonMask & 0x00000001) > 0)
+    if ((memoryFaultInfo.eventMemoryFault.faultReasonMask & HSA_AMD_MEMORY_FAULT_PAGE_NOT_PRESENT) > 0)
     {
         err << "page not present;";
     }
-    if ((memoryFaultInfo.eventMemoryFault.faultReasonMask & 0x00000010) > 0)
+    if ((memoryFaultInfo.eventMemoryFault.faultReasonMask & HSA_AMD_MEMORY_FAULT_READ_ONLY) > 0)
     {
         err << "write access to a read-only page;";
     }
-    if ((memoryFaultInfo.eventMemoryFault.faultReasonMask & 0x00000100) > 0)
+    if ((memoryFaultInfo.eventMemoryFault.faultReasonMask & HSA_AMD_MEMORY_FAULT_NX) > 0)
     {
         err << "execute access to a non-executable page;";
     }
-    if ((memoryFaultInfo.eventMemoryFault.faultReasonMask & 0x00001000) > 0)
+    if ((memoryFaultInfo.eventMemoryFault.faultReasonMask & HSA_AMD_MEMORY_FAULT_HOST_ONLY) > 0)
     {
         err << "access to host access only;";
     }
-    if ((memoryFaultInfo.eventMemoryFault.faultReasonMask & 0x00010000) > 0)
+    if ((memoryFaultInfo.eventMemoryFault.faultReasonMask & HSA_AMD_MEMORY_FAULT_DRAM_ECC) > 0)
     {
-        err << "uncorrectable ECC failure;";
+        err << "uncorrectable DRAM ECC failure;";
     }
-    if ((memoryFaultInfo.eventMemoryFault.faultReasonMask & 0x00100000) > 0)
+    if ((memoryFaultInfo.eventMemoryFault.faultReasonMask & HSA_AMD_MEMORY_FAULT_IMPRECISE) > 0)
     {
         err << "can't determine the exact fault address;";
+    }
+    if ((memoryFaultInfo.eventMemoryFault.faultReasonMask & HSA_AMD_MEMORY_FAULT_SRAM_ECC) > 0)
+    {
+        err << "SRAM ECC failure;";
+    }
+    if ((memoryFaultInfo.eventMemoryFault.faultReasonMask & HSA_AMD_MEMORY_FAULT_HANG) > 0)
+    {
+        err << "GPU reset following unspecified hang;";
     }
     err << ")\n\n";
     AGENT_PRINT(err.str());

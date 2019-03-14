@@ -870,7 +870,7 @@ HSADebugAgentHandleRuntimeEvent(const hsa_amd_event_t* event, void* pData)
     hsa_amd_event_t gpuEvent = *event;
     switch (gpuEvent.event_type)
     {
-        case GPU_MEMORY_FAULT_EVENT :
+        case HSA_AMD_GPU_MEMORY_FAULT_EVENT :
             return HSADebugAgentHandleMemoryFault(gpuEvent, pData);
             break;
         default :
