@@ -198,6 +198,7 @@ HsaDebugAgentHsaQueueCreate(
     HsaQueueInfo queue_info;
     uint32_t agentNode;
     HSAKMT_STATUS kmt_status;
+    DebugAgentQueueInfo debugAgengQueueInfo;
 
     status = gs_OrigCoreApiTable.hsa_agent_get_info_fn(agent, HSA_AGENT_INFO_NODE , &agentNode);
     if (status != HSA_STATUS_SUCCESS)
@@ -208,12 +209,13 @@ HsaDebugAgentHsaQueueCreate(
 
     QueueInfo* pNewQueueInfo = new QueueInfo;
     pNewQueueInfo->queueStatus = HSA_STATUS_SUCCESS;
-    pNewQueueInfo->callback = reinterpret_cast<void*>(callback);
-    pNewQueueInfo->data = data;
-    pNewQueueInfo->pWaveList = nullptr;
     pNewQueueInfo->pPrev = nullptr;
     pNewQueueInfo->pNext = nullptr;
     pNewQueueInfo->nodeId = agentNode;
+
+    debugAgengQueueInfo.callback = reinterpret_cast<void*>(callback);
+    debugAgengQueueInfo.data = data;
+    allDebugAgentQueueInfo.insert(std::pair<uint64_t, DebugAgentQueueInfo>());
 
     status = gs_OrigCoreApiTable.hsa_queue_create_fn(agent,
                                                       size,
@@ -256,11 +258,16 @@ HsaDebugAgentHsaQueueCreate(
         return HSA_STATUS_ERROR;
     }
 
-    pNewQueueInfo->pControlStack = reinterpret_cast<void *>(queue_info.ControlStackTop);
+    pNewQueueInfo->pControlStack = queue_info.ControlStackTop;
     pNewQueueInfo->controlStackSize = queue_info.ControlStackUsedInBytes;
-    pNewQueueInfo->pContextSaveArea = reinterpret_cast<uint32_t *>(uintptr_t(queue_info.UserContextSaveArea) +
-                                                       queue_info.SaveAreaSizeInBytes);
+    pNewQueueInfo->pContextSaveArea = queue_info.UserContextSaveArea;
     pNewQueueInfo->contextSaveAreaSize = queue_info.SaveAreaSizeInBytes;
+
+    // Save the original queue error handler
+    debugAgengQueueInfo.callback = reinterpret_cast<void*>(callback);
+    debugAgengQueueInfo.data = data;
+    allDebugAgentQueueInfo.insert(std::pair<uint64_t, DebugAgentQueueInfo>
+            (pNewQueueInfo->queueId, debugAgengQueueInfo));
 
     {
         std::lock_guard<std::mutex> lock(debugAgentAccessLock);
@@ -272,13 +279,7 @@ HsaDebugAgentHsaQueueCreate(
             return HSA_STATUS_ERROR;
         }
 
-        // Update event info
-        DebugAgentEventInfo *pEventInfo = _r_rocm_debug_info.pDebugAgentEvent;
-        pEventInfo->eventType = DEBUG_AGENT_EVENT_QUEUE_CREATE;
-        pEventInfo->eventData.eventQueueCreate.queueInfoHandle = (uint64_t)pNewQueueInfo;
-
         // Trigger GPU event breakpoint before remove it
-        TriggerGPUEvent();
         ROCM_GDB_AGENT_QUEUE_CREATE(pNewQueueInfo);
     }
 
@@ -306,9 +307,6 @@ HsaDebugAgentHsaQueueDestroy(hsa_queue_t* queue)
         std::lock_guard<std::mutex> lock(debugAgentAccessLock);
         AGENT_LOG("Interception: hsa_queue_destroy");
 
-        // Update event info
-        DebugAgentEventInfo *pEventInfo = _r_rocm_debug_info.pDebugAgentEvent;
-        pEventInfo->eventType = DEBUG_AGENT_EVENT_QUEUE_DESTROY;
         QueueInfo *pQueueInfo;
         pQueueInfo = GetQueueFromList(queue->id);
         if (pQueueInfo == nullptr)
@@ -317,10 +315,7 @@ HsaDebugAgentHsaQueueDestroy(hsa_queue_t* queue)
             return HSA_STATUS_ERROR;
         }
 
-        pEventInfo->eventData.eventQueueDestroy.queueInfoHandle = (uint64_t)pQueueInfo;
-
         // Trigger GPU event breakpoint before remove it
-        TriggerGPUEvent();
         ROCM_GDB_AGENT_QUEUE_DESTROY(pQueueInfo);
 
         RemoveQueueFromList(queue->id);
@@ -353,6 +348,7 @@ HsaDebugAgentInternalQueueCreateCallback(const hsa_queue_t* queue,
     HsaQueueInfo queue_info;
     uint32_t agentNode;
     HSAKMT_STATUS kmt_status;
+    DebugAgentQueueInfo debugAgengQueueInfo;
 
     status = gs_OrigCoreApiTable.hsa_agent_get_info_fn(agent, HSA_AGENT_INFO_NODE , &agentNode);
     if (status != HSA_STATUS_SUCCESS)
@@ -362,9 +358,6 @@ HsaDebugAgentInternalQueueCreateCallback(const hsa_queue_t* queue,
 
     QueueInfo* pNewQueueInfo = new QueueInfo;
     pNewQueueInfo->queueStatus = HSA_STATUS_SUCCESS;
-    pNewQueueInfo->callback = nullptr;
-    pNewQueueInfo->data = nullptr;
-    pNewQueueInfo->pWaveList = nullptr;
     pNewQueueInfo->pPrev = nullptr;
     pNewQueueInfo->pNext = nullptr;
 
@@ -394,12 +387,16 @@ HsaDebugAgentInternalQueueCreateCallback(const hsa_queue_t* queue,
         return;
     }
 
-    pNewQueueInfo->pControlStack = reinterpret_cast<void *>(queue_info.ControlStackTop);
+    pNewQueueInfo->pControlStack = queue_info.ControlStackTop;
     pNewQueueInfo->controlStackSize = queue_info.ControlStackUsedInBytes;
-    pNewQueueInfo->pContextSaveArea = reinterpret_cast<uint32_t *>(uintptr_t(queue_info.UserContextSaveArea) +
-                                                       queue_info.SaveAreaSizeInBytes);
+    pNewQueueInfo->pContextSaveArea = queue_info.UserContextSaveArea;
     pNewQueueInfo->contextSaveAreaSize = queue_info.SaveAreaSizeInBytes;
 
+    // Save the original queue error handler
+    debugAgengQueueInfo.callback = nullptr;
+    debugAgengQueueInfo.data = nullptr;
+    allDebugAgentQueueInfo.insert(std::pair<uint64_t, DebugAgentQueueInfo>
+            (pNewQueueInfo->queueId, debugAgengQueueInfo));
 
     DebugAgentStatus agentStatus = addQueueToList(agentNode, pNewQueueInfo);
     if (agentStatus != DEBUG_AGENT_STATUS_SUCCESS)
@@ -408,13 +405,7 @@ HsaDebugAgentInternalQueueCreateCallback(const hsa_queue_t* queue,
         return;
     }
 
-    // Update event info
-    DebugAgentEventInfo *pEventInfo = _r_rocm_debug_info.pDebugAgentEvent;
-    pEventInfo->eventType = DEBUG_AGENT_EVENT_QUEUE_CREATE;
-    pEventInfo->eventData.eventQueueCreate.queueInfoHandle = (uint64_t)pNewQueueInfo;
-
     // Trigger GPU event breakpoint before remove it
-    TriggerGPUEvent();
     ROCM_GDB_AGENT_QUEUE_CREATE(pNewQueueInfo);
 
     // resume the queue
@@ -471,14 +462,7 @@ HsaDebugAgentHsaExecutableFreeze(
             return status;
         }
 
-        // Update event info, nodeId will be updated when update code object info
-        DebugAgentEventInfo *pEventInfo = _r_rocm_debug_info.pDebugAgentEvent;
-        pEventInfo->eventType = DEBUG_AGENT_EVENT_EXECUTABLE_CREATE;
-        pEventInfo->eventData.eventExecutableCreate.executableId = executable.handle;
-        pEventInfo->eventData.eventExecutableCreate.executableHandle = (uint64_t)pExec;
-
         // Trigger GPU event breakpoint
-        TriggerGPUEvent();
         ROCM_GDB_AGENT_EXEC_LOAD(pExec);
     }
 
@@ -494,10 +478,6 @@ HsaDebugAgentHsaExecutableDestroy(
         std::lock_guard<std::mutex> lock(debugAgentAccessLock);
         AGENT_LOG("Interception: hsa_executable_destroy");
 
-        // Update event info
-        DebugAgentEventInfo *pEventInfo = _r_rocm_debug_info.pDebugAgentEvent;
-        pEventInfo->eventType = DEBUG_AGENT_EVENT_EXECUTABLE_DESTROY;
-        pEventInfo->eventData.eventExecutableDestroy.executableId = executable.handle;
         ExecutableInfo *pExecInfo;
         pExecInfo = GetExecutableFromList(executable.handle);
         if (pExecInfo == nullptr)
@@ -506,10 +486,7 @@ HsaDebugAgentHsaExecutableDestroy(
             return HSA_STATUS_ERROR;
         }
 
-        pEventInfo->eventData.eventExecutableDestroy.executableHandle = (uint64_t)pExecInfo;
-
         // Trigger GPU event breakpoint before remove it
-        TriggerGPUEvent();
         ROCM_GDB_AGENT_EXEC_UNLOAD(pExecInfo);
 
         // Remove loaded code object info of the deleted executable

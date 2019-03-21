@@ -59,13 +59,6 @@ bool HSADebugTrapSignalHandler(hsa_signal_value_t signalValue, void* arg)
         // Clear the signal
         hsa_signal_store_relaxed(debugTrapSignal, 0);
 
-        // Update event info, nodeId will be updated when update code object info
-        DebugAgentEventInfo *pEventInfo = _r_rocm_debug_info.pDebugAgentEvent;
-        pEventInfo->eventType = DEBUG_AGENT_EVENT_USER_BREAKPOINT;
-        // No other info about the brekapoint is available at this point.
-        // GDB needs to figure out the info.
-
-        TriggerGPUUserBreakpoint();
         ROCM_GDB_AGENT_GPU_USER_BREAKPOINT();
 
         ResumeAllQueues();

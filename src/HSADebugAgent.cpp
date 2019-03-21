@@ -57,7 +57,7 @@
 // Debug info tracked by debug agent, it is probed by ROCm-GDB
 RocmGpuDebug _r_rocm_debug_info =
 {
-    HSA_DEBUG_AGENT_VERSION, nullptr, nullptr, nullptr, nullptr
+    HSA_DEBUG_AGENT_VERSION, nullptr, nullptr, nullptr
 };
 
 // Temp direcoty path for code object files
@@ -222,14 +222,6 @@ extern "C" bool OnLoad(void *pTable,
     AGENT_LOG("===== Finished Loading ROC Debug Agent=====");
     g_debugAgentInitialSuccess = true;
 
-
-    // Update event info, the agent is now loaded.
-    DebugAgentEventInfo *pEventInfo = _r_rocm_debug_info.pDebugAgentEvent;
-    pEventInfo->eventType = DEBUG_AGENT_EVENT_LOADED;
-
-    // Trigger GPU event breakpoint
-    TriggerGPUEvent();
-
     return true;
 }
 
@@ -237,12 +229,6 @@ extern "C" void OnUnload()
 {
     std::lock_guard<std::mutex> lock(debugAgentAccessLock);
 
-    // Update event info, the agent is now unloading.
-    DebugAgentEventInfo *pEventInfo = _r_rocm_debug_info.pDebugAgentEvent;
-    pEventInfo->eventType = DEBUG_AGENT_EVENT_UNLOADING;
-
-    // Trigger GPU event breakpoint
-    TriggerGPUEvent();
     ROCM_GDB_AGENT_FINI_START();
 
     AGENT_LOG("===== Unload ROC Debug Agent=====");
@@ -341,10 +327,6 @@ static DebugAgentStatus AgentInitDebugInfo()
         AGENT_ERROR("Failed querying the device information.");
         return DEBUG_AGENT_STATUS_FAILURE;
     }
-
-    DebugAgentEventInfo *pEventInfo = new DebugAgentEventInfo;
-    memset(pEventInfo, 0, sizeof(DebugAgentEventInfo));
-    _r_rocm_debug_info.pDebugAgentEvent = pEventInfo;
 
     AGENT_LOG("Finished initializing agent debug info")
 
@@ -502,7 +484,6 @@ static void AgentCleanDebugInfo()
         while (pQueue != nullptr)
         {
             pQueueListNext = pQueue->pNext;
-            CleanUpQueueWaveState(pAgent->nodeId, pQueue->queueId);
             RemoveQueueFromList(pQueue->queueId);
             pQueue = pQueueListNext;
         }
@@ -518,9 +499,6 @@ static void AgentCleanDebugInfo()
         DeleteExecutableFromList(pExec->executableId);
         pExec = pExecNext;
     }
-
-    /* delete event info*/
-    delete _r_rocm_debug_info.pDebugAgentEvent;
 
     /*delete temp files */
     if (g_deleteTmpFile)

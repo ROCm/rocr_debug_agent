@@ -113,48 +113,6 @@ typedef struct _MemoryFaultInfo
     uint32_t faultReasonMask;
 } MemoryFaultInfo;
 
-// Wave states of a queue for ROCm-GDB to probe.
-typedef struct _WaveStateInfo
-{
-    // Wave context save area
-    uint32_t* waveArea;
-    // Wave context save area size
-    uint32_t waveAreaSize;
-    // Number of SGPRs allocated per wavefront.
-    uint32_t numSgprs;
-    // Array of packed SGPR data.
-    uint32_t* sgprs;
-    // Number of trap temp SGPRs
-    uint32_t numTrapTempSgprs;
-    // Array of packed trap temp SGPR.
-    uint32_t* trapTempSgprs;
-    // Number of VGPRs allocated per wavefront.
-    uint32_t numVgprs;
-    // Number of lanes in each VGPR.
-    uint32_t numVgprLanes;
-    // Array of packed VGPR data.
-    // VGPR value = vgprs[(vgprIdx * numVgprLanes) + laneIdx]
-    uint32_t* vgprs;
-    // LDS allocation size for the work group, in 32-bit words.
-    uint32_t ldsSizeDw;
-    // Packed LDS data for the work group.
-    uint32_t* lds;
-    // Data for miscellaneous registers.
-    struct
-    {
-        uint64_t pc;
-        uint64_t exec;
-        uint32_t status;
-        uint32_t trapsts;
-        uint32_t m0;
-    } regs;
-    // Next element of the wave state link list.
-    struct _WaveStateInfo* pNext;
-    // Previous element of the wave state link list.
-    struct _WaveStateInfo* pPrev;
-
-} WaveStateInfo;
-
 // Queues of an agent for ROCm-GDB to probe.
 typedef struct _QueueInfo
 {
@@ -166,10 +124,6 @@ typedef struct _QueueInfo
     uint64_t queueId;
     // Agent node id the queue belongs to.
     uint32_t nodeId;
-    // Orignal callback registered by the HSA runtime for asynchronous event.
-    void* callback;
-    // Orignal application data that is passed to the callback.
-    void* data;
     // Context save area
     void* pContextSaveArea;
     // Context save area size
@@ -178,8 +132,6 @@ typedef struct _QueueInfo
     void* pControlStack;
     // Control stack size
     uint32_t controlStackSize;
-    // Link list of wave states of the queue
-    WaveStateInfo* pWaveList;
     // Next element of the queue link list.
     struct _QueueInfo* pNext;
     // Previous element of the queue link list.
@@ -219,80 +171,6 @@ typedef struct _GPUAgentInfo
     struct _GPUAgentInfo* pPrev;
 } GPUAgentInfo;
 
-typedef enum {
-    // Invalid event
-    DEBUG_AGENT_EVENT_INVALID                = 0x000,
-    // Debug agent intercept executable create
-    DEBUG_AGENT_EVENT_EXECUTABLE_CREATE      = 0x001,
-    // Debug agent intercept executable destroy
-    DEBUG_AGENT_EVENT_EXECUTABLE_DESTROY     = 0x002,
-    // Debug agent get memory fault
-    DEBUG_AGENT_EVENT_MEMORY_FAULT           = 0x003,
-    // Debug agent get queue error
-    DEBUG_AGENT_EVENT_QUEUE_ERROR            = 0x004,
-    // Debug agent get user breakpoint
-    DEBUG_AGENT_EVENT_USER_BREAKPOINT        = 0x005,
-    // Debug agent is loaded
-    DEBUG_AGENT_EVENT_LOADED                 = 0x006,
-    // Debug agent is unloading
-    DEBUG_AGENT_EVENT_UNLOADING              = 0x007,
-    // Debug agent intercept queue create
-    DEBUG_AGENT_EVENT_QUEUE_CREATE           = 0x008,
-    // Debug agent intercept queue destroy
-    DEBUG_AGENT_EVENT_QUEUE_DESTROY          = 0x009,
-} DebugAgentEventType;
-
-union EventData {
-    struct _EventQueueCreate {
-        uint64_t queueInfoHandle;
-    } eventQueueCreate;
-    struct _EventQueueDestroy {
-        uint64_t queueInfoHandle;
-    } eventQueueDestroy;
-    struct _EventExecutableCreate {
-        // FIXME: node id is not vaild, as code object can belong
-        // to different agent.
-        uint32_t nodeId;
-        uint64_t executableId;
-        uint64_t executableHandle;
-    } eventExecutableCreate;
-    struct _EventExecutableDestroy {
-        // FIXME: node id is not vaild, as code object can belong
-        // to different agent.
-        uint32_t nodeId;
-        uint64_t executableId;
-        uint64_t executableHandle;
-    } eventExecutableDestroy;
-    struct _EventMemoryFault {
-        uint32_t nodeId;
-        uint64_t virtualAddress;
-        // Bit field encoding the memory access failure reasons.
-        // There could be multiple bits set for one fault.
-        // 0x00000001 Page not present or supervisor privilege.
-        // 0x00000010 Write access to a read-only page.
-        // 0x00000100 Execute access to a page marked NX.
-        // 0x00001000 Host access only.
-        // 0x00010000 ECC failure (if supported by HW).
-        // 0x00100000 Can't determine the exact fault address.
-        uint32_t faultReasonMask;
-    } eventMemoryFault;
-    struct _EventQueueError {
-        uint32_t nodeId;
-        uint64_t queueId;
-        uint64_t queueStatus;
-    } eventQueueError;
-    struct _EventUserBreakpoint {
-        uint32_t nodeId;
-    } eventUserBreakpoint;
-};
-
-// ROCm event info reported by debug agent
-typedef struct
-{
-    DebugAgentEventType eventType;
-    EventData eventData;
-} DebugAgentEventInfo;
-
 // Debug trap handler buffer struct
 typedef struct _DebugTrapBuff
 {
@@ -301,7 +179,6 @@ typedef struct _DebugTrapBuff
 } DebugTrapBuff;
 
 // Struct that maintains all debug info for ROCm-GDB to probe.
-// TODO: atomic update this, when GDB interacts with GPU directly.
 typedef struct _RocmGpuDebug
 {
     // Version number for the debug agent.
@@ -310,23 +187,9 @@ typedef struct _RocmGpuDebug
     GPUAgentInfo* pAgentList;
     // Head of the chain of loaded objects.
     ExecutableInfo* pExecutableList;
-    // ROCm event caught by debug agent (only one event can be triggered at a time)
-    DebugAgentEventInfo* pDebugAgentEvent;
     // Debug trap buffer address.
     DebugTrapBuff* pDebugTrapBuffer;
 } RocmGpuDebug;
-
-/// GDB will install a breakpoint on this function that will be used when
-/// a GPU kernel breakpoint is hit.
-/// It is defined as extern C to facilitate the name lookup by GDB. This
-/// could be changed to use exported symbol referring to locations
-/// as it is done in the in-process agent library.
-
-// Regular GPU breakpoint
-void __attribute__((optimize("O0"))) TriggerGPUUserBreakpoint(void);
-
-// Breakpoint for GPU fault
-void __attribute__((optimize("O0"))) TriggerGPUEvent(void);
 
 } // extern "C"
 #pragma pack(pop)

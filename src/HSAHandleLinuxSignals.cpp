@@ -108,40 +108,30 @@ void INThandler(int sig)
             PrintWaves(pAgent, waves);
             pAgent = pAgent->pNext;
         }
-
+        allQueueWaves.clear();
         std::abort();
     }
 }
 
 static std::map<uint64_t, std::pair<uint64_t, WaveStateInfo *>> FindWavesAllQueues()
 {
-    GPUAgentInfo *pAgent = _r_rocm_debug_info.pAgentList;
     std::map<uint64_t, std::pair<uint64_t, WaveStateInfo *>> waves;
 
-    while (pAgent != nullptr)
+    for (auto &queueWaves : allQueueWaves)
     {
-        QueueInfo *pQueue = pAgent->pQueueList;
-        while (pQueue != nullptr)
+        for (auto &wave : queueWaves.second)
         {
-            WaveStateInfo *pWave = pQueue->pWaveList;
-            while (pWave != nullptr)
+            auto it = waves.find(wave.regs.pc);
+            if (it != waves.end())
             {
-                std::map<uint64_t, std::pair<uint64_t, WaveStateInfo *>>::iterator it;
-                it = waves.find(pWave->regs.pc);
-                if (it != waves.end())
-                {
-                    it->second.first++;
-                }
-                else
-                {
-                    waves.insert(std::make_pair(pWave->regs.pc,
-                                                std::make_pair(1, pWave)));
-                }
-                pWave = pWave->pNext;
+                it->second.first ++;
             }
-            pQueue = pQueue->pNext;
+            else
+            {
+                waves.insert(std::make_pair(wave.regs.pc,
+                                            std::make_pair(1, &wave)));
+            }
         }
-        pAgent = pAgent->pNext;
     }
     return waves;
 }

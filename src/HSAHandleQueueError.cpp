@@ -69,17 +69,9 @@ void HSADebugAgentHandleQueueError(hsa_status_t status, hsa_queue_t* pHsaQueueT,
         PreemptAgentQueues(pAgent);
         pQueue->queueStatus = status;
 
-        // Update the queue error event in event info
-        DebugAgentEventInfo *pEventInfo = _r_rocm_debug_info.pDebugAgentEvent;
-        pEventInfo->eventType = DEBUG_AGENT_EVENT_QUEUE_ERROR;
-        pEventInfo->eventData.eventQueueError.nodeId = pAgent->nodeId;
-        pEventInfo->eventData.eventQueueError.queueId = pHsaQueueT->id;
-        pEventInfo->eventData.eventQueueError.queueStatus = status;
-
         if (g_gdbAttached)
         {
-            // GDB breakpoint, it triggers GDB to probe wave state info.
-            TriggerGPUEvent();
+            // TODO qingchuan: add probe
         }
         else
         {
@@ -87,41 +79,41 @@ void HSADebugAgentHandleQueueError(hsa_status_t status, hsa_queue_t* pHsaQueueT,
                 FindWavesByQueue(pQueue);
             PrintQueueErrorInfo(status, pQueue);
             PrintWaves(pAgent, waves);
+            allQueueWaves.clear();
         }
+
         // resume all quueues in HSA_Status_success
         ResumeAgentQueues(pAgent);
     }
 
     // Call the original callback registered when create queue in runtime
-    if (pQueue->callback != nullptr)
+    if (allDebugAgentQueueInfo[pHsaQueueT->id].callback != nullptr)
     {
         auto* callback
-            = reinterpret_cast<void (*)(hsa_status_t, hsa_queue_t*, void*)>(pQueue->callback);
+            = reinterpret_cast<void (*)(hsa_status_t, hsa_queue_t*, void*)>
+                    (allDebugAgentQueueInfo[pHsaQueueT->id].callback);
 
-        (*callback)(status, pHsaQueueT, pQueue->data);
+        (*callback)(status, pHsaQueueT, allDebugAgentQueueInfo[pHsaQueueT->id].data);
     }
 }
 
 static std::map<uint64_t, std::pair<uint64_t, WaveStateInfo *>> FindWavesByQueue(QueueInfo* pQueue)
 {
-    WaveStateInfo* pWave = pQueue->pWaveList;
     std::map<uint64_t, std::pair<uint64_t, WaveStateInfo*>> waves;
-    while (pWave != nullptr)
+
+    for (auto &wave : allQueueWaves[pQueue->queueId])
     {
-        std::map<uint64_t, std::pair<uint64_t, WaveStateInfo*>>::iterator it;
-        it = waves.find(pWave->regs.pc);
+        auto it = waves.find(wave.regs.pc);
         if (it != waves.end())
         {
             it->second.first++;
         }
         else
         {
-            waves.insert(std::make_pair(pWave->regs.pc,
-                                        std::make_pair(1, pWave)));
+            waves.insert(std::make_pair(wave.regs.pc,
+                                        std::make_pair(1, &wave)));
         }
-        pWave = pWave->pNext;
     }
-    pQueue = pQueue->pNext;
     return waves;
 }
 
