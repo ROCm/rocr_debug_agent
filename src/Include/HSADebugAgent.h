@@ -36,6 +36,7 @@
 #define HSA_DEBUG_AGENT_H_
 
 #include <mutex>
+#include <atomic>
 
 // forward declaration.
 typedef struct _RocmGpuDebug RocmGpuDebug;
@@ -56,7 +57,7 @@ extern char g_codeObjDir[92];
 extern bool g_deleteTmpFile;
 
 // Debug agent initialization status
-extern bool g_debugAgentInitialSuccess;
+extern std::atomic<bool> g_debugAgentInitialSuccess;
 
 // ISA name of gfx900
 const char gfx900[] = "amdgcn-amd-amdhsa--gfx900";

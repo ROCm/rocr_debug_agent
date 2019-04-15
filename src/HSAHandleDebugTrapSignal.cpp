@@ -54,14 +54,11 @@ bool HSADebugTrapSignalHandler(hsa_signal_value_t signalValue, void* arg)
 
     {
         std::lock_guard<std::mutex> lock(debugAgentAccessLock);
-        PreemptAllQueues();
 
         // Clear the signal
         hsa_signal_store_relaxed(debugTrapSignal, 0);
 
         ROCM_GDB_AGENT_GPU_USER_BREAKPOINT();
-
-        ResumeAllQueues();
     }
 
     return true;

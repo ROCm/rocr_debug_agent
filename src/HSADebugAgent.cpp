@@ -35,6 +35,7 @@
 // HSA headers
 #include <hsakmt.h>
 #include <hsa_api_trace.h>
+#include <atomic>
 
 // Debug Agent Headers
 #include "AgentLogging.h"
@@ -70,7 +71,7 @@ bool g_deleteTmpFile = true;
 bool g_gdbAttached = false;
 
 // If debug agent is successfully loaded and initialized
-bool g_debugAgentInitialSuccess = false;
+std::atomic<bool> g_debugAgentInitialSuccess{false};
 
 // Debug trap signal used by trap handler
 hsa_signal_t debugTrapSignal = {0};
@@ -220,7 +221,7 @@ extern "C" bool OnLoad(void *pTable,
     InitialLinuxSignalsHandler();
 
     AGENT_LOG("===== Finished Loading ROC Debug Agent=====");
-    g_debugAgentInitialSuccess = true;
+    g_debugAgentInitialSuccess.store(true, std::memory_order_release);
 
     return true;
 }
@@ -333,6 +334,24 @@ static DebugAgentStatus AgentInitDebugInfo()
     return DEBUG_AGENT_STATUS_SUCCESS;
 }
 
+static hsa_status_t GetGpuId(uint32_t nodeId, uint32_t *gpuId)
+{
+    constexpr char sysfs_path[] = "/sys/devices/virtual/kfd/kfd/topology/nodes";
+    char path[256];
+    FILE *fd;
+    hsa_status_t ret = HSA_STATUS_SUCCESS;
+
+    snprintf(path, sizeof(path), "%s/%d/gpu_id", sysfs_path, nodeId);
+    fd = fopen(path, "r");
+    if (!fd)
+        return HSA_STATUS_ERROR;
+    if (fscanf(fd, "%ul", gpuId) != 1)
+        ret = HSA_STATUS_ERROR;
+    fclose(fd);
+
+    return ret;
+}
+
 static hsa_status_t QueryAgentCallback(hsa_agent_t agent, void *pData)
 {
     // Add the GPU agent to the end of the agent list
@@ -377,6 +396,7 @@ static hsa_status_t QueryAgentCallback(hsa_agent_t agent, void *pData)
             agent,
             static_cast<hsa_agent_info_t>(HSA_AGENT_INFO_NODE),
             &(pGpuAgent->nodeId));
+    status |= GetGpuId(pGpuAgent->nodeId, &pGpuAgent->gpuId);
     status |= hsa_agent_get_info(
             agent,
             static_cast<hsa_agent_info_t>(HSA_AMD_AGENT_INFO_CHIP_ID),

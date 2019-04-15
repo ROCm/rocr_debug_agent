@@ -69,10 +69,10 @@ debug_trap_handler:
 // ABI between first and second level trap handler:
 //   ttmp0 = PC[31:0]
 //   ttmp1 = 0[2:0], PCRewind[3:0], HostTrap[0], TrapId[7:0], PC[47:32]
-//   ttmp4 = TMA[31:0]
-//   ttmp5 = TMA[63:32]
 //   ttmp11 = SQ_WAVE_IB_STS[20:15], 0[9:0], SingleStep[1], 0[7:0], NoScratch[0], WaveIdInWG[5:0]
 //   ttmp12 = SQ_WAVE_STATUS
+//   ttmp14 = TMA[31:0]
+//   ttmp15 = TMA[63:32]
 
 trap_entry:
   // If not a trap then skip queue signalling.
@@ -88,8 +88,8 @@ trap_entry:
   s_waitcnt            lgkmcnt(0)
 
   // Signal queue with trap error value.
-  s_mov_b32            ttmp4, 0x80000000
-  s_mov_b32            ttmp5, 0x0
+  s_mov_b32            ttmp14, 0x80000000
+  s_mov_b32            ttmp15, 0x0
   s_branch             L_SEND_SIGNAL
 
 L_NOT_TRAP:
@@ -108,10 +108,10 @@ L_SINGLE_STEP:
 
 L_COND_BREAK_LOOP:
   // Advance to next conditional breakpoint in TMA page.
-  s_add_u32            ttmp4, ttmp4, 0x8
+  s_add_u32            ttmp14, ttmp14, 0x8
 
   // Fetch conditional breakpoint PC.
-  s_load_dwordx2       [ttmp2, ttmp3], [ttmp4, ttmp5], 0x0 glc
+  s_load_dwordx2       [ttmp2, ttmp3], [ttmp14, ttmp15], 0x0 glc
   s_waitcnt            lgkmcnt(0)
 
   // Terminate breakpoint search on zero value and exit trap.
@@ -123,30 +123,30 @@ L_COND_BREAK_LOOP:
   s_cbranch_scc0       L_COND_BREAK_LOOP
 
   // Reset TMA to beginning of page.
-  s_andn2_b32          ttmp4, ttmp4, 0xFFF;
+  s_andn2_b32          ttmp14, ttmp14, 0xFFF;
 
 L_SEND_DEBUG_SIGNAL:
   // Fetch debug trap signal from TMA.
-  s_load_dwordx2       [ttmp2, ttmp3], [ttmp4, ttmp5], 0x0 glc
+  s_load_dwordx2       [ttmp2, ttmp3], [ttmp14, ttmp15], 0x0 glc
   s_waitcnt            lgkmcnt(0)
 
   // Signal debugger with universal value.
-  s_mov_b32            ttmp4, 0x1
-  s_mov_b32            ttmp5, 0x0
+  s_mov_b32            ttmp14, 0x1
+  s_mov_b32            ttmp15, 0x0
 
 L_SEND_SIGNAL:
   // Set signal value and retrieve old value.
-  s_atomic_swap_x2     [ttmp4, ttmp5], [ttmp2, ttmp3], 0x8 glc
+  s_atomic_swap_x2     [ttmp14, ttmp15], [ttmp2, ttmp3], 0x8 glc
   s_waitcnt            lgkmcnt(0)
 
   // Skip event trigger if the signal value was already non-zero.
-  s_or_b32             ttmp4, ttmp4, ttmp5
+  s_or_b32             ttmp14, ttmp14, ttmp15
   s_cbranch_scc1       L_SIGNAL_DONE
 
   // Check for a non-NULL signal event mailbox.
-  s_load_dwordx2       [ttmp4, ttmp5], [ttmp2, ttmp3], 0x10 glc
+  s_load_dwordx2       [ttmp14, ttmp15], [ttmp2, ttmp3], 0x10 glc
   s_waitcnt            lgkmcnt(0)
-  s_and_b64            [ttmp4, ttmp5], [ttmp4, ttmp5], [ttmp4, ttmp5]
+  s_and_b64            [ttmp14, ttmp15], [ttmp14, ttmp15], [ttmp14, ttmp15]
   s_cbranch_scc0       L_SIGNAL_DONE
 
   // Load the signal event value.
@@ -154,7 +154,7 @@ L_SEND_SIGNAL:
   s_waitcnt            lgkmcnt(0)
 
   // Write the signal event value to the mailbox.
-  s_store_dword        ttmp2, [ttmp4, ttmp5], 0x0 glc
+  s_store_dword        ttmp2, [ttmp14, ttmp15], 0x0 glc
   s_waitcnt            lgkmcnt(0)
 
   // Send an interrupt to trigger event notification.

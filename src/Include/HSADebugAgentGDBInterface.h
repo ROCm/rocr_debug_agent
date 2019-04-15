@@ -147,10 +147,12 @@ typedef struct _GPUAgentInfo
     void*    agent;
     // Agent node id.
     uint32_t nodeId;
+    // Agent gpu_id.
+    uint32_t gpuId;
     // Agent name.
     char     agentName[AGENT_MAX_AGENT_NAME_LEN];
     // Chip identifier.
-    uint64_t chipID;
+    uint32_t chipID;
     // Num of compute units.
     uint32_t numCUs;
     // The maximum clock frequency of the agent in MHz.
