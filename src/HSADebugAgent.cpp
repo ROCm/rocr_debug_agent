@@ -704,13 +704,6 @@ static DebugAgentStatus AgentSetDebugTrapHandler()
             return DEBUG_AGENT_STATUS_FAILURE;
         }
 
-        kmtStatus = hsaKmtSetWaveLaunchMode(pAgent->nodeId, HSA_DBG_WAVE_LAUNCH_MODE_SINGLE_STEP);
-        if (kmtStatus != HSAKMT_STATUS_SUCCESS)
-        {
-            AGENT_ERROR("Cannot set wave in single step mode.");
-            return DEBUG_AGENT_STATUS_FAILURE;
-        }
-
         // Bind trap handler event signal in runtime
         status = gs_OrigExtApiTable.hsa_amd_signal_async_handler_fn(
                 debugTrapSignal, HSA_SIGNAL_CONDITION_NE, 0,
