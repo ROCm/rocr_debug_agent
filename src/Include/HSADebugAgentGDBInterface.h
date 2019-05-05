@@ -132,6 +132,8 @@ typedef struct _QueueInfo
     void* pControlStack;
     // Control stack size
     uint32_t controlStackSize;
+    // HsaUserContextSaveAreaHeader header
+    void* pSaveAreaHeader;
     // Next element of the queue link list.
     struct _QueueInfo* pNext;
     // Previous element of the queue link list.

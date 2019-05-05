@@ -262,6 +262,7 @@ HsaDebugAgentHsaQueueCreate(
     pNewQueueInfo->controlStackSize = queue_info.ControlStackUsedInBytes;
     pNewQueueInfo->pContextSaveArea = queue_info.UserContextSaveArea;
     pNewQueueInfo->contextSaveAreaSize = queue_info.SaveAreaSizeInBytes;
+    pNewQueueInfo->pSaveAreaHeader = queue_info.SaveAreaHeader;
 
     // Save the original queue error handler
     debugAgengQueueInfo.callback = reinterpret_cast<void*>(callback);
