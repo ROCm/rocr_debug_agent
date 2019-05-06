@@ -704,6 +704,7 @@ static DebugAgentStatus AgentSetDebugTrapHandler()
             return DEBUG_AGENT_STATUS_FAILURE;
         }
 
+#if 0
         // Bind trap handler event signal in runtime
         status = gs_OrigExtApiTable.hsa_amd_signal_async_handler_fn(
                 debugTrapSignal, HSA_SIGNAL_CONDITION_NE, 0,
@@ -713,6 +714,7 @@ static DebugAgentStatus AgentSetDebugTrapHandler()
             AGENT_ERROR("Cannot bind debug event signal handler.");
             return DEBUG_AGENT_STATUS_FAILURE;
         }
+#endif
 
         pAgentNext = pAgent->pNext;
         pAgent = pAgentNext;

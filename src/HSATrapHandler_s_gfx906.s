@@ -129,10 +129,7 @@ L_SEND_DEBUG_SIGNAL:
   // Fetch debug trap signal from TMA.
   s_load_dwordx2       [ttmp2, ttmp3], [ttmp14, ttmp15], 0x0 glc
   s_waitcnt            lgkmcnt(0)
-
-  // Signal debugger with universal value.
-  s_mov_b32            ttmp14, 0x1
-  s_mov_b32            ttmp15, 0x0
+  s_branch             L_SET_EVENT
 
 L_SEND_SIGNAL:
   // Set signal value and retrieve old value.
@@ -143,6 +140,7 @@ L_SEND_SIGNAL:
   s_or_b32             ttmp14, ttmp14, ttmp15
   s_cbranch_scc1       L_SIGNAL_DONE
 
+L_SET_EVENT:
   // Check for a non-NULL signal event mailbox.
   s_load_dwordx2       [ttmp14, ttmp15], [ttmp2, ttmp3], 0x10 glc
   s_waitcnt            lgkmcnt(0)

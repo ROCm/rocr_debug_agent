@@ -46,10 +46,6 @@
 #include "HSADebugAgentGDBProbes.h"
 
 #include <sys/types.h>
-#include <signal.h>
-#include <unistd.h>
-
-pid_t g_gdbProcessID = 0;
 
 bool HSADebugTrapSignalHandler(hsa_signal_value_t signalValue, void* arg)
 {
@@ -63,9 +59,6 @@ bool HSADebugTrapSignalHandler(hsa_signal_value_t signalValue, void* arg)
 
         // Clear the signal
         hsa_signal_store_relaxed(debugTrapSignal, 0);
-
-        if (g_gdbProcessID != 0)
-            kill (g_gdbProcessID, SIGCHLD);
 
         ROCM_GDB_AGENT_GPU_USER_BREAKPOINT();
     }
