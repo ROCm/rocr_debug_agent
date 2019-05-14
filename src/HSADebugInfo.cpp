@@ -209,34 +209,35 @@ DebugAgentStatus ProcessQueueWaveStates(uint32_t nodeId, uint64_t queueId)
 DebugAgentStatus PreemptAgentQueues(GPUAgentInfo* pAgent)
 {
     HSAKMT_STATUS kmt_status = HSAKMT_STATUS_SUCCESS;
-    QueueInfo *pQueue = pAgent->pQueueList;
-    while (pQueue != nullptr)
+    std::vector<HSA_QUEUEID> queue_ids;
+
+    for (QueueInfo *pQueue = pAgent->pQueueList; pQueue; pQueue = pQueue->pNext)
+        queue_ids.emplace_back (pQueue->queueId);
+
+    // preempt the queues
+    kmt_status = hsaKmtQueueSuspend(INVALID_PID,
+                                    queue_ids.size(),
+                                    queue_ids.data(),
+                                    0,
+                                    0);
+    if (kmt_status != HSAKMT_STATUS_SUCCESS)
     {
-        hsa_queue_t* queue = reinterpret_cast<hsa_queue_t*>(pQueue->queue);
+        AGENT_ERROR("Cannot preempt queues.");
+        return DEBUG_AGENT_STATUS_FAILURE;
+    }
 
-        // preempt the queue
-        kmt_status = hsaKmtUpdateQueue(queue->id,
-                                       0,
-                                       HSA_QUEUE_PRIORITY_NORMAL,
-                                       NULL,
-                                       queue->size,
-                                       NULL);
-        if (kmt_status != HSAKMT_STATUS_SUCCESS)
-        {
-            AGENT_ERROR("Cannot preempt queues.");
-            return DEBUG_AGENT_STATUS_FAILURE;
-        }
-
-        // get the queue wave state
+    // get the queue wave states
+    for (auto &&queue_id : queue_ids)
+    {
         DebugAgentStatus status = DEBUG_AGENT_STATUS_SUCCESS;
-        status = ProcessQueueWaveStates(pAgent->nodeId, pQueue->queueId);
+        status = ProcessQueueWaveStates(pAgent->nodeId, queue_id);
         if (status != DEBUG_AGENT_STATUS_SUCCESS)
         {
             AGENT_ERROR("Cannot get queue preemption.");
             return DEBUG_AGENT_STATUS_FAILURE;
         }
-        pQueue = pQueue->pNext;
     }
+
     return DEBUG_AGENT_STATUS_SUCCESS;
 }
 
@@ -260,29 +261,23 @@ DebugAgentStatus PreemptAllQueues()
 DebugAgentStatus ResumeAgentQueues(GPUAgentInfo* pAgent)
 {
     HSAKMT_STATUS kmt_status = HSAKMT_STATUS_SUCCESS;
-    QueueInfo *pQueue = pAgent->pQueueList;
-    while (pQueue != nullptr)
+    std::vector<HSA_QUEUEID> queue_ids;
+
+    for (QueueInfo *pQueue = pAgent->pQueueList; pQueue; pQueue = pQueue->pNext)
+        if (pQueue->queueStatus == HSA_STATUS_SUCCESS)
+            queue_ids.emplace_back (pQueue->queueId);
+
+    // resume the queues
+    kmt_status = hsaKmtQueueResume(INVALID_PID,
+                                   queue_ids.size(),
+                                   queue_ids.data(),
+                                   0);
+    if (kmt_status != HSAKMT_STATUS_SUCCESS)
     {
-        hsa_queue_t* queue = reinterpret_cast<hsa_queue_t*>(pQueue->queue);
-
-        if (pQueue->queueStatus != HSA_STATUS_SUCCESS)
-        {
-            break;
-        }
-
-        kmt_status = hsaKmtUpdateQueue(queue->id,
-                                       100,
-                                       HSA_QUEUE_PRIORITY_NORMAL,
-                                       queue->base_address,
-                                       queue->size,
-                                       NULL);
-        if (kmt_status != HSAKMT_STATUS_SUCCESS)
-        {
-            AGENT_ERROR("Cannot resume queues.");
-            return DEBUG_AGENT_STATUS_FAILURE;
-        }
-        pQueue = pQueue->pNext;
+        AGENT_ERROR("Cannot resume queues.");
+        return DEBUG_AGENT_STATUS_FAILURE;
     }
+
     return DEBUG_AGENT_STATUS_SUCCESS;
 }
 

@@ -237,12 +237,11 @@ HsaDebugAgentHsaQueueCreate(
     pNewQueueInfo->queueId = (**queue).id;
 
     // preempt the queue
-    kmt_status = hsaKmtUpdateQueue(pNewQueueInfo->queueId ,
-                                   0,
-                                   HSA_QUEUE_PRIORITY_NORMAL,
-                                   NULL,
-                                   size,
-                                   NULL);
+    kmt_status = hsaKmtQueueSuspend(INVALID_PID,
+                                    1,
+                                    &pNewQueueInfo->queueId,
+                                    0,
+                                    0);
     if (kmt_status != HSAKMT_STATUS_SUCCESS)
     {
         AGENT_ERROR("Cannot preempt queues.");
@@ -285,12 +284,10 @@ HsaDebugAgentHsaQueueCreate(
     }
 
     // resume the queue
-    kmt_status = hsaKmtUpdateQueue(pNewQueueInfo->queueId ,
-                                   100,
-                                   HSA_QUEUE_PRIORITY_NORMAL,
-                                   (*queue)->base_address,
-                                   (*queue)->size,
-                                   NULL);
+    kmt_status = hsaKmtQueueResume(INVALID_PID,
+                                   1,
+                                   &pNewQueueInfo->queueId,
+                                   0);
     if (kmt_status != HSAKMT_STATUS_SUCCESS)
     {
         AGENT_ERROR("Cannot resume queues.");
@@ -367,12 +364,11 @@ HsaDebugAgentInternalQueueCreateCallback(const hsa_queue_t* queue,
     pNewQueueInfo->nodeId = agentNode;
 
     // preempt the queue
-    kmt_status = hsaKmtUpdateQueue(pNewQueueInfo->queueId ,
-                                   0,
-                                   HSA_QUEUE_PRIORITY_NORMAL,
-                                   NULL,
-                                   queue->size,
-                                   NULL);
+    kmt_status = hsaKmtQueueSuspend(INVALID_PID,
+                                    1,
+                                    &pNewQueueInfo->queueId,
+                                    0,
+                                    0);
     if (kmt_status != HSAKMT_STATUS_SUCCESS)
     {
         AGENT_ERROR("Cannot preempt queues.");
@@ -410,12 +406,10 @@ HsaDebugAgentInternalQueueCreateCallback(const hsa_queue_t* queue,
     ROCM_GDB_AGENT_QUEUE_CREATE(pNewQueueInfo);
 
     // resume the queue
-    kmt_status = hsaKmtUpdateQueue(pNewQueueInfo->queueId ,
-                                   100,
-                                   HSA_QUEUE_PRIORITY_NORMAL,
-                                   queue->base_address,
-                                   queue->size,
-                                   NULL);
+    kmt_status = hsaKmtQueueResume(INVALID_PID,
+                                   1,
+                                   &pNewQueueInfo->queueId,
+                                   0);
     if (kmt_status != HSAKMT_STATUS_SUCCESS)
     {
         AGENT_ERROR("Cannot resume queues.");
