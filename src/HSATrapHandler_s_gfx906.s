@@ -65,6 +65,7 @@ debug_trap_handler:
 .set IB_STS_SAVE_FIRST_REPLAY_SHIFT        , 26
 .set IB_STS_SAVE_FIRST_REPLAY_REL_SHIFT    , (IB_STS_SAVE_FIRST_REPLAY_SHIFT - SQ_WAVE_IB_STS_FIRST_REPLAY_SHIFT)
 .set TTMP11_SINGLE_STEP_DISABLED_MASK      , 0x8000
+.set INSN_S_ENDPGM_OPCODE                  , 0xBF810000
 
 // ABI between first and second level trap handler:
 //   ttmp0 = PC[31:0]
@@ -159,6 +160,13 @@ L_SET_EVENT:
   s_sendmsg            sendmsg(MSG_INTERRUPT)
 
 L_SIGNAL_DONE:
+  s_and_b32            ttmp1, ttmp1, SQ_WAVE_PC_HI_ADDRESS_MASK
+  s_load_dword         ttmp2, [ttmp0, ttmp1]
+  s_mov_b32            ttmp3, INSN_S_ENDPGM_OPCODE
+  s_waitcnt            lgkmcnt(0)
+  s_cmp_eq_u32         ttmp2, ttmp3
+  s_cbranch_scc1       L_EXIT_TRAP
+
   // Halt the wavefront.
   s_or_b32             ttmp12, ttmp12, SQ_WAVE_STATUS_HALT_MASK
 
