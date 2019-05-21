@@ -666,8 +666,8 @@ DebugAgentStatus AddCodeObjectToList(CodeObjectInfo *pCodeObject, ExecutableInfo
     codeObjPath = g_codeObjDir;
     codeObjPath += "/ROCm_CodeObject_";
     codeObjPath += std::to_string(gs_numCodeObject);
-    strncpy(&(pCodeObject->path[0]), codeObjPath.c_str(), sizeof(pCodeObject->path));
-
+    strncpy(&(pCodeObject->path[0]), codeObjPath.c_str(), sizeof(pCodeObject->path) - 1);
+    pCodeObject->path[AGENT_MAX_FILE_PATH_LEN - 1] = '\0';
 
     agentStatus = AddToLinkListEnd<CodeObjectInfo>(pCodeObject, &(pExecutable->pCodeObjectList));
     if (agentStatus != DEBUG_AGENT_STATUS_SUCCESS)

@@ -384,7 +384,7 @@ static hsa_status_t QueryAgentCallback(hsa_agent_t agent, void *pData)
             agent, HSA_AGENT_INFO_VENDOR_NAME, nameBuf);
     // Insert a space between the vendor and product names.
     size_t vendorNameLen = strnlen(nameBuf, AGENT_MAX_AGENT_NAME_LEN);
-    strncpy(nameBuf + vendorNameLen, " ", 1);
+    nameBuf[vendorNameLen] = ' ';
 
     status |= hsa_agent_get_info(
             agent, HSA_AGENT_INFO_NAME, nameBuf + vendorNameLen + 1);
