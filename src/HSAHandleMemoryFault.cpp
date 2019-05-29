@@ -48,7 +48,7 @@
 // Print general mempry fault info
 static void PrintVMFaultInfo(uint32_t nodeId, hsa_amd_event_t event);
 
-// Find the waves in XNACK error state
+// Find the waves with memory violation
 static std::map<uint64_t, std::pair<uint64_t, WaveStateInfo*>> FindFaultyWaves(GPUAgentInfo *pAgent);
 
 hsa_status_t
@@ -118,7 +118,7 @@ static std::map<uint64_t, std::pair<uint64_t, WaveStateInfo*>> FindFaultyWaves(G
     {
         for (auto &wave : queueWaves.second)
         {
-            if (SQ_WAVE_TRAPSTS_XNACK_ERROR(wave.regs.trapsts))
+            if (SQ_WAVE_TRAPSTS_MEM_VIOL(wave.regs.trapsts))
             {
                 wave.regs.pc += 0x8;
 

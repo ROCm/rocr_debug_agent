@@ -66,6 +66,7 @@ typedef std::map<uint64_t, DebugAgentQueueInfo> DebugAgentQueueInfoMap;
 #define COMPUTE_RELAUNCH_IS_EVENT(x) (((x) >> 0x1E) & 0x1)
 #define COMPUTE_RELAUNCH_IS_STATE(x) (((x) >> 0x1F) & 0x1)
 #define SQ_WAVE_TRAPSTS_XNACK_ERROR(x) (((x) >> 0x1C) & 0x1)
+#define SQ_WAVE_TRAPSTS_MEM_VIOL(x) (((x) >> 0x8) & 0x1)
 
 // Wave states of a queue for ROCmGDB to probe.
 typedef struct _WaveStateInfo
