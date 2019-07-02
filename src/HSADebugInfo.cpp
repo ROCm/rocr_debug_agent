@@ -65,23 +65,34 @@ std::map<uint64_t, std::pair<uint64_t, WaveStateInfo*>> FindFaultyWaves(GPUAgent
 
 DebugAgentStatus ProcessQueueWaveStates(uint32_t nodeId, uint64_t queueId)
 {
-    HsaQueueInfo queue_info;
-
-    // Retrieve the control stack and context save area for the queue.
-    HSAKMT_STATUS status = hsaKmtGetQueueInfo(queueId, &queue_info);
-
-    if (status != HSAKMT_STATUS_SUCCESS)
+    struct context_save_area_header_t
     {
-        AGENT_ERROR("Cannot get queue info from KMT.");
+        uint32_t ctrl_stack_offset;
+        uint32_t ctrl_stack_size;
+        uint32_t wave_state_offset;
+        uint32_t wave_state_size;
+    } *header;
+
+    QueueInfo *pQueue = GetQueueFromList(nodeId, queueId);
+    if (!pQueue->pSaveAreaHeader)
+    {
+        AGENT_ERROR("Cannot get context save area header.");
+        return DEBUG_AGENT_STATUS_FAILURE;
+    }
+
+    header = reinterpret_cast<struct context_save_area_header_t *>(pQueue->pSaveAreaHeader);
+
+    if ((header->ctrl_stack_offset + header->ctrl_stack_size) != (header->wave_state_offset - header->wave_state_size))
+    {
+        AGENT_ERROR("Ctrl stack / context save address check fail.");
         return DEBUG_AGENT_STATUS_FAILURE;
     }
 
     // The control stack is processed from start to end.
     // The save area is processed from end to start.
-    uint32_t *ctl_stack = reinterpret_cast<uint32_t *>(queue_info.ControlStackTop);
-    uint32_t *wave_area = reinterpret_cast<uint32_t *>(uintptr_t(queue_info.UserContextSaveArea) +
-                                                       queue_info.SaveAreaSizeInBytes);
-    uint32_t ctl_stack_ndw = uint32_t(queue_info.ControlStackUsedInBytes / sizeof(uint32_t));
+    uint32_t *ctl_stack = reinterpret_cast<uint32_t *>((uint64_t)pQueue->pSaveAreaHeader + header->ctrl_stack_offset);
+    uint32_t *wave_area = reinterpret_cast<uint32_t *>((uint64_t)pQueue->pSaveAreaHeader + header->wave_state_offset);
+    uint32_t ctl_stack_ndw = uint32_t(header->ctrl_stack_size / sizeof(uint32_t));
 
     // Control stack persists resource allocation until changed by a command.
     uint32_t vgprs_size_dw = 0;
@@ -93,12 +104,6 @@ DebugAgentStatus ProcessQueueWaveStates(uint32_t nodeId, uint64_t queueId)
     // LDS is saved per-workgroup but the stack is parsed per-wavefront.
     // Track the LDS save area for the current workgroup.
     uint32_t *lds = nullptr;
-
-    QueueInfo *pQueue = GetQueueFromList(nodeId, queueId);
-    pQueue->pControlStack = queue_info.ControlStackTop;
-    pQueue->controlStackSize = queue_info.ControlStackUsedInBytes;
-    pQueue->pContextSaveArea = queue_info.UserContextSaveArea;
-    pQueue->contextSaveAreaSize = queue_info.SaveAreaSizeInBytes;
 
     // Only decode waves when debug agent is used stand alone.
     if (!g_gdbAttached)

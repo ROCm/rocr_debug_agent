@@ -257,10 +257,6 @@ HsaDebugAgentHsaQueueCreate(
         return HSA_STATUS_ERROR;
     }
 
-    pNewQueueInfo->pControlStack = queue_info.ControlStackTop;
-    pNewQueueInfo->controlStackSize = queue_info.ControlStackUsedInBytes;
-    pNewQueueInfo->pContextSaveArea = queue_info.UserContextSaveArea;
-    pNewQueueInfo->contextSaveAreaSize = queue_info.SaveAreaSizeInBytes;
     pNewQueueInfo->pSaveAreaHeader = queue_info.SaveAreaHeader;
 
     // Save the original queue error handler
@@ -384,10 +380,7 @@ HsaDebugAgentInternalQueueCreateCallback(const hsa_queue_t* queue,
         return;
     }
 
-    pNewQueueInfo->pControlStack = queue_info.ControlStackTop;
-    pNewQueueInfo->controlStackSize = queue_info.ControlStackUsedInBytes;
-    pNewQueueInfo->pContextSaveArea = queue_info.UserContextSaveArea;
-    pNewQueueInfo->contextSaveAreaSize = queue_info.SaveAreaSizeInBytes;
+    pNewQueueInfo->pSaveAreaHeader = queue_info.SaveAreaHeader;
 
     // Save the original queue error handler
     debugAgengQueueInfo.callback = nullptr;
