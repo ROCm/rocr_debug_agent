@@ -208,11 +208,11 @@ include_directories (${CMAKE_CURRENT_SOURCE_DIR}/Include)
 # Add sources that belong to the project
 aux_source_directory(${CMAKE_CURRENT_SOURCE_DIR} Src)
 
-macro(LLVMAssemble AsmPath ObjPath TargetName)
+macro(LLVMAssemble AsmPath ObjPath TargetName ISAVersionMinor ISAVersionStepping)
   add_custom_command(
     OUTPUT ${ObjPath}
     DEPENDS "${AsmPath}"
-    COMMAND ${LC_BIN}/clang -x assembler -target amdgcn--amdhsa -mcpu=${TargetName} -mno-code-object-v3 -c -o ${ObjPath} "${AsmPath}"
+    COMMAND ${LC_BIN}/clang -x assembler -Wa,-defsym,.LISA_VERSION_MINOR=${ISAVersionMinor} -Wa,-defsym,.LISA_VERSION_STEPPING=${ISAVersionStepping} -target amdgcn--amdhsa -mcpu=${TargetName} -mno-code-object-v3 -c -o ${ObjPath} "${AsmPath}"
     COMMENT "Building LLVM assembly object ${ObjPath}..."
   )
 endmacro()
@@ -235,9 +235,10 @@ macro(LLVMStringify CodeObjPath HdrPath TargetName)
   )
 endmacro()
 
-set(ASM_SRCS
-  "${CMAKE_CURRENT_SOURCE_DIR}/HSATrapHandler_s_gfx900.s"
-  "${CMAKE_CURRENT_SOURCE_DIR}/HSATrapHandler_s_gfx906.s"
+set(TARGET_ISAS
+  "gfx900"
+  "gfx906"
+  "gfx908"
 )
 
 macro(DTraceGenerateHeader ScriptPath HdrPath)
@@ -255,17 +256,19 @@ set(DTRACE_SCRIPTS
 
 # Build and generate header file for debug trap handler
 set(ASM_HDR_PATHS "")
-foreach(ASM_SRC IN LISTS ASM_SRCS)
-  get_filename_component(SRC_BASE_NAME "${ASM_SRC}" NAME_WE)
-  set(OUT_BASE_NAME ${SRC_BASE_NAME})
+set(ASM_SRC "${CMAKE_CURRENT_SOURCE_DIR}/HSATrapHandler_s_gfx9xx.s")
+foreach(ISA IN LISTS TARGET_ISAS)
+  set(OUT_BASE_NAME "HSATrapHandler_s_${ISA}")
   set(OBJ_PATH ${OUT_BASE_NAME}.o)
   set(CODE_OBJ_PATH ${OUT_BASE_NAME}.co)
   set(HDR_PATH ${CMAKE_CURRENT_BINARY_DIR}/${OUT_BASE_NAME}.h)
-  STRING(REGEX MATCH "gfx([A-Za-z0-9]+)" LLVM_TARGET "${SRC_BASE_NAME}")
+  STRING(REGEX MATCHALL "([0-9])" ISA_VERSION "${ISA}")
+  list(GET ISA_VERSION 1 ISA_VERSION_MINOR)
+  list(GET ISA_VERSION 2 ISA_VERSION_STEPPING)
 
-  LLVMAssemble("${ASM_SRC}" ${OBJ_PATH} ${LLVM_TARGET})
+  LLVMAssemble("${ASM_SRC}" ${OBJ_PATH} ${ISA} ${ISA_VERSION_MINOR} ${ISA_VERSION_STEPPING})
   LLVMLink(${OBJ_PATH} ${CODE_OBJ_PATH})
-  LLVMStringify(${CODE_OBJ_PATH} ${HDR_PATH} ${LLVM_TARGET})
+  LLVMStringify(${CODE_OBJ_PATH} ${HDR_PATH} ${ISA})
   list(APPEND ASM_HDR_PATHS ${HDR_PATH})
 endforeach()
 

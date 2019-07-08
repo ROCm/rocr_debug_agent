@@ -36,7 +36,7 @@
 
 .hsa_code_object_version 2,1
 
-.hsa_code_object_isa 9,0,6,"AMD","AMDGPU"
+.hsa_code_object_isa 9,.LISA_VERSION_MINOR,.LISA_VERSION_STEPPING,"AMD","AMDGPU"
 
 .amdgpu_hsa_kernel debug_trap_handler
 
