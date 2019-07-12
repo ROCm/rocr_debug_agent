@@ -64,13 +64,19 @@ debug_trap_handler:
 .set SQ_WAVE_IB_STS_FIRST_REPLAY_RCNT_MASK , (SQ_WAVE_IB_STS_FIRST_REPLAY_MASK | SQ_WAVE_IB_STS_RCNT_MASK)
 .set IB_STS_SAVE_FIRST_REPLAY_SHIFT        , 26
 .set IB_STS_SAVE_FIRST_REPLAY_REL_SHIFT    , (IB_STS_SAVE_FIRST_REPLAY_SHIFT - SQ_WAVE_IB_STS_FIRST_REPLAY_SHIFT)
-.set TTMP11_SINGLE_STEP_DISABLED_MASK      , 0x8000
+.set TTMP11_DEBUG_TRAP_BIT                 , 7
+.set TTMP11_DEBUG_TRAP_MASK                , (1 << TTMP11_DEBUG_TRAP_BIT)
 .set INSN_S_ENDPGM_OPCODE                  , 0xBF810000
+.set SENDMSG_M0_DOORBELL_ID_BITS           , 12
+.set SENDMSG_M0_DOORBELL_ID_MASK           , ((1 << SENDMSG_M0_DOORBELL_ID_BITS) - 1)
+.set DEBUG_INTERRUPT_CONTEXT_ID_BIT        , 23
+.set DEBUG_INTERRUPT_CONTEXT_ID_MASK       , (1 << DEBUG_INTERRUPT_CONTEXT_ID_BIT)
+
 
 // ABI between first and second level trap handler:
 //   ttmp0 = PC[31:0]
 //   ttmp1 = 0[2:0], PCRewind[3:0], HostTrap[0], TrapId[7:0], PC[47:32]
-//   ttmp11 = SQ_WAVE_IB_STS[20:15], 0[9:0], SingleStep[1], 0[7:0], NoScratch[0], WaveIdInWG[5:0]
+//   ttmp11 = SQ_WAVE_IB_STS[20:15], 0[17:0], DebugTrap[0], NoScratch[0], WaveIdInWG[5:0]
 //   ttmp12 = SQ_WAVE_STATUS
 //   ttmp14 = TMA[31:0]
 //   ttmp15 = TMA[63:32]
@@ -78,68 +84,36 @@ debug_trap_handler:
 trap_entry:
   // If not a trap then skip queue signalling.
   s_bfe_u32            ttmp2, ttmp1, SQ_WAVE_PC_HI_TRAP_ID_BFE
-  s_cbranch_scc0       L_NOT_TRAP
+  s_cbranch_scc0       L_SEND_DEBUG_SIGNAL
 
   // If not debugtrap (s_trap 1) or llvm.trap (s_trap 2) then signal debugger.
   s_cmp_ge_u32         ttmp2, 0x3
-  s_cbranch_scc1       L_SEND_DEBUG_SIGNAL
-
-  // Retrieve amd_queue_t.queue_inactive_signal from s[0:1].
-  s_load_dwordx2       [ttmp2, ttmp3], s[0:1], 0xC0 glc
-  s_waitcnt            lgkmcnt(0)
-
-  // Signal queue with trap error value.
-  s_mov_b32            ttmp14, 0x80000000
-  s_mov_b32            ttmp15, 0x0
-  s_branch             L_SEND_SIGNAL
-
-L_NOT_TRAP:
-  // If any exception raised then signal debugger.
-  s_getreg_b32         ttmp2, hwreg(HW_REG_TRAPSTS)
-  s_and_b32            ttmp2, ttmp2, SQ_WAVE_TRAPSTS_ALL_EXCPS_MASK
-  s_cbranch_scc1       L_SEND_DEBUG_SIGNAL
-
-L_SINGLE_STEP:
-  // If single-step notification enabled then signal debugger.
-  s_and_b32            ttmp2, ttmp11, TTMP11_SINGLE_STEP_DISABLED_MASK
-  s_cbranch_scc0       L_SEND_DEBUG_SIGNAL
-
-  // Mask non-PC bits for conditional breakpoint tests.
-  s_and_b32            ttmp1, ttmp1, SQ_WAVE_PC_HI_ADDRESS_MASK
-
-L_COND_BREAK_LOOP:
-  // Advance to next conditional breakpoint in TMA page.
-  s_add_u32            ttmp14, ttmp14, 0x8
-
-  // Fetch conditional breakpoint PC.
-  s_load_dwordx2       [ttmp2, ttmp3], [ttmp14, ttmp15], 0x0 glc
-  s_waitcnt            lgkmcnt(0)
-
-  // Terminate breakpoint search on zero value and exit trap.
-  s_and_b64            [ttmp2, ttmp3], [ttmp2, ttmp3], [ttmp2, ttmp3]
-  s_cbranch_scc0       L_EXIT_TRAP
-
-  // If breakpoint does not match current PC then loop.
-  s_cmp_eq_u64         [ttmp0, ttmp1], [ttmp2, ttmp3]
-  s_cbranch_scc0       L_COND_BREAK_LOOP
-
-  // Reset TMA to beginning of page.
-  s_andn2_b32          ttmp14, ttmp14, 0xFFF;
+  s_cbranch_scc0       L_SEND_QUEUE_SIGNAL
 
 L_SEND_DEBUG_SIGNAL:
+  s_bitset1_b32        ttmp11, TTMP11_DEBUG_TRAP_BIT
   // Fetch debug trap signal from TMA.
   s_load_dwordx2       [ttmp2, ttmp3], [ttmp14, ttmp15], 0x0 glc
   s_waitcnt            lgkmcnt(0)
   s_branch             L_SET_EVENT
 
-L_SEND_SIGNAL:
-  // Set signal value and retrieve old value.
-  s_atomic_swap_x2     [ttmp14, ttmp15], [ttmp2, ttmp3], 0x8 glc
+L_SEND_QUEUE_SIGNAL:
+  s_bitset0_b32        ttmp11, TTMP11_DEBUG_TRAP_BIT
+  // Retrieve amd_queue_t.queue_inactive_signal from s[0:1].
+  s_load_dwordx2       [ttmp2, ttmp3], s[0:1], 0xC0 glc
   s_waitcnt            lgkmcnt(0)
 
   // Skip event trigger if the signal value was already non-zero.
+  s_load_dwordx2       [ttmp14, ttmp15], [ttmp2, ttmp3], 0x8 glc
+  s_waitcnt            lgkmcnt(0)
   s_or_b32             ttmp14, ttmp14, ttmp15
   s_cbranch_scc1       L_SIGNAL_DONE
+
+  // Signal queue with trap error value.
+  s_mov_b32            ttmp14, 0x80000000
+  s_mov_b32            ttmp15, 0x0
+  s_store_dwordx2      [ttmp14, ttmp15], [ttmp2, ttmp3], 0x8 glc
+  s_waitcnt            lgkmcnt(0)
 
 L_SET_EVENT:
   // Check for a non-NULL signal event mailbox.
@@ -156,15 +130,49 @@ L_SET_EVENT:
   s_store_dword        ttmp2, [ttmp14, ttmp15], 0x0 glc
   s_waitcnt            lgkmcnt(0)
 
+  // Fetch doorbell index for our queue.
+  s_mov_b32            ttmp2, exec_lo
+  s_mov_b32            ttmp3, exec_hi
+  s_mov_b32            exec_lo, 0x80000000
+  s_sendmsg            10/*sendmsg(MSG_GET_DOORBELL)*/
+
+L_WAIT_SENDMSG:
+  // Test to see if MSB in exec_lo is cleared.
+  s_nop                7
+  s_bitcmp0_b32        exec_lo, 0x1F
+  s_cbranch_scc0       L_WAIT_SENDMSG
+
+L_SENDMSG_DONE:
+  s_mov_b32            exec_hi, ttmp3
+  s_and_b32            exec_lo, exec_lo, SENDMSG_M0_DOORBELL_ID_MASK
+
+  // Restore exec_lo, move the doorbell_id into ttmp3
+  s_mov_b32            ttmp3, exec_lo
+  s_mov_b32            exec_lo, ttmp2
+
+  // Set the debug interrupt context id if this is a debug trap.
+  s_bitcmp0_b32        ttmp11, TTMP11_DEBUG_TRAP_BIT
+  s_cbranch_scc1       L_NOT_DEBUG_TRAP
+  s_bitset1_b32        ttmp3, DEBUG_INTERRUPT_CONTEXT_ID_BIT
+
+L_NOT_DEBUG_TRAP:
   // Send an interrupt to trigger event notification.
+  s_mov_b32            ttmp2, m0
+  s_mov_b32            m0, ttmp3
+  s_nop                0x0 // Manually inserted wait states
   s_sendmsg            sendmsg(MSG_INTERRUPT)
 
+  // Restore m0
+  s_mov_b32            m0, ttmp2
+
 L_SIGNAL_DONE:
+  // Restore PC.
   s_and_b32            ttmp1, ttmp1, SQ_WAVE_PC_HI_ADDRESS_MASK
+
+  // If PC is at an s_endpgm instruction then don't halt the wavefront.
   s_load_dword         ttmp2, [ttmp0, ttmp1]
-  s_mov_b32            ttmp3, INSN_S_ENDPGM_OPCODE
   s_waitcnt            lgkmcnt(0)
-  s_cmp_eq_u32         ttmp2, ttmp3
+  s_cmp_eq_u32         ttmp2, INSN_S_ENDPGM_OPCODE
   s_cbranch_scc1       L_EXIT_TRAP
 
   // Halt the wavefront.
