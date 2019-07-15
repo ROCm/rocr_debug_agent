@@ -167,7 +167,7 @@ void VectorAddDebugTrapTest(hsa_agent_t cpuAgent, hsa_agent_t gpuAgent) {
   aql.grid_size_y = 1;
   aql.grid_size_z = 1;
   aql.private_segment_size = 0;
-  aql.group_segment_size = 0;
+  aql.group_segment_size = 4;
   aql.kernel_object = codeHandle;  // kernel_code;
   aql.kernarg_address = vectorAddKernArgs;
   aql.completion_signal = signal;
