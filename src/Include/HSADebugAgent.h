@@ -74,8 +74,6 @@ extern bool g_gdbAttached;
 // lock for access debug agenet
 extern std::mutex debugAgentAccessLock;
 
-extern hsa_signal_t debugTrapSignal;
-
 extern "C" bool OnLoad(void *pTable,
                        uint64_t runtimeVersion, uint64_t failedToolCount,
                        const char *const *pFailedToolNames);
