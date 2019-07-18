@@ -210,6 +210,7 @@ endmacro()
 set(LC_TARGETS
   gfx900
   gfx906
+  gfx908
 )
 
 # Test kernels

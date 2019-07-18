@@ -137,6 +137,7 @@ hsa_status_t QueryAgentISACallback(hsa_isa_t isa, void *data)
 
   const char gfx900[] = "amdgcn-amd-amdhsa--gfx900";
   const char gfx906[] = "amdgcn-amd-amdhsa--gfx906";
+  const char gfx908[] = "amdgcn-amd-amdhsa--gfx908";
   char isaNameTmp[64];
 
   //TODO: check isa name length
@@ -148,6 +149,10 @@ hsa_status_t QueryAgentISACallback(hsa_isa_t isa, void *data)
   }
   else if (strcmp(isaNameTmp, gfx906) == 0) {
     isaName = "gfx906";
+    *(bool*)data = true;
+  }
+  else if (strcmp(isaNameTmp, gfx908) == 0) {
+    isaName = "gfx908";
     *(bool*)data = true;
   }
   return status;
