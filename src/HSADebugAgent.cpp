@@ -32,10 +32,13 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 
+
+#include <atomic>
+
 // HSA headers
 #include <hsakmt.h>
 #include <hsa_api_trace.h>
-#include <atomic>
+#include <amd_hsa_signal.h>
 
 // Debug Agent Headers
 #include "AgentLogging.h"
@@ -47,7 +50,6 @@
 #include "HSATrapHandler_s_gfx908.h"
 #include "HSADebugInfo.h"
 #include "HSAIntercept.h"
-#include "HSAHandleDebugTrapSignal.h"
 #include "HSAHandleLinuxSignals.h"
 #include "HSAHandleMemoryFault.h"
 
@@ -74,8 +76,8 @@ bool g_gdbAttached = false;
 // If debug agent is successfully loaded and initialized
 std::atomic<bool> g_debugAgentInitialSuccess{false};
 
-// Debug trap signal used by trap handler
-hsa_signal_t debugTrapSignal = {0};
+// Debug event used by trap handler
+static HsaEvent* pEvent = nullptr;
 
 // Debug trap handler code object reader
 hsa_code_object_reader_t debugTrapHandlerCodeObjectReader = {0};
@@ -125,6 +127,8 @@ static hsa_status_t FindKernargSegment(hsa_region_t region, void *pData);
 static hsa_status_t
 HSADebugAgentHandleRuntimeEvent(const hsa_amd_event_t* event, void* pData);
 
+// Debug trap signal for use with trap handler
+static amd_signal_t *debugTrapSignal = nullptr;
 
 extern "C" bool OnLoad(void *pTable,
                        uint64_t runtimeVersion, uint64_t failedToolCount,
@@ -654,11 +658,16 @@ static DebugAgentStatus AgentSetDebugTrapHandler()
             return DEBUG_AGENT_STATUS_FAILURE;
         }
 
-        status = gs_OrigCoreApiTable.hsa_signal_create_fn(
-                0, 0, &(agent), &debugTrapSignal);
-        if (status != HSA_STATUS_SUCCESS)
+        HsaEventDescriptor event_descriptor;
+        event_descriptor.EventType = HSA_EVENTTYPE_DEBUG_EVENT;
+        event_descriptor.SyncVar.SyncVar.UserData = nullptr;
+        event_descriptor.SyncVar.SyncVarSize = sizeof(hsa_signal_value_t);
+        event_descriptor.NodeId = pAgent->nodeId;
+        kmtStatus = hsaKmtCreateEvent(&event_descriptor, false, false, &pEvent);
+
+        if (kmtStatus != HSAKMT_STATUS_SUCCESS)
         {
-            AGENT_ERROR("Cannot create debug event signal.");
+            AGENT_ERROR("Cannot create debug event.");
             return DEBUG_AGENT_STATUS_FAILURE;
         }
 
@@ -667,7 +676,7 @@ static DebugAgentStatus AgentSetDebugTrapHandler()
         //       use the copy APIs to update the value
         status = gs_OrigCoreApiTable.hsa_agent_iterate_regions_fn(
                 agent, FindKernargSegment, &kernargSegment);
-        if (!kernargSegment.handle | (status != HSA_STATUS_SUCCESS)) {
+        if (!kernargSegment.handle || (status != HSA_STATUS_SUCCESS)) {
             AGENT_ERROR("Cannot find kernarg segment for trap buffer.");
             return DEBUG_AGENT_STATUS_FAILURE;
         }
@@ -675,14 +684,27 @@ static DebugAgentStatus AgentSetDebugTrapHandler()
         // allocate memory in kernarg segment for trap buffer
         status = gs_OrigCoreApiTable.hsa_memory_allocate_fn(
                 kernargSegment, sizeof(DebugTrapBuff), (void**)&pTrapHandlerBuffer);
-        if (!kernargSegment.handle | (status != HSA_STATUS_SUCCESS)) {
+        if (!pTrapHandlerBuffer || (status != HSA_STATUS_SUCCESS)) {
             AGENT_ERROR("Cannot allocate memory for trap buffer.");
             return DEBUG_AGENT_STATUS_FAILURE;
         }
         *pTrapHandlerBuffer = {};
         _r_rocm_debug_info.pDebugTrapBuffer = pTrapHandlerBuffer;
 
-        pTrapHandlerBuffer->debugEventSignalHandle = debugTrapSignal.handle;
+        // allocate memory in kernarg segment for trap signal so that its pinned
+        status = gs_OrigCoreApiTable.hsa_memory_allocate_fn(
+                kernargSegment, sizeof(amd_signal_t), (void**)&debugTrapSignal);
+        if (!debugTrapSignal || (status != HSA_STATUS_SUCCESS)) {
+            AGENT_ERROR("Cannot allocate memory for trap signal.");
+            return DEBUG_AGENT_STATUS_FAILURE;
+        }
+
+        // Copy Event mailbox to the signal
+        debugTrapSignal->event_mailbox_ptr = pEvent->EventData.HWData2;
+        debugTrapSignal->event_id = pEvent->EventId;
+
+        pTrapHandlerBuffer->debugEventSignalHandle = reinterpret_cast<uint64_t>(debugTrapSignal);
+
         if(!IsMultipleOf(pTrapHandlerBuffer, 0x100))
         {
             AGENT_ERROR("Trap Handler Buffer address is not 256B aligned.");
@@ -707,18 +729,6 @@ static DebugAgentStatus AgentSetDebugTrapHandler()
             AGENT_ERROR("Cannot enable debug trap handler.");
             return DEBUG_AGENT_STATUS_FAILURE;
         }
-
-#if 0
-        // Bind trap handler event signal in runtime
-        status = gs_OrigExtApiTable.hsa_amd_signal_async_handler_fn(
-                debugTrapSignal, HSA_SIGNAL_CONDITION_NE, 0,
-                HSADebugTrapSignalHandler, NULL);
-        if (status != HSA_STATUS_SUCCESS)
-        {
-            AGENT_ERROR("Cannot bind debug event signal handler.");
-            return DEBUG_AGENT_STATUS_FAILURE;
-        }
-#endif
 
         pAgentNext = pAgent->pNext;
         pAgent = pAgentNext;
@@ -781,12 +791,22 @@ static DebugAgentStatus AgentUnsetDebugTrapHandler()
             }
         }
 
-        if (debugTrapSignal.handle)
+        if (pEvent)
         {
-            status = gs_OrigCoreApiTable.hsa_signal_destroy_fn(debugTrapSignal);
+            kmtStatus = hsaKmtDestroyEvent(pEvent);
+            if (kmtStatus != HSAKMT_STATUS_SUCCESS)
+            {
+                AGENT_ERROR("Cannot destroy event.");
+                return DEBUG_AGENT_STATUS_FAILURE;
+            }
+        }
+
+        if (debugTrapSignal)
+        {
+            status = gs_OrigCoreApiTable.hsa_memory_free_fn((void*)debugTrapSignal);
             if (status != HSA_STATUS_SUCCESS)
             {
-                AGENT_ERROR("Cannot destroy debug event signal.");
+                AGENT_ERROR("Cannot destroy debug signal.");
                 return DEBUG_AGENT_STATUS_FAILURE;
             }
         }
