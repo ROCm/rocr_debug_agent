@@ -66,8 +66,6 @@ HSADebugAgentHandleMemoryFault(hsa_amd_event_t event, void* pData)
 
     {
         std::lock_guard<std::mutex> lock(debugAgentAccessLock);
-
-        DebugAgentStatus status = DEBUG_AGENT_STATUS_SUCCESS;
         GPUAgentInfo* pAgent = GetAgentFromList(reinterpret_cast<void*>(event.memory_fault.agent.handle));
 
         if (g_gdbAttached)
@@ -76,18 +74,7 @@ HSADebugAgentHandleMemoryFault(hsa_amd_event_t event, void* pData)
         }
         else
         {
-            // TODO: Get all waves of all agents, force preempt the active ones.
-            // Get all the waves for the faulty agent.
-            QueueInfo* pQueue = pAgent->pQueueList;
-            while (pQueue != nullptr)
-            {
-                status = ProcessQueueWaveStates(pAgent->nodeId, pQueue->queueId);
-                if (status != DEBUG_AGENT_STATUS_SUCCESS)
-                {
-                    return HSA_STATUS_ERROR;
-                }
-                pQueue = pQueue->pNext;
-            }
+            PreemptAgentQueues(pAgent);
 
             // Print general mempry fault info.
             PrintVMFaultInfo(pAgent->nodeId, event);
