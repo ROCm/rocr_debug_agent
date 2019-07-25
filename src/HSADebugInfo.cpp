@@ -63,7 +63,7 @@ DebugAgentQueueInfoMap allDebugAgentQueueInfo;
 std::map<uint64_t, std::pair<uint64_t, WaveStateInfo*>> FindFaultyWaves(GPUAgentInfo *pAgent);
 
 
-DebugAgentStatus ProcessQueueWaveStates(uint32_t nodeId, uint64_t queueId)
+DebugAgentStatus ProcessQueueWaveStates(GPUAgentInfo* pAgent, QueueInfo *pQueue)
 {
     struct context_save_area_header_t
     {
@@ -73,13 +73,13 @@ DebugAgentStatus ProcessQueueWaveStates(uint32_t nodeId, uint64_t queueId)
         uint32_t wave_state_size;
     } *header;
 
-    QueueInfo *pQueue = GetQueueFromList(nodeId, queueId);
     if (!pQueue->pSaveAreaHeader)
     {
         AGENT_ERROR("Cannot get context save area header.");
         return DEBUG_AGENT_STATUS_FAILURE;
     }
 
+    HSA_QUEUEID queueId = pQueue->queueId;
     header = reinterpret_cast<struct context_save_area_header_t *>(pQueue->pSaveAreaHeader);
 
     if ((header->ctrl_stack_offset + header->ctrl_stack_size) != (header->wave_state_offset - header->wave_state_size))
@@ -96,6 +96,7 @@ DebugAgentStatus ProcessQueueWaveStates(uint32_t nodeId, uint64_t queueId)
 
     // Control stack persists resource allocation until changed by a command.
     uint32_t vgprs_size_dw = 0;
+    uint32_t accvgprs_size_dw = 0;
     uint32_t sgprs_size_dw = 0;
     uint32_t lds_size_dw = 0;
     //  TODO: check wave front size and hw regsiter size for arch
@@ -122,9 +123,12 @@ DebugAgentStatus ProcessQueueWaveStates(uint32_t nodeId, uint64_t queueId)
             // TODO: check control records are present, and their values first.
             if (is_state && !is_event)
             {
-                // TODO: validate the values, to ensure they are within range
-                // Resource allocation state change, update tracked state.
                 vgprs_size_dw = (0x1 + COMPUTE_RELAUNCH_PAYLOAD_VGPRS(relaunch)) * 0x4;
+                // TODO: This is a temp fix, each target should be able to have its own layout.
+                if (pAgent->hasAccVgprs)
+                {
+                    accvgprs_size_dw = vgprs_size_dw;
+                }
                 // SGPRs do not include trap temp.
                 sgprs_size_dw = ((0x1 + COMPUTE_RELAUNCH_PAYLOAD_SGPRS(relaunch)) - 0x1) * 0x10;
                 lds_size_dw = COMPUTE_RELAUNCH_PAYLOAD_LDS_SIZE(relaunch) * 0x80;
@@ -138,7 +142,8 @@ DebugAgentStatus ProcessQueueWaveStates(uint32_t nodeId, uint64_t queueId)
                 // Save area layout is fixed by context save trap handler and SPI.
                 // offset of dw
                 uint32_t vgprs_offset = 0x0;
-                uint32_t sgprs_offset = vgprs_offset + vgprs_size_dw * wave_front_size;
+                uint32_t accvgprs_offset = vgprs_offset + vgprs_size_dw * wave_front_size;
+                uint32_t sgprs_offset = accvgprs_offset + accvgprs_size_dw * wave_front_size;
                 uint32_t hwregs_offset = sgprs_offset + sgprs_size_dw;
                 uint32_t lds_offset = hwregs_offset + 0x20;
                 uint32_t unused_offset = lds_offset + (first_wave_in_group ? lds_size_dw : 0x0);
@@ -186,8 +191,11 @@ DebugAgentStatus ProcessQueueWaveStates(uint32_t nodeId, uint64_t queueId)
                 waveList.numSgprs = sgprs_size_dw;
                 waveList.sgprs = wave_area + sgprs_offset;
                 waveList.numVgprs = vgprs_size_dw;
+                waveList.numAccVgprs = accvgprs_size_dw;
                 waveList.numVgprLanes = wave_front_size;
+                waveList.numAccVgprLanes = wave_front_size;
                 waveList.vgprs = wave_area + vgprs_offset;
+                waveList.accvgprs = wave_area + accvgprs_offset;
                 waveList.regs.pc = (uint64_t(wave_area[hwreg_pc_lo_offset]) |
                                     (uint64_t(wave_area[hwreg_pc_hi_offset]) << 0x20));
                 waveList.regs.exec = (uint64_t(wave_area[hwreg_exec_lo_offset]) |
@@ -206,6 +214,12 @@ DebugAgentStatus ProcessQueueWaveStates(uint32_t nodeId, uint64_t queueId)
                 }
             }
         }
+
+        if (((uint64_t)pQueue->pSaveAreaHeader + header->wave_state_offset - header->wave_state_size) != (uint64_t)wave_area)
+        {
+            AGENT_ERROR("Context save size check fail.");
+            return DEBUG_AGENT_STATUS_FAILURE;
+        }
     }
 
     return DEBUG_AGENT_STATUS_SUCCESS;
@@ -214,15 +228,19 @@ DebugAgentStatus ProcessQueueWaveStates(uint32_t nodeId, uint64_t queueId)
 DebugAgentStatus PreemptAgentQueues(GPUAgentInfo* pAgent)
 {
     HSAKMT_STATUS kmt_status = HSAKMT_STATUS_SUCCESS;
-    std::vector<HSA_QUEUEID> queue_ids;
+    std::vector<HSA_QUEUEID> queueIds;
+    std::vector<QueueInfo *> queueInfos;
 
     for (QueueInfo *pQueue = pAgent->pQueueList; pQueue; pQueue = pQueue->pNext)
-        queue_ids.emplace_back (pQueue->queueId);
+    {
+        queueIds.emplace_back (pQueue->queueId);
+        queueInfos.emplace_back (pQueue);
+    }
 
     // preempt the queues
     kmt_status = hsaKmtQueueSuspend(INVALID_PID,
-                                    queue_ids.size(),
-                                    queue_ids.data(),
+                                    queueIds.size(),
+                                    queueIds.data(),
                                     0,
                                     0);
     if (kmt_status != HSAKMT_STATUS_SUCCESS)
@@ -232,10 +250,10 @@ DebugAgentStatus PreemptAgentQueues(GPUAgentInfo* pAgent)
     }
 
     // get the queue wave states
-    for (auto &&queue_id : queue_ids)
+    for (auto &&pQueueInfo : queueInfos)
     {
         DebugAgentStatus status = DEBUG_AGENT_STATUS_SUCCESS;
-        status = ProcessQueueWaveStates(pAgent->nodeId, queue_id);
+        status = ProcessQueueWaveStates(pAgent, pQueueInfo);
         if (status != DEBUG_AGENT_STATUS_SUCCESS)
         {
             AGENT_ERROR("Cannot get queue preemption.");
@@ -367,6 +385,34 @@ void PrintWaves(GPUAgentInfo* pAgent, std::map<uint64_t, std::pair<uint64_t, Wav
             }
         }
         err << "\n";
+
+        if (pWaveState->numAccVgprs)
+        {
+            uint32_t n_accvgpr_cols = 4;
+            uint32_t n_accvgpr_rows = pWaveState->numAccVgprs / n_accvgpr_cols;
+
+            for (uint32_t lane_idx = 0; lane_idx < pWaveState->numAccVgprLanes; ++lane_idx)
+            {
+                err << "ACC Lane 0x" << std::hex << std::uppercase << lane_idx << "\n";
+                for (uint32_t accvgpr_row = 0; accvgpr_row < n_accvgpr_rows; ++accvgpr_row)
+                {
+                    err << " ";
+                    for (uint32_t accvgpr_col = 0; accvgpr_col < n_accvgpr_cols; ++accvgpr_col)
+                    {
+                        uint32_t accvgpr_idx = (accvgpr_row * n_accvgpr_cols) + accvgpr_col;
+                        uint32_t accvgpr_val = pWaveState->accvgprs[(accvgpr_idx * pWaveState->numAccVgprLanes) + lane_idx];
+
+                        std::stringstream accvgpr_str;
+                        accvgpr_str << "acc" << accvgpr_idx;
+
+                        err << std::setw(6) << std::setfill(' ') << accvgpr_str.str();
+                        err << ": 0x" << std::setw(8) << std::setfill('0') << std::hex << std::uppercase << accvgpr_val;
+                    }
+                    err << "\n";
+                }
+            }
+            err << "\n";
+        }
 
         if (pWaveState->lds)
         {

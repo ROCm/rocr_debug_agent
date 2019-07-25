@@ -167,6 +167,8 @@ typedef struct _GPUAgentInfo
     uint32_t numSIMDsPerCU;
     // num of shader engines.
     uint32_t numSEs;
+    // has acc vgprs.
+    bool hasAccVgprs;
     // Link list of queues of the agent.
     QueueInfo* pQueueList;
     // Next element of the agent link list.

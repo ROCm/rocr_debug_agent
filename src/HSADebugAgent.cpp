@@ -102,9 +102,6 @@ static DebugAgentStatus AgentCheckVersion(uint64_t runtimeVersion,
                                           uint64_t failedToolCount,
                                           const char *const *pFailedToolNames);
 
-// Check if ISA is supported by debug agent
-static bool AgentIsSupportedISA(char *isaName);
-
 // Clean _r_rocm_debug_info
 static void AgentCleanDebugInfo();
 
@@ -427,6 +424,7 @@ static hsa_status_t QueryAgentCallback(hsa_agent_t agent, void *pData)
         AGENT_WARNING("Failed to get some of the device info");
     }
 
+    pGpuAgent->hasAccVgprs = false;
     status = hsa_agent_iterate_isas(
             agent, QueryAgentISACallback, pGpuAgent);
     if (status != HSA_STATUS_SUCCESS)
@@ -466,27 +464,21 @@ static hsa_status_t QueryAgentISACallback(hsa_isa_t isa, void *pData)
     }
 
     char isaName[AGENT_MAX_AGENT_NAME_LEN];
-    //TODO: check isa name length
     hsa_status_t status = hsa_isa_get_info_alt(
             isa, HSA_ISA_INFO_NAME, isaName);
-    if (AgentIsSupportedISA(isaName))
+
+    if ((strcmp(isaName, gfx900) == 0) ||
+        (strcmp(isaName, gfx906) == 0))
     {
         ((GPUAgentInfo *)pData)->agentStatus = AGENT_STATUS_ACTIVE;
     }
-    return status;
-}
-
-// TODO: should be a better way to check isa version,
-// as the naming could change.
-static bool AgentIsSupportedISA(char *isaName)
-{
-    if ((strcmp(isaName, gfx900) == 0) ||
-        (strcmp(isaName, gfx906) == 0) ||
-        (strcmp(isaName, gfx908) == 0))
+    else if (strcmp(isaName, gfx908) == 0)
     {
-        return true;
+        ((GPUAgentInfo *)pData)->agentStatus = AGENT_STATUS_ACTIVE;
+        ((GPUAgentInfo *)pData)->hasAccVgprs = true;
     }
-    return false;
+
+    return status;
 }
 
 static void AgentCleanDebugInfo()
