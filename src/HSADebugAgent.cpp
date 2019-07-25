@@ -173,14 +173,6 @@ extern "C" bool OnLoad(void *pTable,
         return false;
     }
 
-    // Check if ROC GDB is attached.
-    char *pGDBEnvVar;
-    pGDBEnvVar = std::getenv("ROCM_ENABLE_GDB");
-    if (pGDBEnvVar != NULL)
-    {
-        g_gdbAttached = true;
-    }
-
     status = AgentInitDebugInfo();
     if (status != DEBUG_AGENT_STATUS_SUCCESS)
     {
