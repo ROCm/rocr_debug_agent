@@ -212,6 +212,7 @@ HsaDebugAgentHsaQueueCreate(
     pNewQueueInfo->pPrev = nullptr;
     pNewQueueInfo->pNext = nullptr;
     pNewQueueInfo->nodeId = agentNode;
+    pNewQueueInfo->gpuId = GetAgentFromList(agentNode)->gpuId;
 
     debugAgengQueueInfo.callback = reinterpret_cast<void*>(callback);
     debugAgengQueueInfo.data = data;
@@ -358,6 +359,7 @@ HsaDebugAgentInternalQueueCreateCallback(const hsa_queue_t* queue,
     pNewQueueInfo->queue = (hsa_queue_t*)queue;
     pNewQueueInfo->queueId = queue->id;
     pNewQueueInfo->nodeId = agentNode;
+    pNewQueueInfo->gpuId = GetAgentFromList(agentNode)->gpuId;
 
     // preempt the queue
     kmt_status = hsaKmtQueueSuspend(INVALID_PID,
@@ -630,6 +632,7 @@ AddCodeObjectInfoCallback(
 
     CodeObjectInfo* pList = new CodeObjectInfo;
     pList->nodeId = pAgent->nodeId;
+    pList->gpuId = pAgent->gpuId;
     pList->addrMemory = (uintptr_t) new char[elfSize];
     memcpy((void*) pList->addrMemory, (const void*) elfBaseAddress, elfSize);
     pList->sizeMemory = elfSize;

@@ -34,6 +34,8 @@
 
 
 #include <atomic>
+#include <sys/types.h>
+#include <dirent.h>
 
 // HSA headers
 #include <hsakmt.h>
@@ -328,22 +330,53 @@ static DebugAgentStatus AgentInitDebugInfo()
     return DEBUG_AGENT_STATUS_SUCCESS;
 }
 
-static hsa_status_t GetGpuId(uint32_t nodeId, uint32_t *gpuId)
+static hsa_status_t GetGpuId(hsa_agent_t agent, uint32_t *gpuId)
 {
-    constexpr char sysfs_path[] = "/sys/devices/virtual/kfd/kfd/topology/nodes";
-    char path[256];
-    FILE *fd;
-    hsa_status_t ret = HSA_STATUS_SUCCESS;
+    static const std::string sysfs_nodes_path (
+        "/sys/devices/virtual/kfd/kfd/topology/nodes/");
 
-    snprintf(path, sizeof(path), "%s/%d/gpu_id", sysfs_path, nodeId);
-    fd = fopen(path, "r");
-    if (!fd)
+    uint32_t location_id;
+    if (hsa_agent_get_info(
+            agent,
+            static_cast<hsa_agent_info_t>(HSA_AMD_AGENT_INFO_BDFID),
+            &location_id) != HSA_STATUS_SUCCESS)
         return HSA_STATUS_ERROR;
-    if (fscanf(fd, "%ul", gpuId) != 1)
-        ret = HSA_STATUS_ERROR;
-    fclose(fd);
 
-    return ret;
+    auto *dirp = opendir (sysfs_nodes_path.c_str ());
+    if (!dirp)
+        return HSA_STATUS_ERROR;
+
+    struct dirent *dir;
+    while ((dir = readdir (dirp)) != 0)
+    {
+        if (!strcmp (dir->d_name, ".") || !strcmp (dir->d_name, ".."))
+            continue;
+
+        std::string node_path (sysfs_nodes_path + dir->d_name);
+        std::ifstream props_ifs (node_path + "/properties");
+        if (!props_ifs.is_open ())
+            continue;
+
+        std::string prop_name;
+        uint64_t prop_value;
+        while (props_ifs >> prop_name >> prop_value)
+        {
+            if (!prop_name.compare ("location_id"))
+            {
+                if (location_id != static_cast<uint32_t> (prop_value))
+                    break;
+
+                /* Retrieve the GPU ID.  */
+                std::ifstream gpu_id_ifs (node_path + "/gpu_id");
+                if (!gpu_id_ifs.is_open ())
+                    return HSA_STATUS_ERROR;
+
+                gpu_id_ifs >> *gpuId;
+                return HSA_STATUS_SUCCESS;
+            }
+        }
+    }
+    return HSA_STATUS_ERROR;
 }
 
 static hsa_status_t QueryAgentCallback(hsa_agent_t agent, void *pData)
@@ -390,7 +423,7 @@ static hsa_status_t QueryAgentCallback(hsa_agent_t agent, void *pData)
             agent,
             static_cast<hsa_agent_info_t>(HSA_AGENT_INFO_NODE),
             &(pGpuAgent->nodeId));
-    status |= GetGpuId(pGpuAgent->nodeId, &pGpuAgent->gpuId);
+    status |= GetGpuId(agent, &pGpuAgent->gpuId);
     status |= hsa_agent_get_info(
             agent,
             static_cast<hsa_agent_info_t>(HSA_AMD_AGENT_INFO_CHIP_ID),
