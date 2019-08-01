@@ -631,8 +631,6 @@ AddCodeObjectInfoCallback(
     ((ExecutableInfo *)data)->nodeId = pAgent->nodeId;
 
     CodeObjectInfo* pList = new CodeObjectInfo;
-    pList->nodeId = pAgent->nodeId;
-    pList->gpuId = pAgent->gpuId;
     pList->addrMemory = (uintptr_t) new char[elfSize];
     memcpy((void*) pList->addrMemory, (const void*) elfBaseAddress, elfSize);
     pList->sizeMemory = elfSize;

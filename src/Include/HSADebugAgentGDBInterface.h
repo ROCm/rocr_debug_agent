@@ -67,10 +67,6 @@ typedef enum
 // Loaded code objects for ROCm-GDB to probe.
 typedef struct _CodeObjectInfo
 {
-    // Node id the code object is loaded to.
-    uint32_t nodeId;
-    // Agent gpu_id the object is loaded to.
-    uint32_t gpuId;
     // Difference between the address in the ELF file and the addresses in memory.
     uint64_t addrDelta;
     // Absolute temp code object file path.
