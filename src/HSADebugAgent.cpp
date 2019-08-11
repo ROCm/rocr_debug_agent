@@ -740,13 +740,6 @@ static DebugAgentStatus AgentSetDebugTrapHandler()
             return DEBUG_AGENT_STATUS_FAILURE;
         }
 
-        kmtStatus = hsaKmtEnableDebugTrap(pAgent->nodeId, INVALID_QUEUEID);
-        if (kmtStatus != HSAKMT_STATUS_SUCCESS)
-        {
-            AGENT_ERROR("Cannot enable debug trap handler.");
-            return DEBUG_AGENT_STATUS_FAILURE;
-        }
-
         pAgentNext = pAgent->pNext;
         pAgent = pAgentNext;
     }
@@ -768,13 +761,6 @@ static DebugAgentStatus AgentUnsetDebugTrapHandler()
         if (kmtStatus != HSAKMT_STATUS_SUCCESS)
         {
             AGENT_ERROR("Cannot set wave in normal mode.");
-            return DEBUG_AGENT_STATUS_FAILURE;
-        }
-
-        kmtStatus = hsaKmtDisableDebugTrap(pAgent->nodeId);
-        if (kmtStatus != HSAKMT_STATUS_SUCCESS)
-        {
-            AGENT_ERROR("Cannot disable debug trap handler.");
             return DEBUG_AGENT_STATUS_FAILURE;
         }
 
