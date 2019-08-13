@@ -40,7 +40,6 @@
 // HSA headers
 #include <hsakmt.h>
 #include <hsa_api_trace.h>
-#include <amd_hsa_signal.h>
 
 // Debug Agent Headers
 #include "AgentLogging.h"
@@ -77,9 +76,6 @@ bool g_gdbAttached = false;
 
 // If debug agent is successfully loaded and initialized
 std::atomic<bool> g_debugAgentInitialSuccess{false};
-
-// Debug event used by trap handler
-static HsaEvent* pEvent = nullptr;
 
 // Debug trap handler code object reader
 hsa_code_object_reader_t debugTrapHandlerCodeObjectReader = {0};
@@ -125,9 +121,6 @@ static hsa_status_t FindKernargSegment(hsa_region_t region, void *pData);
 // Handle runtime event based on event type.
 static hsa_status_t
 HSADebugAgentHandleRuntimeEvent(const hsa_amd_event_t* event, void* pData);
-
-// Debug trap signal for use with trap handler
-static amd_signal_t *debugTrapSignal = nullptr;
 
 extern "C" bool OnLoad(void *pTable,
                        uint64_t runtimeVersion, uint64_t failedToolCount,
@@ -592,10 +585,9 @@ static DebugAgentStatus AgentSetDebugTrapHandler()
         void* HSATrapHandler = nullptr;
         void* pTrapHandlerEntry = nullptr;
         uint64_t trapHandlerSize = 0;
-        uint64_t trapHandlerBufferSize = 0;
         const char* pEntryPointName = "debug_trap_handler";
         uint64_t kernelCodeAddress = 0;
-        DebugTrapBuff* pTrapHandlerBuffer = nullptr;
+        DisplacedSteppingBuffer* pDisplacedSteppingBuffer = nullptr;
 
         hsa_agent_t agent = { reinterpret_cast<decltype(hsa_agent_s::handle)>(pAgent->agent) };
         hsa_region_t kernargSegment = {0};
@@ -675,19 +667,6 @@ static DebugAgentStatus AgentSetDebugTrapHandler()
             return DEBUG_AGENT_STATUS_FAILURE;
         }
 
-        HsaEventDescriptor event_descriptor;
-        event_descriptor.EventType = HSA_EVENTTYPE_DEBUG_EVENT;
-        event_descriptor.SyncVar.SyncVar.UserData = nullptr;
-        event_descriptor.SyncVar.SyncVarSize = sizeof(hsa_signal_value_t);
-        event_descriptor.NodeId = pAgent->nodeId;
-        kmtStatus = hsaKmtCreateEvent(&event_descriptor, false, false, &pEvent);
-
-        if (kmtStatus != HSAKMT_STATUS_SUCCESS)
-        {
-            AGENT_ERROR("Cannot create debug event.");
-            return DEBUG_AGENT_STATUS_FAILURE;
-        }
-
         // find kernarg segment
         // TODO: put the trap buffer in device memory for efficiency
         //       use the copy APIs to update the value
@@ -700,40 +679,19 @@ static DebugAgentStatus AgentSetDebugTrapHandler()
 
         // allocate memory in kernarg segment for trap buffer
         status = gs_OrigCoreApiTable.hsa_memory_allocate_fn(
-                kernargSegment, sizeof(DebugTrapBuff), (void**)&pTrapHandlerBuffer);
-        if (!pTrapHandlerBuffer || (status != HSA_STATUS_SUCCESS)) {
+                kernargSegment, sizeof(DisplacedSteppingBuffer),
+                (void**)&pDisplacedSteppingBuffer);
+        if (!pDisplacedSteppingBuffer || (status != HSA_STATUS_SUCCESS)) {
             AGENT_ERROR("Cannot allocate memory for trap buffer.");
             return DEBUG_AGENT_STATUS_FAILURE;
         }
-        *pTrapHandlerBuffer = {};
-        _r_rocm_debug_info.pDebugTrapBuffer = pTrapHandlerBuffer;
-
-        // allocate memory in kernarg segment for trap signal so that its pinned
-        status = gs_OrigCoreApiTable.hsa_memory_allocate_fn(
-                kernargSegment, sizeof(amd_signal_t), (void**)&debugTrapSignal);
-        if (!debugTrapSignal || (status != HSA_STATUS_SUCCESS)) {
-            AGENT_ERROR("Cannot allocate memory for trap signal.");
-            return DEBUG_AGENT_STATUS_FAILURE;
-        }
-
-        // Copy Event mailbox to the signal
-        debugTrapSignal->event_mailbox_ptr = pEvent->EventData.HWData2;
-        debugTrapSignal->event_id = pEvent->EventId;
-
-        pTrapHandlerBuffer->debugEventSignalHandle = reinterpret_cast<uint64_t>(debugTrapSignal);
-
-        if(!IsMultipleOf(pTrapHandlerBuffer, 0x100))
-        {
-            AGENT_ERROR("Trap Handler Buffer address is not 256B aligned.");
-            return DEBUG_AGENT_STATUS_FAILURE;
-        }
-
-        trapHandlerBufferSize = sizeof(DebugTrapBuff);
+        *pDisplacedSteppingBuffer = {};
+        _r_rocm_debug_info.pDisplacedSteppingBuffer = pDisplacedSteppingBuffer;
 
         // Register trap handler in KFD
         kmtStatus = hsaKmtSetTrapHandler(
                 pAgent->nodeId, pTrapHandlerEntry,
-                trapHandlerSize, pTrapHandlerBuffer, trapHandlerBufferSize);
+                trapHandlerSize, nullptr, 0);
         if (kmtStatus != HSAKMT_STATUS_SUCCESS)
         {
             AGENT_ERROR("Cannot register debug trap handler.");
@@ -794,29 +752,9 @@ static DebugAgentStatus AgentUnsetDebugTrapHandler()
             }
         }
 
-        if (pEvent)
+        if (_r_rocm_debug_info.pDisplacedSteppingBuffer)
         {
-            kmtStatus = hsaKmtDestroyEvent(pEvent);
-            if (kmtStatus != HSAKMT_STATUS_SUCCESS)
-            {
-                AGENT_ERROR("Cannot destroy event.");
-                return DEBUG_AGENT_STATUS_FAILURE;
-            }
-        }
-
-        if (debugTrapSignal)
-        {
-            status = gs_OrigCoreApiTable.hsa_memory_free_fn((void*)debugTrapSignal);
-            if (status != HSA_STATUS_SUCCESS)
-            {
-                AGENT_ERROR("Cannot destroy debug signal.");
-                return DEBUG_AGENT_STATUS_FAILURE;
-            }
-        }
-
-        if (_r_rocm_debug_info.pDebugTrapBuffer)
-        {
-            status = gs_OrigCoreApiTable.hsa_memory_free_fn((void*)_r_rocm_debug_info.pDebugTrapBuffer);
+            status = gs_OrigCoreApiTable.hsa_memory_free_fn((void*)_r_rocm_debug_info.pDisplacedSteppingBuffer);
             if (status != HSA_STATUS_SUCCESS)
             {
                 AGENT_ERROR("Cannot destroy debug event signal.");

@@ -38,8 +38,6 @@
 #define HSA_DEBUG_AGENT_VERSION 1
 #define AGENT_MAX_AGENT_NAME_LEN  64
 #define AGENT_MAX_FILE_PATH_LEN 128
-// Max breakpoint number based on the trap buffer size (0x1000)
-#define AGENT_MAX_BREAKPOINT 510
 
 #pragma pack(push,1)
 extern "C" {
@@ -177,12 +175,11 @@ typedef struct _GPUAgentInfo
     struct _GPUAgentInfo* pPrev;
 } GPUAgentInfo;
 
-// Debug trap handler buffer struct
-typedef struct _DebugTrapBuff
+// Displaced stepping buffer struct
+typedef struct _DisplacedSteppingBuffer
 {
-    uint64_t debugEventSignalHandle;
-    uint64_t breakPointPC[AGENT_MAX_BREAKPOINT];
-} DebugTrapBuff;
+    char data[4096];
+} DisplacedSteppingBuffer;
 
 // Struct that maintains all debug info for ROCm-GDB to probe.
 typedef struct _RocmGpuDebug
@@ -194,7 +191,7 @@ typedef struct _RocmGpuDebug
     // Head of the chain of loaded objects.
     ExecutableInfo* pExecutableList;
     // Debug trap buffer address.
-    DebugTrapBuff* pDebugTrapBuffer;
+    DisplacedSteppingBuffer* pDisplacedSteppingBuffer;
 } RocmGpuDebug;
 
 } // extern "C"

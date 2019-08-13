@@ -84,18 +84,11 @@ debug_trap_handler:
 trap_entry:
   // If not a trap then skip queue signalling.
   s_bfe_u32            ttmp2, ttmp1, SQ_WAVE_PC_HI_TRAP_ID_BFE
-  s_cbranch_scc0       L_SEND_DEBUG_SIGNAL
+  s_cbranch_scc0       L_SEND_DEBUG_INTERRUPT
 
   // If not debugtrap (s_trap 1) or llvm.trap (s_trap 2) then signal debugger.
   s_cmp_ge_u32         ttmp2, 0x3
-  s_cbranch_scc0       L_SEND_QUEUE_SIGNAL
-
-L_SEND_DEBUG_SIGNAL:
-  s_bitset1_b32        ttmp11, TTMP11_DEBUG_TRAP_BIT
-  // Fetch debug trap signal from TMA.
-  s_load_dwordx2       [ttmp2, ttmp3], [ttmp14, ttmp15], 0x0 glc
-  s_waitcnt            lgkmcnt(0)
-  s_branch             L_SET_EVENT
+  s_cbranch_scc1       L_SEND_DEBUG_INTERRUPT
 
 L_SEND_QUEUE_SIGNAL:
   s_bitset0_b32        ttmp11, TTMP11_DEBUG_TRAP_BIT
@@ -129,7 +122,12 @@ L_SET_EVENT:
   // Write the signal event value to the mailbox.
   s_store_dword        ttmp2, [ttmp14, ttmp15], 0x0 glc
   s_waitcnt            lgkmcnt(0)
+  s_branch             L_SENDMSG
 
+L_SEND_DEBUG_INTERRUPT:
+  s_bitset1_b32        ttmp11, TTMP11_DEBUG_TRAP_BIT
+
+L_SENDMSG:
   // Fetch doorbell index for our queue.
   s_mov_b32            ttmp2, exec_lo
   s_mov_b32            ttmp3, exec_hi
