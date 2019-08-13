@@ -1,5 +1,6 @@
 #include <string>
 #include <string.h>
+#include <signal.h>
 
 #include "util.h"
 #include "vector_add_memory_fault.h"
@@ -12,16 +13,21 @@ static const uint32_t kNumBufferElements = 256;
 static arguments *vectorAddKernArgs = NULL;
 static const char CODE_OBJECT_NAME[] = "vector_add_memory_fault_kernel.o";
 static const char KERNEL_NAME[] = "vector_add_memory_fault.kd";
+static bool abort_called = false;
+extern "C" void TestHandleAborts(int signal_number);
 
 void VectorAddMemoryFaultTest(hsa_agent_t cpuAgent, hsa_agent_t gpuAgent) {
   hsa_status_t err;
   hsa_queue_t *queue = NULL;  // command queue
-  hsa_signal_t signal = {0};  // completion signal
+  hsa_signal_t completion_signal = {0};  // completion signal
 
   int *M_IN0 = NULL;
   int *M_IN1 = NULL;
   int *M_RESULT_DEVICE = NULL;
   int M_RESULT_HOST[M_ORDER * M_ORDER];
+
+  // set abort handler for this test.
+  signal(SIGABRT, &TestHandleAborts);
 
   // get queue size
   uint32_t queue_size = 0;
@@ -141,7 +147,7 @@ void VectorAddMemoryFaultTest(hsa_agent_t cpuAgent, hsa_agent_t gpuAgent) {
   // Put it on the queue and launch the kernel by ringing the doorbell
 
   // create completion signal
-  err = hsa_signal_create(1, 0, NULL, &signal);
+  err = hsa_signal_create(1, 0, NULL, &completion_signal);
   assert(err == HSA_STATUS_SUCCESS);
 
   // create aql packet
@@ -158,10 +164,10 @@ void VectorAddMemoryFaultTest(hsa_agent_t cpuAgent, hsa_agent_t gpuAgent) {
   aql.grid_size_y = 1;
   aql.grid_size_z = 1;
   aql.private_segment_size = 0;
-  aql.group_segment_size = 0;
+  aql.group_segment_size = 4;
   aql.kernel_object = codeHandle;  // kernel_code;
   aql.kernarg_address = vectorAddKernArgs;
-  aql.completion_signal = signal;
+  aql.completion_signal = completion_signal;
 
   // const uint32_t queue_size = queue->size;
   const uint32_t queue_mask = queue->size - 1;
@@ -191,18 +197,20 @@ void VectorAddMemoryFaultTest(hsa_agent_t cpuAgent, hsa_agent_t gpuAgent) {
 
   // wait for the signal long enough for the debug trap event to happen
   hsa_signal_value_t completion;
-  completion = hsa_signal_wait_scacquire(signal, HSA_SIGNAL_CONDITION_LT, 1,
+  completion = hsa_signal_wait_scacquire(completion_signal, HSA_SIGNAL_CONDITION_LT, 1,
                                          0xffffffff, HSA_WAIT_STATE_ACTIVE);
 
   // completion signal should not be changed.
   assert(completion == 1);
 
-  hsa_signal_store_relaxed(signal, 1);
-
-  if (M_IN0) { hsa_memory_free(M_IN0); }
-  if (M_IN1) { hsa_memory_free(M_IN1); }
-  if (M_RESULT_DEVICE) {hsa_memory_free(M_RESULT_DEVICE); }
-  if (vectorAddKernArgs) { hsa_memory_free(vectorAddKernArgs); }
-  if (signal.handle) { hsa_signal_destroy(signal); }
-  if (queue) { hsa_queue_destroy(queue); }
+  // abort() should be called.
+  assert(abort_called == true);
 }
+
+
+void TestHandleAborts(int signal_number)
+{
+  std::cout<< "rocr_debug_agent abort() as expected"<< std::endl;
+  abort_called = true;
+}
+

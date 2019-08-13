@@ -86,8 +86,7 @@ HSADebugAgentHandleMemoryFault(hsa_amd_event_t event, void* pData)
             allQueueWaves.clear();
         }
     }
-
-    return HSA_STATUS_SUCCESS;
+   abort();
 }
 
 static std::map<uint64_t, std::pair<uint64_t, WaveStateInfo*>> FindFaultyWaves(GPUAgentInfo *pAgent)

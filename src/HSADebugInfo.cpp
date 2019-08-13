@@ -532,14 +532,14 @@ void PrintWaves(GPUAgentInfo* pAgent, std::map<uint64_t, std::pair<uint64_t, Wav
 
     if (pDumpNameEnvVar == nullptr)
     {
-        std::cerr << err.str();
+        std::cout << err.str();
     }
     else
     {
         std::string envName(pDumpNameEnvVar);
         if (envName == "stdout")
         {
-            std::cerr << err.str();
+            std::cout << err.str();
         }
         else if (envName == "file")
         {
@@ -548,7 +548,7 @@ void PrintWaves(GPUAgentInfo* pAgent, std::map<uint64_t, std::pair<uint64_t, Wav
         else
         {
             AGENT_WARNING("Invalid value for ROCM_DEBUG_WAVE_STATE_DUMP, printing dump to stdout.");
-            std::cerr << err.str();
+            std::cout << err.str();
         }
     }
 }
