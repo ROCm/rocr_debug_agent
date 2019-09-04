@@ -59,11 +59,11 @@
 
 cmake_minimum_required(VERSION 3.5.0)
 
-# Specify name of project to build, install and package
-set(PROJECT_NAME "rocr_debug_agent")
+project(rocr_debug_agent VERSION 1.0.0)
 set(TARGET_NAME "${PROJECT_NAME}64" )
-set(TARGET_LIBRARY "lib${TARGET_NAME}" )
-project(${PROJECT_NAME})
+set(BUILD_VERSION_MAJOR ${PROJECT_VERSION_MAJOR})
+set(BUILD_VERSION_MINOR ${PROJECT_VERSION_MINOR})
+set(BUILD_VERSION_PATCH ${PROJECT_VERSION_PATCH})
 
 # Build is not supported on Windows plaform
 if(WIN32)
@@ -172,19 +172,6 @@ endif()
 list ( APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake_modules" )
 include(utils)
 
-#
-# Set the package version for the rocr_debug_agent. It is critical that this
-# value track what is used in the rocr_debug_agent source. The code from utils
-# module will parse the string into major, minor and patch sub-fields
-#
-get_version("1.0.0")
-message ( "-- LIB-VERSION: ${VERSION_MAJOR}.${VERSION_MINOR}.${VERSION_PATCH}" )
-
-# Bind the Major, Minor and Patch values
-set(BUILD_VERSION_MAJOR ${VERSION_MAJOR})
-set(BUILD_VERSION_MINOR ${VERSION_MINOR})
-set(BUILD_VERSION_PATCH ${VERSION_PATCH})
-
 # Basic Tool Chain Information
 message(" ")
 message("----------------NBIT: ${NBIT}")
@@ -282,13 +269,19 @@ foreach(DTRACE_SCRIPT IN LISTS DTRACE_SCRIPTS)
   list(APPEND PROBES_HDR_PATHS ${HDR_PATH})
 endforeach()
 
-
 # Build and link the program
 add_library(${TARGET_NAME} SHARED ${Src} ${ASM_HDR_PATHS} ${PROBES_HDR_PATHS})
 target_link_libraries(${TARGET_NAME} PRIVATE ${ROCR_LIB} ${HSAKMT_LIB} c stdc++ dl pthread rt)
 
+set_target_properties(rocr_debug_agent64 PROPERTIES
+  CXX_STANDARD 11
+  CXX_STANDARD_REQUIRED Yes
+  CXX_EXTENSIONS No
+  VERSION "${BUILD_VERSION_MAJOR}.${BUILD_VERSION_MINOR}"
+  SOVERSION "${BUILD_VERSION_MAJOR}")
+
 # Add install directives for rocr_debug_agent
-install(TARGETS ${TARGET_NAME} LIBRARY DESTINATION lib COMPONENT ${TARGET_LIBRARY})
+install(TARGETS ${TARGET_NAME} DESTINATION lib)
 
 # Add packaging directives for rocr_debug_agent
 set(CPACK_PACKAGE_NAME ${PROJECT_NAME})
