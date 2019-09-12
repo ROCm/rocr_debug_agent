@@ -68,23 +68,16 @@ HSADebugAgentHandleMemoryFault(hsa_amd_event_t event, void* pData)
         std::lock_guard<std::mutex> lock(debugAgentAccessLock);
         GPUAgentInfo* pAgent = GetAgentFromList(reinterpret_cast<void*>(event.memory_fault.agent.handle));
 
-        if (g_gdbAttached)
-        {
-            // TODO qingchuan: Add Probe for GDB.
-        }
-        else
-        {
-            PreemptAgentQueues(pAgent);
+        PreemptAgentQueues(pAgent);
 
-            // Print general mempry fault info.
-            PrintVMFaultInfo(pAgent->nodeId, event);
+        // Print general mempry fault info.
+        PrintVMFaultInfo(pAgent->nodeId, event);
 
-            // Gather fault wave state info (vGPR, sGPR, LDS), and print
-            std::map<uint64_t, std::pair<uint64_t, WaveStateInfo*>> waves =
-                FindFaultyWaves(pAgent);
-            PrintWaves(pAgent, waves);
-            allQueueWaves.clear();
-        }
+        // Gather fault wave state info (vGPR, sGPR, LDS), and print
+        std::map<uint64_t, std::pair<uint64_t, WaveStateInfo*>> waves =
+            FindFaultyWaves(pAgent);
+        PrintWaves(pAgent, waves);
+        allQueueWaves.clear();
     }
    abort();
 }

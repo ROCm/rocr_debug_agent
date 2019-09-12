@@ -828,9 +828,12 @@ HSADebugAgentHandleRuntimeEvent(const hsa_amd_event_t* event, void* pData)
     hsa_amd_event_t gpuEvent = *event;
     switch (gpuEvent.event_type)
     {
-        case HSA_AMD_GPU_MEMORY_FAULT_EVENT :
-            return HSADebugAgentHandleMemoryFault(gpuEvent, pData);
-            break;
+        case HSA_AMD_GPU_MEMORY_FAULT_EVENT:
+            // Let the debugger report the memory fault if it is attached.
+            if (g_gdbAttached)
+                return HSA_STATUS_SUCCESS;
+            else
+                return HSADebugAgentHandleMemoryFault(gpuEvent, pData);
         default :
             return HSA_STATUS_SUCCESS;
     }
