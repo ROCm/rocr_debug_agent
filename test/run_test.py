@@ -8,7 +8,7 @@ if (len(sys.argv)  != 2):
     raise Exception("rocr_debug_agent run_test input error!")
 else:
     test_binary_directory = sys.argv[1]
-    print ("Test binary directory: ", test_binary_directory)
+    print ("Test binary directory: ", os.path.abspath(test_binary_directory))
     print ("librocr_debug_agent64.so directroy: ", os.environ["LD_LIBRARY_PATH"])
     os.environ["HSA_TOOLS_LIB"] = "librocr_debug_agent64.so"
     os.chdir(test_binary_directory)
@@ -21,9 +21,9 @@ def check_test_0():
     out_str = output.decode('utf-8')
     err_str = err.decode('utf-8')
 
+# Only print but not throw for err_str, since debug build has print out could be ignored
     if (err_str):
         print (err_str)
-        return False
 
     return True
 
@@ -61,13 +61,10 @@ def check_test_1():
             all_output_string_found = False
             print ("\"", check_str, "\" Not Found in dump.")
 
-    # check rocr_debug_agent error and warning
-    agent_err_found = False
     if (err_str):
         print (err_str)
-        agent_err_found = True
 
-    return all_output_string_found and (not agent_err_found)
+    return all_output_string_found
 
 # test 2
 def check_test_2():
@@ -100,17 +97,16 @@ def check_test_2():
             all_output_string_found = False
             print ("\"", check_str, "\" Not Found in dump.")
 
-    # check rocr_debug_agent error and warning
-    agent_err_found = False
     if (err_str):
         print (err_str)
-        agent_err_found = True
 
-    return all_output_string_found and (not agent_err_found)
+    return all_output_string_found
 
-
-test_reslt = check_test_0() and check_test_1() and check_test_2()
-if test_reslt:
+test_success = True
+test_success &= check_test_0()
+test_success &= check_test_1()
+test_success &= check_test_2()
+if (test_success):
     print("rocr_debug_agent test Pass!")
 else:
     raise Exception("rocr_debug_agent test fail!")
