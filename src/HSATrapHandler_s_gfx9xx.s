@@ -38,6 +38,10 @@
 
 .hsa_code_object_isa 9,.LISA_VERSION_MINOR,.LISA_VERSION_STEPPING,"AMD","AMDGPU"
 
+.protected debug_trap_handler
+.globl debug_trap_handler
+.p2align 8
+.type debug_trap_handler,@function
 .amdgpu_hsa_kernel debug_trap_handler
 
 debug_trap_handler:
