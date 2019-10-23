@@ -115,6 +115,8 @@ elseif("${CMAKE_SYSTEM_PROCESSOR}" STREQUAL "x86")
 endif()
 
 # Set project requirements
+set(ROC_THUNK_NAME "hsakmt")
+set(ROC_THUNK_LIBRARY "lib${ROC_THUNK_NAME}")
 set(CORE_RUNTIME_NAME "hsa-runtime")
 set(CORE_RUNTIME_TARGET "${CORE_RUNTIME_NAME}64")
 set(CORE_RUNTIME_LIBRARY "lib${CORE_RUNTIME_TARGET}")
@@ -123,6 +125,9 @@ find_path(ROCR_INC hsa.h
   HINTS /opt/rocm/include/hsa)
 
 find_library(ROCR_LIB ${CORE_RUNTIME_LIBRARY}.so
+  HINTS /opt/rocm/lib)
+
+find_library(HSAKMT_LIB ${ROC_THUNK_LIBRARY}.so
   HINTS /opt/rocm/lib)
 
 find_path(LC_BIN clang
@@ -155,6 +160,10 @@ if(NOT CL_INCP)
   message(FATAL_ERROR "OpenCL header can't be found")
 endif()
 
+if(NOT HSAKMT_LIB)
+  message(FATAL_ERROR "ROC Thunk libraries can't be found")
+endif()
+
 # Blit kernel options
 set(LC_BITL_FLAGS -Xclang -mlink-bitcode-file -Xclang ${CL_BITL}/opencl.amdgcn.bc -Xclang -mlink-bitcode-file -Xclang ${CL_BITL}/ockl.amdgcn.bc)
 
@@ -182,6 +191,7 @@ message("------------Compiler: ${CMAKE_CXX_COMPILER}")
 message("----Compiler-Version: ${CMAKE_CXX_COMPILER_VERSION}")
 message("-----HSA-Runtime-Inc: ${ROCR_INC}")
 message("-----HSA-Runtime-Lib: ${ROCR_LIB}")
+message("-----------HSA-Thunk: ${HSAKMT_LIB}")
 message("--Lightning-Compiler: ${LC_BIN}")
 message("-----CMAKE_CXX_FLAGS: ${CMAKE_CXX_FLAGS}")
 message("------------LC_FLAGS: ${LC_FLAGS}")
@@ -239,6 +249,7 @@ add_custom_target(LC_OBJ DEPENDS ${OBJ_PATHS})
 add_executable(${TARGET_NAME} ${Src} ${LC_SRCS})
 add_dependencies(${TARGET_NAME} LC_OBJ)
 target_link_libraries(${TARGET_NAME} PRIVATE ${ROCR_LIB} c stdc++ dl pthread rt)
+link_directories(${HSAKMT_LIB})
 
 # Add install directives for rocr_debug_agent
 install(TARGETS ${TARGET_NAME} DESTINATION ${PROJECT_NAME} COMPONENT ${TARGET_NAME})
