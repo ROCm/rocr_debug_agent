@@ -122,6 +122,9 @@ static hsa_status_t FindKernargSegment(hsa_region_t region, void *pData);
 static hsa_status_t
 HSADebugAgentHandleRuntimeEvent(const hsa_amd_event_t* event, void* pData);
 
+extern "C" void __attribute__((noinline, optimize(0)))
+OnLoadComplete() {};
+
 extern "C" bool OnLoad(void *pTable,
                        uint64_t runtimeVersion, uint64_t failedToolCount,
                        const char *const *pFailedToolNames)
@@ -212,6 +215,7 @@ extern "C" bool OnLoad(void *pTable,
     AGENT_LOG("===== Finished Loading ROC Debug Agent=====");
     g_debugAgentInitialSuccess.store(true, std::memory_order_release);
 
+    OnLoadComplete();
     return true;
 }
 

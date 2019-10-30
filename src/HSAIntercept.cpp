@@ -414,6 +414,9 @@ HsaDebugAgentInternalQueueCreateCallback(const hsa_queue_t* queue,
     AGENT_LOG("Interception: Exit internal queue create callback");
 }
 
+extern "C" void __attribute__((noinline, optimize(0)))
+_loader_debug_state() {};
+
 static hsa_status_t
 HsaDebugAgentHsaExecutableFreeze(
         hsa_executable_t executable,
@@ -454,6 +457,7 @@ HsaDebugAgentHsaExecutableFreeze(
 
         // Trigger GPU event breakpoint
         ROCM_GDB_AGENT_EXEC_LOAD(pExec);
+        _loader_debug_state();
     }
 
     AGENT_LOG("Interception: Exit hsa_executable_freeze");
@@ -478,6 +482,7 @@ HsaDebugAgentHsaExecutableDestroy(
 
         // Trigger GPU event breakpoint before remove it
         ROCM_GDB_AGENT_EXEC_UNLOAD(pExecInfo);
+        _loader_debug_state();
 
         // Remove loaded code object info of the deleted executable
         // and update _r_rocm_debug_info
