@@ -91,11 +91,6 @@ DebugAgentStatus AgentCreateTmpDir()
 {
     char* pTmpPathEnvVar = nullptr;
 
-    if (g_gdbAttached)
-    {
-        return DEBUG_AGENT_STATUS_SUCCESS;
-    }
-
     pTmpPathEnvVar = std::getenv("ROCM_DEBUG_SAVE_CODE_OBJECT");
 
     if (pTmpPathEnvVar != nullptr)
@@ -134,11 +129,6 @@ DebugAgentStatus AgentCreateTmpDir()
 DebugAgentStatus AgentDeleteFile(const char* ipFilename)
 {
     DebugAgentStatus status = DEBUG_AGENT_STATUS_FAILURE;
-
-    if (g_gdbAttached)
-    {
-        return DEBUG_AGENT_STATUS_SUCCESS;
-    }
 
     if (ipFilename == nullptr)
     {
@@ -287,11 +277,6 @@ DebugAgentStatus SaveCodeObjectTempFile(uint64_t elfBaseAddress,
                                         CodeObjectInfo* pCodeObject)
 {
     DebugAgentStatus agentStatus = DEBUG_AGENT_STATUS_SUCCESS;
-
-    if (g_gdbAttached)
-    {
-        return DEBUG_AGENT_STATUS_SUCCESS;
-    }
 
     // Check for code object directory, it is created in OnLoad.
     if (!AgentIsDirExists(g_codeObjDir))

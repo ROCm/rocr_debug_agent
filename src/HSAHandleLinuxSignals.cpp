@@ -76,11 +76,6 @@ void InitialLinuxSignalsHandler()
 
 void INThandler(int sig)
 {
-    if (g_gdbAttached)
-    {
-        std::abort();
-    }
-
     {
         std::lock_guard<std::mutex> lock(debugAgentAccessLock);
 

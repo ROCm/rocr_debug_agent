@@ -69,11 +69,6 @@ void HSADebugAgentHandleQueueError(hsa_status_t status, hsa_queue_t* pHsaQueueT,
         PreemptAgentQueues(pAgent);
         pQueue->queueStatus = status;
 
-        if (g_gdbAttached)
-        {
-            // TODO qingchuan: add probe
-        }
-        else
         {
             std::map<uint64_t, std::pair<uint64_t, WaveStateInfo*>> waves =
                 FindWavesByQueue(pQueue);

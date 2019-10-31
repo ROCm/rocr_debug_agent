@@ -46,23 +46,15 @@
 #include "AgentUtils.h"
 #include "HSADebugAgentGDBInterface.h"
 #include "HSADebugAgent.h"
-#include "HSATrapHandler_s_gfx900.h"
-#include "HSATrapHandler_s_gfx906.h"
-#include "HSATrapHandler_s_gfx908.h"
 #include "HSADebugInfo.h"
 #include "HSAIntercept.h"
 #include "HSAHandleLinuxSignals.h"
 #include "HSAHandleMemoryFault.h"
 
-// Debug Agent Probes. To skip dependence upon semaphore variables,
-// include "<sys/sdt.h>" first.
-#include <sys/sdt.h>
-#include "HSADebugAgentGDBProbes.h"
-
 // Debug info tracked by debug agent, it is probed by ROCm-GDB
 RocmGpuDebug _r_rocm_debug_info =
 {
-    HSA_DEBUG_AGENT_VERSION, nullptr, nullptr, nullptr
+    HSA_DEBUG_AGENT_VERSION, nullptr, nullptr
 };
 
 // Temp direcoty path for code object files
@@ -70,9 +62,6 @@ char g_codeObjDir[92];
 
 // whether delete tmp code object files
 bool g_deleteTmpFile = true;
-
-// Whether GDB is attached
-bool g_gdbAttached = false;
 
 // If debug agent is successfully loaded and initialized
 std::atomic<bool> g_debugAgentInitialSuccess{false};
@@ -106,43 +95,20 @@ static void AgentCleanDebugInfo();
 // Set system event handler in runtime
 static DebugAgentStatus AgentSetSysEventHandler();
 
-// Set debug trap handler through KFD
-static DebugAgentStatus AgentSetDebugTrapHandler();
-
-// Unset debug trap handler through KFD
-static DebugAgentStatus AgentUnsetDebugTrapHandler();
-
-// find debug trap handler of the agent
-static void* FindDebugTrapHandler(char* pAgentName);
-
-// find the kernarg segment when iterate regions
-static hsa_status_t FindKernargSegment(hsa_region_t region, void *pData);
-
 // Handle runtime event based on event type.
 static hsa_status_t
 HSADebugAgentHandleRuntimeEvent(const hsa_amd_event_t* event, void* pData);
-
-extern "C" void __attribute__((noinline, optimize(0)))
-OnLoadComplete() {};
 
 extern "C" bool OnLoad(void *pTable,
                        uint64_t runtimeVersion, uint64_t failedToolCount,
                        const char *const *pFailedToolNames)
 {
-    ROCM_GDB_AGENT_INIT_START();
-
     g_debugAgentInitialSuccess = false;
     DebugAgentStatus status = DEBUG_AGENT_STATUS_FAILURE;
     uint32_t tableVersionMajor =
             (reinterpret_cast<HsaApiTable *>(pTable))->version.major_id;
     uint32_t tableVersionMinor =
             (reinterpret_cast<HsaApiTable *>(pTable))->version.minor_id;
-    struct _AgentInitCompleteOnExit
-    {
-        DebugAgentStatus& _status;
-        _AgentInitCompleteOnExit(DebugAgentStatus& status) : _status(status) {}
-        ~_AgentInitCompleteOnExit() { ROCM_GDB_AGENT_INIT_COMPLETE(_status); }
-    } agentInitCompleteOnExit(status);
 
     status = AgentInitLogger();
 
@@ -198,24 +164,11 @@ extern "C" bool OnLoad(void *pTable,
         return false;
     }
 
-    // Set debug trap after intercept is initialed to catch internal
-    // runtime queue create
-    if (g_gdbAttached)
-    {
-        status = AgentSetDebugTrapHandler();
-        if (status != DEBUG_AGENT_STATUS_SUCCESS)
-        {
-            AGENT_ERROR("Cannot set debug trap handler");
-            return false;
-        }
-    }
-
     InitialLinuxSignalsHandler();
 
     AGENT_LOG("===== Finished Loading ROC Debug Agent=====");
     g_debugAgentInitialSuccess.store(true, std::memory_order_release);
 
-    OnLoadComplete();
     return true;
 }
 
@@ -223,27 +176,12 @@ extern "C" void OnUnload()
 {
     std::lock_guard<std::mutex> lock(debugAgentAccessLock);
 
-    ROCM_GDB_AGENT_FINI_START();
-
     AGENT_LOG("===== Unload ROC Debug Agent=====");
 
     DebugAgentStatus retVal = DEBUG_AGENT_STATUS_SUCCESS;
     DebugAgentStatus status = DEBUG_AGENT_STATUS_FAILURE;
 
     AgentCleanDebugInfo();
-
-    if (g_gdbAttached)
-    {
-        status = AgentUnsetDebugTrapHandler();
-        if (status != DEBUG_AGENT_STATUS_SUCCESS)
-        {
-            if (retVal == DEBUG_AGENT_STATUS_SUCCESS)
-            {
-                retVal = status;
-            }
-            AGENT_ERROR("OnUnload: Cannot unset debug trap handler");
-        }
-    }
 
     status = AgentCloseLogger();
     if (status != DEBUG_AGENT_STATUS_SUCCESS)
@@ -254,8 +192,6 @@ extern "C" void OnUnload()
         }
         AGENT_ERROR("OnUnload: Cannot close Logging");
     }
-
-    ROCM_GDB_AGENT_FINI_COMPLETE(retVal);
 }
 
 // Check the version based on the provided by HSA runtime's OnLoad function.
@@ -547,265 +483,6 @@ static void AgentCleanDebugInfo()
     }
 }
 
-static void* FindDebugTrapHandler(char* pAgentName)
-{
-    if (pAgentName == nullptr)
-    {
-        return nullptr;
-    }
-
-    // The name check is based on the format of "AMD gfx900"
-    if (strncmp(&(pAgentName[4]), "gfx", 3) != 0)
-    {
-        return nullptr;
-    }
-
-    uint64_t targetName = atoi(&(pAgentName[7]));
-    uint8_t gfxMajor = targetName / 100;
-    uint8_t gfxMinor = targetName % 100;
-
-    switch (gfxMajor) {
-        case 9:
-            if (gfxMinor == 0)
-                return HSATrapHandler_s_gfx900_co;
-            else if (gfxMinor == 6)
-                return HSATrapHandler_s_gfx906_co;
-            else if (gfxMinor == 8)
-                return HSATrapHandler_s_gfx908_co;
-            else
-                return nullptr;
-        default:
-            return nullptr;
-    }
-}
-
-static DebugAgentStatus AgentSetDebugTrapHandler()
-{
-    GPUAgentInfo* pAgent = _r_rocm_debug_info.pAgentList;
-    GPUAgentInfo* pAgentNext = nullptr;
-
-    while (pAgent != nullptr)
-    {
-        void* HSATrapHandler = nullptr;
-        void* pTrapHandlerEntry = nullptr;
-        uint64_t trapHandlerSize = 0;
-        const char* pEntryPointName = "debug_trap_handler";
-        uint64_t kernelCodeAddress = 0;
-        DisplacedSteppingBuffer* pDisplacedSteppingBuffer = nullptr;
-
-        hsa_agent_t agent = { reinterpret_cast<decltype(hsa_agent_s::handle)>(pAgent->agent) };
-        hsa_region_t kernargSegment = {0};
-        hsa_executable_symbol_t symbol = {0};
-        hsa_status_t status = HSA_STATUS_SUCCESS;
-        HSAKMT_STATUS kmtStatus = HSAKMT_STATUS_SUCCESS;
-
-        // Find target trap handler
-        HSATrapHandler = FindDebugTrapHandler(pAgent->agentName);
-        if (HSATrapHandler == nullptr)
-        {
-            AGENT_ERROR("Cannot find debug trap handler for agent "
-                        << pAgent->agentName);
-            return DEBUG_AGENT_STATUS_FAILURE;
-        }
-
-        status = gs_OrigCoreApiTable.hsa_code_object_reader_create_from_memory_fn(
-                HSATrapHandler, sizeof(HSATrapHandler), &debugTrapHandlerCodeObjectReader);
-        if (status != HSA_STATUS_SUCCESS)
-        {
-            AGENT_ERROR("Cannot create debug trap handler code object.");
-            return DEBUG_AGENT_STATUS_FAILURE;
-        }
-
-        // Create executable.
-        status = gs_OrigCoreApiTable.hsa_executable_create_alt_fn(
-            HSA_PROFILE_FULL, HSA_DEFAULT_FLOAT_ROUNDING_MODE_DEFAULT, NULL, &debugTrapHandlerExecutable);
-        if (status != HSA_STATUS_SUCCESS)
-        {
-            AGENT_ERROR("Cannot create debug trap handler executable.");
-            return DEBUG_AGENT_STATUS_FAILURE;
-        }
-
-        // Load debug trap handler code object
-        status = gs_OrigCoreApiTable.hsa_executable_load_agent_code_object_fn(
-                debugTrapHandlerExecutable, agent, debugTrapHandlerCodeObjectReader, NULL, NULL);
-        if (status != HSA_STATUS_SUCCESS)
-        {
-            AGENT_ERROR("Cannot load debug trap handler code object.");
-            return DEBUG_AGENT_STATUS_FAILURE;
-        }
-
-        // freeze executable
-        status = gs_OrigCoreApiTable.hsa_executable_freeze_fn(debugTrapHandlerExecutable, NULL);
-        if (status != HSA_STATUS_SUCCESS)
-        {
-            AGENT_ERROR("Can freeze debug trap handler executable.");
-            return DEBUG_AGENT_STATUS_FAILURE;
-        }
-
-        // find the kernel symbol.
-        status = gs_OrigCoreApiTable.hsa_executable_get_symbol_by_name_fn(
-                debugTrapHandlerExecutable, pEntryPointName, &(agent), &symbol);
-        if (status != HSA_STATUS_SUCCESS)
-        {
-            AGENT_ERROR("Cannot find debug trap handler symbol.");
-            return DEBUG_AGENT_STATUS_FAILURE;
-        }
-
-        status = gs_OrigCoreApiTable.hsa_executable_symbol_get_info_fn(
-                symbol, HSA_EXECUTABLE_SYMBOL_INFO_KERNEL_OBJECT, &kernelCodeAddress);
-        if (status != HSA_STATUS_SUCCESS)
-        {
-            AGENT_ERROR("Cannot get debug trap handler entry point address.");
-            return DEBUG_AGENT_STATUS_FAILURE;
-        }
-
-        // hsa_executable_get_symbol_by_name with kernel name
-        // get the address of amd_kernel_code_t in ROCm 1.9
-        // TODO: access the code enty offset in kernerl discriptor
-        pTrapHandlerEntry = (void*)(kernelCodeAddress + 256);
-
-        // Check pTrapHandlerEntry is multiple of 256
-        if(!IsMultipleOf(pTrapHandlerEntry, 0x100))
-        {
-            AGENT_ERROR("pTrapHandlerEntry is not 256B aligned.");
-            return DEBUG_AGENT_STATUS_FAILURE;
-        }
-
-        // find kernarg segment
-        // TODO: put the trap buffer in device memory for efficiency
-        //       use the copy APIs to update the value
-        status = gs_OrigCoreApiTable.hsa_agent_iterate_regions_fn(
-                agent, FindKernargSegment, &kernargSegment);
-        if (!kernargSegment.handle || (status != HSA_STATUS_SUCCESS)) {
-            AGENT_ERROR("Cannot find kernarg segment for trap buffer.");
-            return DEBUG_AGENT_STATUS_FAILURE;
-        }
-
-        // allocate memory in kernarg segment for trap buffer
-        status = gs_OrigCoreApiTable.hsa_memory_allocate_fn(
-                kernargSegment, sizeof(DisplacedSteppingBuffer),
-                (void**)&pDisplacedSteppingBuffer);
-        if (!pDisplacedSteppingBuffer || (status != HSA_STATUS_SUCCESS)) {
-            AGENT_ERROR("Cannot allocate memory for trap buffer.");
-            return DEBUG_AGENT_STATUS_FAILURE;
-        }
-        *pDisplacedSteppingBuffer = {};
-        _r_rocm_debug_info.pDisplacedSteppingBuffer = pDisplacedSteppingBuffer;
-
-        // Register trap handler in KFD
-        kmtStatus = hsaKmtSetTrapHandler(
-                pAgent->nodeId, pTrapHandlerEntry,
-                trapHandlerSize, nullptr, 0);
-        if (kmtStatus != HSAKMT_STATUS_SUCCESS)
-        {
-            AGENT_ERROR("Cannot register debug trap handler.");
-            return DEBUG_AGENT_STATUS_FAILURE;
-        }
-
-        pAgentNext = pAgent->pNext;
-        pAgent = pAgentNext;
-    }
-
-    return DEBUG_AGENT_STATUS_SUCCESS;
-}
-
-static DebugAgentStatus AgentUnsetDebugTrapHandler()
-{
-    GPUAgentInfo* pAgent = _r_rocm_debug_info.pAgentList;
-    GPUAgentInfo* pAgentNext = nullptr;
-
-    while (pAgent != nullptr)
-    {
-        hsa_status_t status = HSA_STATUS_SUCCESS;
-        HSAKMT_STATUS kmtStatus = HSAKMT_STATUS_SUCCESS;
-
-        kmtStatus = hsaKmtSetWaveLaunchMode(pAgent->nodeId, HSA_DBG_WAVE_LAUNCH_MODE_NORMAL);
-        if (kmtStatus != HSAKMT_STATUS_SUCCESS)
-        {
-            AGENT_ERROR("Cannot set wave in normal mode.");
-            return DEBUG_AGENT_STATUS_FAILURE;
-        }
-
-        // Reset debug trap handler by regsiter nullptr
-        kmtStatus = hsaKmtSetTrapHandler(
-                pAgent->nodeId, nullptr,
-                0, nullptr, 0);
-        if (kmtStatus != HSAKMT_STATUS_SUCCESS)
-        {
-            AGENT_ERROR("Cannot reset debug trap handler.");
-            return DEBUG_AGENT_STATUS_FAILURE;
-        }
-
-        if (debugTrapHandlerExecutable.handle)
-        {
-            status = gs_OrigCoreApiTable.hsa_executable_destroy_fn(debugTrapHandlerExecutable);
-            if (status != HSA_STATUS_SUCCESS)
-            {
-                AGENT_ERROR("Cannot destroy debug trap handler executable.");
-                return DEBUG_AGENT_STATUS_FAILURE;
-            }
-        }
-
-        if (debugTrapHandlerCodeObjectReader.handle)
-        {
-            status = gs_OrigCoreApiTable.hsa_code_object_reader_destroy_fn(debugTrapHandlerCodeObjectReader);
-            if (status != HSA_STATUS_SUCCESS)
-            {
-                AGENT_ERROR("Cannot destroy debug trap handler code object reader.");
-                return DEBUG_AGENT_STATUS_FAILURE;
-            }
-        }
-
-        if (_r_rocm_debug_info.pDisplacedSteppingBuffer)
-        {
-            status = gs_OrigCoreApiTable.hsa_memory_free_fn((void*)_r_rocm_debug_info.pDisplacedSteppingBuffer);
-            if (status != HSA_STATUS_SUCCESS)
-            {
-                AGENT_ERROR("Cannot destroy debug event signal.");
-                return DEBUG_AGENT_STATUS_FAILURE;
-            }
-        }
-
-        pAgentNext = pAgent->pNext;
-        pAgent = pAgentNext;
-    }
-
-    return DEBUG_AGENT_STATUS_SUCCESS;
-}
-
-static hsa_status_t FindKernargSegment(hsa_region_t region, void *pData)
-{
-    if (!pData)
-    {
-        return HSA_STATUS_ERROR_INVALID_ARGUMENT;
-    }
-
-    hsa_region_segment_t seg;
-    hsa_status_t status  = hsa_region_get_info(region, HSA_REGION_INFO_SEGMENT, &seg);
-    if (status != HSA_STATUS_SUCCESS)
-    {
-        return status;
-    }
-    if (seg != HSA_REGION_SEGMENT_GLOBAL)
-    {
-        return HSA_STATUS_SUCCESS;
-    }
-
-    uint32_t flags;
-    status = hsa_region_get_info(region, HSA_REGION_INFO_GLOBAL_FLAGS, &flags);
-    if (status != HSA_STATUS_SUCCESS)
-    {
-        return status;
-    }
-
-    if (flags & HSA_REGION_GLOBAL_FLAG_KERNARG)
-    {
-        *((hsa_region_t*)pData) = region;
-    }
-
-    return HSA_STATUS_SUCCESS;
-}
-
 static DebugAgentStatus AgentSetSysEventHandler()
 {
     hsa_status_t status = HSA_STATUS_SUCCESS;
@@ -833,11 +510,7 @@ HSADebugAgentHandleRuntimeEvent(const hsa_amd_event_t* event, void* pData)
     switch (gpuEvent.event_type)
     {
         case HSA_AMD_GPU_MEMORY_FAULT_EVENT:
-            // Let the debugger report the memory fault if it is attached.
-            if (g_gdbAttached)
-                return HSA_STATUS_SUCCESS;
-            else
-                return HSADebugAgentHandleMemoryFault(gpuEvent, pData);
+            return HSADebugAgentHandleMemoryFault(gpuEvent, pData);
         default :
             return HSA_STATUS_SUCCESS;
     }

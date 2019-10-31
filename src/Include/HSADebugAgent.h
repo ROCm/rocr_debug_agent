@@ -50,9 +50,6 @@ typedef enum
 // This is the instance of the structure probed by the GDB.
 extern "C" RocmGpuDebug _r_rocm_debug_info;
 
-// GDB attached
-extern "C" bool g_gdbAttached;
-
 // Temp direcoty path for code object files
 extern char g_codeObjDir[92];
 

@@ -106,112 +106,108 @@ DebugAgentStatus ProcessQueueWaveStates(GPUAgentInfo* pAgent, QueueInfo *pQueue)
     // Track the LDS save area for the current workgroup.
     uint32_t *lds = nullptr;
 
-    // Only decode waves when debug agent is used stand alone.
-    if (!g_gdbAttached)
+    allQueueWaves.insert(std::pair<uint64_t, WaveStates>(queueId, WaveStates()));
+
+    // Parse each write to COMPUTE_RELAUNCH in sequence.
+    // First two dwords are SET_SH_REG leader.
+    // TODO:
+    for (uint32_t idx = 2; idx < ctl_stack_ndw; ++idx)
     {
-        allQueueWaves.insert(std::pair<uint64_t, WaveStates>(queueId, WaveStates()));
+        uint32_t relaunch = ctl_stack[idx];
+        bool is_event = COMPUTE_RELAUNCH_IS_EVENT(relaunch);
+        bool is_state = COMPUTE_RELAUNCH_IS_STATE(relaunch);
 
-        // Parse each write to COMPUTE_RELAUNCH in sequence.
-        // First two dwords are SET_SH_REG leader.
-        // TODO:
-        for (uint32_t idx = 2; idx < ctl_stack_ndw; ++idx)
+        // TODO: check control records are present, and their values first.
+        if (is_state && !is_event)
         {
-            uint32_t relaunch = ctl_stack[idx];
-            bool is_event = COMPUTE_RELAUNCH_IS_EVENT(relaunch);
-            bool is_state = COMPUTE_RELAUNCH_IS_STATE(relaunch);
-
-            // TODO: check control records are present, and their values first.
-            if (is_state && !is_event)
+            vgprs_size_dw = (0x1 + COMPUTE_RELAUNCH_PAYLOAD_VGPRS(relaunch)) * 0x4;
+            // TODO: This is a temp fix, each target should be able to have its own layout.
+            if (pAgent->hasAccVgprs)
             {
-                vgprs_size_dw = (0x1 + COMPUTE_RELAUNCH_PAYLOAD_VGPRS(relaunch)) * 0x4;
-                // TODO: This is a temp fix, each target should be able to have its own layout.
-                if (pAgent->hasAccVgprs)
-                {
-                    accvgprs_size_dw = vgprs_size_dw;
-                }
-                // SGPRs do not include trap temp.
-                sgprs_size_dw = ((0x1 + COMPUTE_RELAUNCH_PAYLOAD_SGPRS(relaunch)) - 0x1) * 0x10;
-                lds_size_dw = COMPUTE_RELAUNCH_PAYLOAD_LDS_SIZE(relaunch) * 0x80;
-
+                accvgprs_size_dw = vgprs_size_dw;
             }
-            else if (!is_state && !is_event)
+            // SGPRs do not include trap temp.
+            sgprs_size_dw = ((0x1 + COMPUTE_RELAUNCH_PAYLOAD_SGPRS(relaunch)) - 0x1) * 0x10;
+            lds_size_dw = COMPUTE_RELAUNCH_PAYLOAD_LDS_SIZE(relaunch) * 0x80;
+
+        }
+        else if (!is_state && !is_event)
+        {
+            // Reference to one wavefront in the save area.
+            bool first_wave_in_group = COMPUTE_RELAUNCH_PAYLOAD_FIRST_WAVE(relaunch);
+
+            // Save area layout is fixed by context save trap handler and SPI.
+            // offset of dw
+            uint32_t vgprs_offset = 0x0;
+            uint32_t accvgprs_offset = vgprs_offset + vgprs_size_dw * wave_front_size;
+            uint32_t sgprs_offset = accvgprs_offset + accvgprs_size_dw * wave_front_size;
+            uint32_t hwregs_offset = sgprs_offset + sgprs_size_dw;
+            uint32_t lds_offset = hwregs_offset + 0x20;
+            uint32_t unused_offset = lds_offset + (first_wave_in_group ? lds_size_dw : 0x0);
+            uint32_t wave_area_size = unused_offset + 0x10;
+            uint32_t hwreg_m0_offset = hwregs_offset + 0x0;
+            uint32_t hwreg_pc_lo_offset = hwregs_offset + 0x1;
+            uint32_t hwreg_pc_hi_offset = hwregs_offset + 0x2;
+            uint32_t hwreg_exec_lo_offset = hwregs_offset + 0x3;
+            uint32_t hwreg_exec_hi_offset = hwregs_offset + 0x4;
+            uint32_t hwreg_status_offset = hwregs_offset + 0x5;
+            uint32_t hwreg_trapsts_offset = hwregs_offset + 0x6;
+            // uint32_t hwreg_xnack_mask_lo_offset = hwregs_offset + 0x7;
+            // uint32_t hwreg_xnack_mask_hi_offset = hwregs_offset + 0x8;
+            // uint32_t hwreg_mode_offset = hwregs_offset + 0x9;
+            // uint32_t hwreg_ttmp6_offset = hwregs_offset + 0x10;
+            // uint32_t hwreg_ttmp7_offset = hwregs_offset + 0x11;
+            // uint32_t hwreg_ttmp8_offset = hwregs_offset + 0x12;
+            // uint32_t hwreg_ttmp9_offset = hwregs_offset + 0x13;
+            // uint32_t hwreg_ttmp10_offset = hwregs_offset + 0x14;
+            // uint32_t hwreg_ttmp11_offset = hwregs_offset + 0x15;
+            // uint32_t hwreg_ttmp13_offset = hwregs_offset + 0x16;
+            // uint32_t hwreg_ttmp14_offset = hwregs_offset + 0x17;
+            // uint32_t hwreg_ttmp15_offset = hwregs_offset + 0x18;
+
+            // Find beginning of wavefront state in the save area.
+            wave_area -= wave_area_size;
+
+            if (first_wave_in_group)
             {
-                // Reference to one wavefront in the save area.
-                bool first_wave_in_group = COMPUTE_RELAUNCH_PAYLOAD_FIRST_WAVE(relaunch);
-
-                // Save area layout is fixed by context save trap handler and SPI.
-                // offset of dw
-                uint32_t vgprs_offset = 0x0;
-                uint32_t accvgprs_offset = vgprs_offset + vgprs_size_dw * wave_front_size;
-                uint32_t sgprs_offset = accvgprs_offset + accvgprs_size_dw * wave_front_size;
-                uint32_t hwregs_offset = sgprs_offset + sgprs_size_dw;
-                uint32_t lds_offset = hwregs_offset + 0x20;
-                uint32_t unused_offset = lds_offset + (first_wave_in_group ? lds_size_dw : 0x0);
-                uint32_t wave_area_size = unused_offset + 0x10;
-                uint32_t hwreg_m0_offset = hwregs_offset + 0x0;
-                uint32_t hwreg_pc_lo_offset = hwregs_offset + 0x1;
-                uint32_t hwreg_pc_hi_offset = hwregs_offset + 0x2;
-                uint32_t hwreg_exec_lo_offset = hwregs_offset + 0x3;
-                uint32_t hwreg_exec_hi_offset = hwregs_offset + 0x4;
-                uint32_t hwreg_status_offset = hwregs_offset + 0x5;
-                uint32_t hwreg_trapsts_offset = hwregs_offset + 0x6;
-                // uint32_t hwreg_xnack_mask_lo_offset = hwregs_offset + 0x7;
-                // uint32_t hwreg_xnack_mask_hi_offset = hwregs_offset + 0x8;
-                // uint32_t hwreg_mode_offset = hwregs_offset + 0x9;
-                // uint32_t hwreg_ttmp6_offset = hwregs_offset + 0x10;
-                // uint32_t hwreg_ttmp7_offset = hwregs_offset + 0x11;
-                // uint32_t hwreg_ttmp8_offset = hwregs_offset + 0x12;
-                // uint32_t hwreg_ttmp9_offset = hwregs_offset + 0x13;
-                // uint32_t hwreg_ttmp10_offset = hwregs_offset + 0x14;
-                // uint32_t hwreg_ttmp11_offset = hwregs_offset + 0x15;
-                // uint32_t hwreg_ttmp13_offset = hwregs_offset + 0x16;
-                // uint32_t hwreg_ttmp14_offset = hwregs_offset + 0x17;
-                // uint32_t hwreg_ttmp15_offset = hwregs_offset + 0x18;
-
-                // Find beginning of wavefront state in the save area.
-                wave_area -= wave_area_size;
-
-                if (first_wave_in_group)
+                // Track the LDS save area for this workgroup.
+                if (lds_size_dw > 0)
                 {
-                    // Track the LDS save area for this workgroup.
-                    if (lds_size_dw > 0)
-                    {
-                        lds = wave_area + lds_offset;
-                    }
-                    else
-                    {
-                        lds = nullptr;
-                    }
+                    lds = wave_area + lds_offset;
                 }
-
-                // Save wave state in debug agent.
-                WaveStateInfo waveList;
-
-                // TODO: check the value from context save area
-                waveList.numSgprs = sgprs_size_dw;
-                waveList.sgprs = wave_area + sgprs_offset;
-                waveList.numVgprs = vgprs_size_dw;
-                waveList.numAccVgprs = accvgprs_size_dw;
-                waveList.numVgprLanes = wave_front_size;
-                waveList.numAccVgprLanes = wave_front_size;
-                waveList.vgprs = wave_area + vgprs_offset;
-                waveList.accvgprs = wave_area + accvgprs_offset;
-                waveList.regs.pc = (uint64_t(wave_area[hwreg_pc_lo_offset]) |
-                                    (uint64_t(wave_area[hwreg_pc_hi_offset]) << 0x20));
-                waveList.regs.exec = (uint64_t(wave_area[hwreg_exec_lo_offset]) |
-                                        (uint64_t(wave_area[hwreg_exec_hi_offset]) << 0x20));
-                waveList.regs.status = wave_area[hwreg_status_offset];
-                waveList.regs.trapsts = wave_area[hwreg_trapsts_offset];
-                waveList.regs.m0 = wave_area[hwreg_m0_offset];
-                waveList.ldsSizeDw = lds_size_dw;
-                waveList.lds = lds;
-
-                allQueueWaves[queueId].push_back(waveList);
-
-                if (SQ_WAVE_TRAPSTS_XNACK_ERROR(waveList.regs.trapsts))
+                else
                 {
-                    pQueue->queueStatus = QUEUE_STATUS_FAILURE;
+                    lds = nullptr;
                 }
+            }
+
+            // Save wave state in debug agent.
+            WaveStateInfo waveList;
+
+            // TODO: check the value from context save area
+            waveList.numSgprs = sgprs_size_dw;
+            waveList.sgprs = wave_area + sgprs_offset;
+            waveList.numVgprs = vgprs_size_dw;
+            waveList.numAccVgprs = accvgprs_size_dw;
+            waveList.numVgprLanes = wave_front_size;
+            waveList.numAccVgprLanes = wave_front_size;
+            waveList.vgprs = wave_area + vgprs_offset;
+            waveList.accvgprs = wave_area + accvgprs_offset;
+            waveList.regs.pc = (uint64_t(wave_area[hwreg_pc_lo_offset]) |
+                                (uint64_t(wave_area[hwreg_pc_hi_offset]) << 0x20));
+            waveList.regs.exec = (uint64_t(wave_area[hwreg_exec_lo_offset]) |
+                                   (uint64_t(wave_area[hwreg_exec_hi_offset]) << 0x20));
+            waveList.regs.status = wave_area[hwreg_status_offset];
+            waveList.regs.trapsts = wave_area[hwreg_trapsts_offset];
+            waveList.regs.m0 = wave_area[hwreg_m0_offset];
+            waveList.ldsSizeDw = lds_size_dw;
+            waveList.lds = lds;
+
+            allQueueWaves[queueId].push_back(waveList);
+
+            if (SQ_WAVE_TRAPSTS_XNACK_ERROR(waveList.regs.trapsts))
+            {
+                pQueue->queueStatus = QUEUE_STATUS_FAILURE;
             }
         }
 
@@ -842,4 +838,5 @@ void DeleteCodeObjectFromList(uint64_t addrLoaded, ExecutableInfo *pExecutable)
         delete[] (char*) pListCurrent->addrMemory;
         delete pListCurrent;
     }
+
 }

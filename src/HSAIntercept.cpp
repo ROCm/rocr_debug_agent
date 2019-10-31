@@ -50,11 +50,6 @@
 #include "HSAHandleQueueError.h"
 #include "HSAIntercept.h"
 
-// Debug Agent Probes. To skip dependence upon semaphore variables,
-// include "<sys/sdt.h>" first.
-#include <sys/sdt.h>
-#include "HSADebugAgentGDBProbes.h"
-
 // The HSA Runtime's versions of HSA core API functions
 CoreApiTable gs_OrigCoreApiTable;
 
@@ -275,9 +270,6 @@ HsaDebugAgentHsaQueueCreate(
             AGENT_ERROR("Interception: Cannot add queue info to link list");
             return HSA_STATUS_ERROR;
         }
-
-        // Trigger GPU event breakpoint before remove it
-        ROCM_GDB_AGENT_QUEUE_CREATE(pNewQueueInfo);
     }
 
     // resume the queue
@@ -309,9 +301,6 @@ HsaDebugAgentHsaQueueDestroy(hsa_queue_t* queue)
             AGENT_ERROR("Interception: Cannot find queue info when destroy.");
             return HSA_STATUS_ERROR;
         }
-
-        // Trigger GPU event breakpoint before remove it
-        ROCM_GDB_AGENT_QUEUE_DESTROY(pQueueInfo);
 
         RemoveQueueFromList(queue->id);
     }
@@ -397,9 +386,6 @@ HsaDebugAgentInternalQueueCreateCallback(const hsa_queue_t* queue,
         return;
     }
 
-    // Trigger GPU event breakpoint before remove it
-    ROCM_GDB_AGENT_QUEUE_CREATE(pNewQueueInfo);
-
     // resume the queue
     kmt_status = hsaKmtQueueResume(INVALID_PID,
                                    1,
@@ -413,9 +399,6 @@ HsaDebugAgentInternalQueueCreateCallback(const hsa_queue_t* queue,
 
     AGENT_LOG("Interception: Exit internal queue create callback");
 }
-
-extern "C" void __attribute__((noinline, optimize(0)))
-_loader_debug_state() {};
 
 static hsa_status_t
 HsaDebugAgentHsaExecutableFreeze(
@@ -454,10 +437,6 @@ HsaDebugAgentHsaExecutableFreeze(
             AGENT_ERROR("Interception: Cannot add code object info");
             return status;
         }
-
-        // Trigger GPU event breakpoint
-        ROCM_GDB_AGENT_EXEC_LOAD(pExec);
-        _loader_debug_state();
     }
 
     AGENT_LOG("Interception: Exit hsa_executable_freeze");
@@ -479,10 +458,6 @@ HsaDebugAgentHsaExecutableDestroy(
             AGENT_ERROR("Interception: Cannot find executable info when destroy.");
             return HSA_STATUS_ERROR;
         }
-
-        // Trigger GPU event breakpoint before remove it
-        ROCM_GDB_AGENT_EXEC_UNLOAD(pExecInfo);
-        _loader_debug_state();
 
         // Remove loaded code object info of the deleted executable
         // and update _r_rocm_debug_info

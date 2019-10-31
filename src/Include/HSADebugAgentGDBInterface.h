@@ -175,12 +175,6 @@ typedef struct _GPUAgentInfo
     struct _GPUAgentInfo* pPrev;
 } GPUAgentInfo;
 
-// Displaced stepping buffer struct
-typedef struct _DisplacedSteppingBuffer
-{
-    char data[4096];
-} DisplacedSteppingBuffer;
-
 // Struct that maintains all debug info for ROCm-GDB to probe.
 typedef struct _RocmGpuDebug
 {
@@ -190,8 +184,6 @@ typedef struct _RocmGpuDebug
     GPUAgentInfo* pAgentList;
     // Head of the chain of loaded objects.
     ExecutableInfo* pExecutableList;
-    // Debug trap buffer address.
-    DisplacedSteppingBuffer* pDisplacedSteppingBuffer;
 } RocmGpuDebug;
 
 } // extern "C"
