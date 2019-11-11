@@ -59,8 +59,8 @@
 
 cmake_minimum_required(VERSION 3.5.0)
 
-project(rocr_debug_agent VERSION 1.0.0)
-set(TARGET_NAME "${PROJECT_NAME}64" )
+project(rocm-debug-agent VERSION 1.0.0)
+set(TARGET_NAME "${PROJECT_NAME}" )
 set(BUILD_VERSION_MAJOR ${PROJECT_VERSION_MAJOR})
 set(BUILD_VERSION_MINOR ${PROJECT_VERSION_MINOR})
 set(BUILD_VERSION_PATCH ${PROJECT_VERSION_PATCH})
@@ -187,7 +187,7 @@ aux_source_directory(${CMAKE_CURRENT_SOURCE_DIR} Src)
 add_library(${TARGET_NAME} SHARED ${Src})
 target_link_libraries(${TARGET_NAME} PRIVATE ${ROCR_LIB} ${HSAKMT_LIB} c stdc++ dl pthread rt)
 
-set_target_properties(rocr_debug_agent64 PROPERTIES
+set_target_properties(${TARGET_NAME} PROPERTIES
   CXX_STANDARD 11
   CXX_STANDARD_REQUIRED Yes
   CXX_EXTENSIONS No
