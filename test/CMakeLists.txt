@@ -244,9 +244,18 @@ add_custom_target(LC_OBJ DEPENDS ${OBJ_PATHS})
 add_executable(${TARGET_NAME} ${Src} ${LC_SRCS})
 add_dependencies(${TARGET_NAME} LC_OBJ)
 target_link_libraries(${TARGET_NAME} PRIVATE ${ROCR_LIB} c stdc++ dl pthread rt)
-link_directories(${HSAKMT_LIB})
+# Horrible bodge to get to find a needed library.
+#    The libhsa-runtime.so library has a DT_RUNPATH of
+#    $ORIGIN:$ORIGIN/../../lib so the runtime linker can find
+#    libhsakmt.so.1 However the compile time linker tries to open the
+#    literal directories $ORIGIN and $ORIGIN/../../lib rather than
+#    replacing $ORIGIN with the location of the libhsa-runtime.so
+#    This is bug 20535
+#    https://sourceware.org/bugzilla/show_bug.cgi?format=multiple&id=20535
+#    bug 20535 is fixed in version 2.28 of binutils but Ubuntu 16.04 uses 2.26.1
+target_link_libraries(${TARGET_NAME} PRIVATE ${HSAKMT_LIB})
 
-# Add install directives for rocm-debug-agent-test
+# Add install directives for rocr-debug-agent-test
 install(TARGETS ${TARGET_NAME} DESTINATION ${PROJECT_NAME} COMPONENT ${TARGET_NAME})
 
 # Add packaging directives for rocm-debug-agent-test
