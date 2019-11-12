@@ -5,18 +5,18 @@ from subprocess import Popen, PIPE
 
 # set up
 if (len(sys.argv)  != 2):
-    raise Exception("rocr_debug_agent run_test input error!")
+    raise Exception("rocm-debug-agent run_test input error!")
 else:
     test_binary_directory = sys.argv[1]
     print ("Test binary directory: ", os.path.abspath(test_binary_directory))
-    print ("librocr_debug_agent64.so directroy: ", os.environ["LD_LIBRARY_PATH"])
-    os.environ["HSA_TOOLS_LIB"] = "librocr_debug_agent64.so"
+    print ("librocm-debug-agent.so directroy: ", os.environ["LD_LIBRARY_PATH"])
+    os.environ["HSA_TOOLS_LIB"] = "librocm-debug-agent.so"
     os.chdir(test_binary_directory)
 
 # test 0
 def check_test_0():
-    print("Starting rocr_debug_agent test 0")
-    p = Popen(['./rocr_debug_agent_test', '0'], stdout=PIPE, stderr=PIPE)
+    print("Starting rocm-debug-agent-test 0")
+    p = Popen(['./rocm-debug-agent-test', '0'], stdout=PIPE, stderr=PIPE)
     output, err = p.communicate()
     out_str = output.decode('utf-8')
     err_str = err.decode('utf-8')
@@ -29,7 +29,7 @@ def check_test_0():
 
 # test 1
 def check_test_1():
-    print("Starting rocr_debug_agent test 1")
+    print("Starting rocm-debug-agent test 1")
 
     #TODO: use regular expressions instead of strings
     check_list = ['Queue error state in GPU agent: AMD gfx',
@@ -49,7 +49,7 @@ def check_test_1():
                   'vector_add_debug_trap_kernel.cl:10',
                   '__builtin_trap();',
                   's_trap 2']
-    p = Popen(['./rocr_debug_agent_test', '1'], stdout=PIPE, stderr=PIPE)
+    p = Popen(['./rocm-debug-agent-test', '1'], stdout=PIPE, stderr=PIPE)
     output, err = p.communicate()
     out_str = output.decode('utf-8')
     err_str = err.decode('utf-8')
@@ -68,11 +68,11 @@ def check_test_1():
 
 # test 2
 def check_test_2():
-    print("Starting rocr_debug_agent test 2")
+    print("Starting rocm-debug-agent test 2")
 
     #TODO: use regular expressions instead of strings
     check_list = ['Memory access fault at GPU Node:',
-                  'rocr_debug_agent abort() as expected',
+                  'rocm-debug-agent abort() as expected',
                   'Address:',
 #                  '(page not present;write access to a read-only page;)',
 #                  'EXEC: 0xFFFFFFFFFFFFFFFF',
@@ -85,7 +85,7 @@ def check_test_2():
                   '0x0000:  0x00000001', #First uint32_t in LDS is '1'
                   'vector_add_memory_fault_kernel.cl:10',
                   'global_store_dword']
-    p = Popen(['./rocr_debug_agent_test', '2'], stdout=PIPE, stderr=PIPE)
+    p = Popen(['./rocm-debug-agent-test', '2'], stdout=PIPE, stderr=PIPE)
     output, err = p.communicate()
     out_str = output.decode('utf-8')
     err_str = err.decode('utf-8')
@@ -107,6 +107,6 @@ test_success &= check_test_0()
 test_success &= check_test_1()
 test_success &= check_test_2()
 if (test_success):
-    print("rocr_debug_agent test Pass!")
+    print("rocm-debug-agent test Pass!")
 else:
-    raise Exception("rocr_debug_agent test fail!")
+    raise Exception("rocm-debug-agent test fail!")

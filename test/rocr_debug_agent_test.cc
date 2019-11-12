@@ -57,19 +57,19 @@ static void RunVectorAddNormalTest()
 
   // initiale hsa
   err = hsa_init();
-  assert(err == HSA_STATUS_SUCCESS);
+  TEST_ASSERT(err == HSA_STATUS_SUCCESS, "hsa_init");
 
   PrintTestInfo("VectorAddNormal start");
 
   // find all cpu agents
   std::vector<hsa_agent_t> cpus;
   err = hsa_iterate_agents(IterateCPUAgents, &cpus);
-  assert(err == HSA_STATUS_SUCCESS);
+  TEST_ASSERT(err == HSA_STATUS_SUCCESS, "find cpu agents");
 
   // find all gpu agents
   std::vector<hsa_agent_t> gpus;
   err = hsa_iterate_agents(IterateGPUAgents, &gpus);
-  assert(err == HSA_STATUS_SUCCESS);
+  TEST_ASSERT(err == HSA_STATUS_SUCCESS, "find gpu agents");
 
   if (gpus.size() == 0){
     std::cout << "No supported GPU found, exit test." << std::endl;
@@ -82,7 +82,7 @@ static void RunVectorAddNormalTest()
 
   // Shut down hsa
   err = hsa_shut_down();
-  assert(err == HSA_STATUS_SUCCESS);
+  TEST_ASSERT(err == HSA_STATUS_SUCCESS, "hsa_shut_down");
 
   PrintTestInfo("VectorAddNormal end");
 }
@@ -93,19 +93,19 @@ static void RunVectorAddDebugTrapTest()
 
   // initiale hsa
   err = hsa_init();
-  assert(err == HSA_STATUS_SUCCESS);
+  TEST_ASSERT(err == HSA_STATUS_SUCCESS, "hsa_init");
 
   PrintTestInfo("VectorAddDebugTrapTest start");
 
   // find all cpu agents
   std::vector<hsa_agent_t> cpus;
   err = hsa_iterate_agents(IterateCPUAgents, &cpus);
-  assert(err == HSA_STATUS_SUCCESS);
+  TEST_ASSERT(err == HSA_STATUS_SUCCESS, "find cpu agents");
 
   // find all gpu agents
   std::vector<hsa_agent_t> gpus;
   err = hsa_iterate_agents(IterateGPUAgents, &gpus);
-  assert(err == HSA_STATUS_SUCCESS);
+  TEST_ASSERT(err == HSA_STATUS_SUCCESS, "find gpu agents");
 
   if (gpus.size() == 0){
     std::cout << "No supported GPU found, exit test." << std::endl;
@@ -118,7 +118,7 @@ static void RunVectorAddDebugTrapTest()
 
   // Shut down hsa
   err = hsa_shut_down();
-  assert(err == HSA_STATUS_SUCCESS);
+  TEST_ASSERT(err == HSA_STATUS_SUCCESS, "hsa_shut_down");
 
   PrintTestInfo("VectorAddDebugTrapTest end");
 }
@@ -129,19 +129,19 @@ static void RunVectorAddMemoryFaultTest()
 
   // initiale hsa
   err = hsa_init();
-  assert(err == HSA_STATUS_SUCCESS);
+  TEST_ASSERT(err == HSA_STATUS_SUCCESS, "hsa_init");
 
   PrintTestInfo("VectorAddMemoryFaultTest start");
 
   // find all cpu agents
   std::vector<hsa_agent_t> cpus;
   err = hsa_iterate_agents(IterateCPUAgents, &cpus);
-  assert(err == HSA_STATUS_SUCCESS);
+  TEST_ASSERT(err == HSA_STATUS_SUCCESS, "find cpu agents");
 
   // find all gpu agents
   std::vector<hsa_agent_t> gpus;
   err = hsa_iterate_agents(IterateGPUAgents, &gpus);
-  assert(err == HSA_STATUS_SUCCESS);
+  TEST_ASSERT(err == HSA_STATUS_SUCCESS, "find gpu agents");
 
   if (gpus.size() == 0){
     std::cout << "No supported GPU found, exit test." << std::endl;
@@ -154,7 +154,7 @@ static void RunVectorAddMemoryFaultTest()
 
   // Shut down hsa
   err = hsa_shut_down();
-  assert(err == HSA_STATUS_SUCCESS);
+  TEST_ASSERT(err == HSA_STATUS_SUCCESS, "hsa_shut_down");
 
   PrintTestInfo("VectorAddMemoryFaultTest end");
 }

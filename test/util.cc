@@ -37,7 +37,7 @@ hsa_status_t GetKernArgMemoryPool(hsa_amd_memory_pool_t pool, void* data) {
   err = hsa_amd_memory_pool_get_info(pool,
                                          HSA_AMD_MEMORY_POOL_INFO_SEGMENT,
                                          &segment);
-  assert(err == HSA_STATUS_SUCCESS);
+  TEST_ASSERT(err == HSA_STATUS_SUCCESS, "hsa_amd_memory_pool_get_info");
   if (HSA_AMD_SEGMENT_GLOBAL != segment) {
     return HSA_STATUS_SUCCESS;
   }
@@ -46,7 +46,7 @@ hsa_status_t GetKernArgMemoryPool(hsa_amd_memory_pool_t pool, void* data) {
   err = hsa_amd_memory_pool_get_info(pool,
                                          HSA_AMD_MEMORY_POOL_INFO_GLOBAL_FLAGS,
                                          &flags);
-  assert(err == HSA_STATUS_SUCCESS);
+  TEST_ASSERT(err == HSA_STATUS_SUCCESS, "hsa_amd_memory_pool_get_info");
 
   if (flags & HSA_AMD_MEMORY_POOL_GLOBAL_FLAG_KERNARG_INIT) {
     hsa_amd_memory_pool_t* ret =
@@ -71,7 +71,7 @@ hsa_status_t GetGlobalMemoryPool(hsa_amd_memory_pool_t pool, void* data) {
   err = hsa_amd_memory_pool_get_info(pool,
                                         HSA_AMD_MEMORY_POOL_INFO_GLOBAL_FLAGS,
                                         &flags);
-  assert(err == HSA_STATUS_SUCCESS);
+  TEST_ASSERT(err == HSA_STATUS_SUCCESS, "hsa_amd_memory_pool_get_info");
 
   // this is valid for dGPUs. But on APUs, it has to be FINE_GRAINED
   if (flags & HSA_AMD_MEMORY_POOL_GLOBAL_FLAG_COARSE_GRAINED) {
@@ -91,7 +91,7 @@ hsa_status_t GetGlobalMemoryPool(hsa_amd_memory_pool_t pool, void* data) {
 // Find CPU Agents
 hsa_status_t IterateCPUAgents(hsa_agent_t agent, void *data) {
   hsa_status_t status;
-  assert(data != NULL);
+  TEST_ASSERT(data != NULL, "IterateCPUAgents input error.");
   if (data == NULL) {
     return HSA_STATUS_ERROR_INVALID_ARGUMENT;
   }
@@ -99,7 +99,7 @@ hsa_status_t IterateCPUAgents(hsa_agent_t agent, void *data) {
   std::vector<hsa_agent_t>* cpus = static_cast<std::vector<hsa_agent_t>*>(data);
   hsa_device_type_t device_type;
   status = hsa_agent_get_info(agent, HSA_AGENT_INFO_DEVICE, &device_type);
-  assert(status == HSA_STATUS_SUCCESS);
+  TEST_ASSERT(status == HSA_STATUS_SUCCESS, "hsa_agent_get_info");
   if (HSA_STATUS_SUCCESS == status && HSA_DEVICE_TYPE_CPU == device_type) {
     cpus->push_back(agent);
   }
@@ -109,21 +109,21 @@ hsa_status_t IterateCPUAgents(hsa_agent_t agent, void *data) {
 // Find GPU Agents
 hsa_status_t IterateGPUAgents(hsa_agent_t agent, void *data) {
   hsa_status_t status;
-  assert(data != NULL);
+  TEST_ASSERT(data != NULL, "IterateGPUAgents input error");
   if (data == NULL) {
     return HSA_STATUS_ERROR_INVALID_ARGUMENT;
   }
   std::vector<hsa_agent_t>* gpus = static_cast<std::vector<hsa_agent_t>*>(data);
   hsa_device_type_t device_type;
   status = hsa_agent_get_info(agent, HSA_AGENT_INFO_DEVICE, &device_type);
-  assert(status == HSA_STATUS_SUCCESS);
+  TEST_ASSERT(status == HSA_STATUS_SUCCESS, "hsa_agent_get_info");
 
   if (HSA_STATUS_SUCCESS == status && HSA_DEVICE_TYPE_GPU == device_type) {
     bool supGFX = false;
     status = hsa_agent_iterate_isas(
         agent, QueryAgentISACallback, &supGFX);
-    assert(status == HSA_STATUS_SUCCESS);
-    if (HSA_STATUS_SUCCESS == status && supGFX ==true)
+    TEST_ASSERT(status == HSA_STATUS_SUCCESS, "hsa_agent_iterate_isas");
+    if (HSA_STATUS_SUCCESS == status && supGFX == true)
       gpus->push_back(agent);
   }
   return status;

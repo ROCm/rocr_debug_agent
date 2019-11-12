@@ -33,7 +33,7 @@ void VectorAddDebugTrapTest(hsa_agent_t cpuAgent, hsa_agent_t gpuAgent) {
   uint32_t queue_size = 0;
   err = hsa_agent_get_info(gpuAgent,
                            HSA_AGENT_INFO_QUEUE_MAX_SIZE, &queue_size);
-  assert(err == HSA_STATUS_SUCCESS);
+  TEST_ASSERT(err == HSA_STATUS_SUCCESS, "hsa_agent_get_info");
 
   test_debug_data user_data{.trap_triggered = false,
                             .queue_pointer = &queue};
@@ -42,53 +42,53 @@ void VectorAddDebugTrapTest(hsa_agent_t cpuAgent, hsa_agent_t gpuAgent) {
   err = hsa_queue_create(gpuAgent,
                          queue_size, HSA_QUEUE_TYPE_MULTI,
                          TestDebugTrap, &user_data, 0, 0, &queue);
-  assert(err == HSA_STATUS_SUCCESS);
+  TEST_ASSERT(err == HSA_STATUS_SUCCESS, "hsa_queue_create");
 
   // Find a memory pool that supports kernel arguments.
   hsa_amd_memory_pool_t kernarg_pool;
   err = hsa_amd_agent_iterate_memory_pools(cpuAgent,
                                            GetKernArgMemoryPool,
                                            &kernarg_pool);
-  assert(err == HSA_STATUS_SUCCESS);
+  TEST_ASSERT(err == HSA_STATUS_SUCCESS, "hsa_amd_agent_iterate_memory_pools");
 
   // Get System Memory Pool on the cpuAgent to allocate host side buffers
   hsa_amd_memory_pool_t global_pool;
   err = hsa_amd_agent_iterate_memory_pools(cpuAgent,
                                            GetGlobalMemoryPool,
                                            &global_pool);
-  assert(err == HSA_STATUS_SUCCESS);
+  TEST_ASSERT(err == HSA_STATUS_SUCCESS, "hsa_amd_agent_iterate_memory_pools");
 
   // allocate input and output kernel arguments
   err = hsa_amd_memory_pool_allocate(global_pool,
                                      M_ORDER * M_ORDER * sizeof(int), 0,
                                      reinterpret_cast<void**>(&M_IN0));
-  assert(err == HSA_STATUS_SUCCESS);
+  TEST_ASSERT(err == HSA_STATUS_SUCCESS, "hsa_amd_memory_pool_allocate");
 
   err = hsa_amd_memory_pool_allocate(global_pool,
                                      M_ORDER * M_ORDER * sizeof(int), 0,
                                      reinterpret_cast<void**>(&M_IN1));
-  assert(err == HSA_STATUS_SUCCESS);
+  TEST_ASSERT(err == HSA_STATUS_SUCCESS, "hsa_amd_memory_pool_allocate");
 
   err = hsa_amd_memory_pool_allocate(global_pool,
                                      M_ORDER * M_ORDER * sizeof(int), 0,
                                      reinterpret_cast<void**>(&M_RESULT_DEVICE));
-  assert(err == HSA_STATUS_SUCCESS);
+  TEST_ASSERT(err == HSA_STATUS_SUCCESS, "hsa_amd_memory_pool_allocate");
 
   // create kernel arguments
   err = hsa_amd_memory_pool_allocate(kernarg_pool,
                                      sizeof(arguments), 0,
                                      reinterpret_cast<void**>(&vectorAddKernArgs));
-  assert(err == HSA_STATUS_SUCCESS);
+  TEST_ASSERT(err == HSA_STATUS_SUCCESS, "hsa_amd_memory_pool_allocate");
 
   // Allow gpuAgent access to all allocated system memory.
   err = hsa_amd_agents_allow_access(1, &gpuAgent, NULL, M_IN0);
-  assert(err == HSA_STATUS_SUCCESS);
+  TEST_ASSERT(err == HSA_STATUS_SUCCESS, "hsa_amd_agents_allow_access");
   err = hsa_amd_agents_allow_access(1, &gpuAgent, NULL, M_IN1);
-  assert(err == HSA_STATUS_SUCCESS);
+  TEST_ASSERT(err == HSA_STATUS_SUCCESS, "hsa_amd_agents_allow_access");
   err = hsa_amd_agents_allow_access(1, &gpuAgent, NULL, M_RESULT_DEVICE);
-  assert(err == HSA_STATUS_SUCCESS);
+  TEST_ASSERT(err == HSA_STATUS_SUCCESS, "hsa_amd_agents_allow_access");
   err = hsa_amd_agents_allow_access(1, &gpuAgent, NULL, vectorAddKernArgs);
-  assert(err == HSA_STATUS_SUCCESS);
+  TEST_ASSERT(err == HSA_STATUS_SUCCESS, "hsa_amd_agents_allow_access");
 
   memset(M_RESULT_HOST, 0, M_ORDER * M_ORDER * sizeof(int));
   memset(M_RESULT_DEVICE, 0, M_ORDER * M_ORDER * sizeof(int));
@@ -119,39 +119,39 @@ void VectorAddDebugTrapTest(hsa_agent_t cpuAgent, hsa_agent_t gpuAgent) {
 
   std::string kernel_file = isaName + "/" + CODE_OBJECT_NAME;
   hsa_file_t file_handle = open(kernel_file.c_str(), O_RDONLY);
-  assert(file_handle != -1);
+  TEST_ASSERT(file_handle != -1, "Cannot open kernel file.");
 
   err = hsa_code_object_reader_create_from_file(file_handle, &code_obj_rdr);
-  assert(err == HSA_STATUS_SUCCESS);
+  TEST_ASSERT(err == HSA_STATUS_SUCCESS, "hsa_code_object_reader_create_from_file");
 
   err = hsa_executable_create_alt(HSA_PROFILE_FULL,
                                   HSA_DEFAULT_FLOAT_ROUNDING_MODE_DEFAULT,
                                                           NULL, &executable);
-  assert(err == HSA_STATUS_SUCCESS);
+  TEST_ASSERT(err == HSA_STATUS_SUCCESS, "hsa_executable_create_alt");
 
   err = hsa_executable_load_agent_code_object(executable, gpuAgent, code_obj_rdr,
         NULL, NULL);
-  assert(err == HSA_STATUS_SUCCESS);
+  TEST_ASSERT(err == HSA_STATUS_SUCCESS, "hsa_executable_load_agent_code_object");
 
   err = hsa_executable_freeze(executable, NULL);
-  assert(err == HSA_STATUS_SUCCESS);
+  TEST_ASSERT(err == HSA_STATUS_SUCCESS, "hsa_executable_freeze");
 
   hsa_executable_symbol_t kern_sym;
   err = hsa_executable_get_symbol(executable, NULL, KERNEL_NAME, gpuAgent,
                                   0, &kern_sym);
-  assert(err == HSA_STATUS_SUCCESS);
+  TEST_ASSERT(err == HSA_STATUS_SUCCESS, "hsa_executable_get_symbol");
 
   uint64_t codeHandle;
   err = hsa_executable_symbol_get_info(kern_sym,
                        HSA_EXECUTABLE_SYMBOL_INFO_KERNEL_OBJECT, &codeHandle);
-  assert(err == HSA_STATUS_SUCCESS);
+  TEST_ASSERT(err == HSA_STATUS_SUCCESS, "hsa_executable_symbol_get_info");
   // Fill the dispatch packet with
   // workgroup_size, grid_size, kernelArgs and completion signal
   // Put it on the queue and launch the kernel by ringing the doorbell
 
   // create completion signal
   err = hsa_signal_create(1, 0, NULL, &signal);
-  assert(err == HSA_STATUS_SUCCESS);
+  TEST_ASSERT(err == HSA_STATUS_SUCCESS, "hsa_signal_create");
 
   // create aql packet
   hsa_kernel_dispatch_packet_t aql;
@@ -204,10 +204,10 @@ void VectorAddDebugTrapTest(hsa_agent_t cpuAgent, hsa_agent_t gpuAgent) {
                                          0xffffffff, HSA_WAIT_STATE_ACTIVE);
 
   // completion signal should not be changed.
-  assert(completion == 1);
+  TEST_ASSERT(completion == 1, "Completion signal error");
 
   // trap should be triggered
-  assert(user_data.trap_triggered == true);
+  TEST_ASSERT(user_data.trap_triggered == true, "Trap handler was not triggered");
 
   hsa_signal_store_relaxed(signal, 1);
 
@@ -221,16 +221,16 @@ void VectorAddDebugTrapTest(hsa_agent_t cpuAgent, hsa_agent_t gpuAgent) {
 
 void TestDebugTrap(hsa_status_t status, hsa_queue_t *source, void *data) {
   std::cout<< "runtime catched trap instruction successfully"<< std::endl;
-  assert(source != NULL);
-  assert(data != NULL);
+  TEST_ASSERT(source != NULL, "Input to queue error handler error.");
+  TEST_ASSERT(data != NULL, "Input to queue error handler error.");
 
   test_debug_data *debug_data = reinterpret_cast<test_debug_data*>(data);
   hsa_queue_t * queue  = *(debug_data->queue_pointer);
   debug_data->trap_triggered = true;
   // check the status
-  assert(status == HSA_STATUS_ERROR_EXCEPTION);
+  TEST_ASSERT(status == HSA_STATUS_ERROR_EXCEPTION, "Queue error handler error.");
 
   // check the queue id and user data
-  assert(source->id == queue->id);
+  TEST_ASSERT(source->id == queue->id, "Queue id error.");
   std::cout<< "custom queue error handler completed successfully"<< std::endl;
 }

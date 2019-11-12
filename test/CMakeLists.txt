@@ -60,7 +60,7 @@
 cmake_minimum_required(VERSION 3.5.0)
 
 # Specify name of project to build, install and package
-set(PROJECT_NAME "rocr_debug_agent_test")
+set(PROJECT_NAME "rocm-debug-agent-test")
 set(TARGET_NAME "${PROJECT_NAME}" )
 project(${PROJECT_NAME})
 
@@ -171,11 +171,6 @@ set(LC_BITL_FLAGS -Xclang -mlink-bitcode-file -Xclang ${CL_BITL}/opencl.amdgcn.b
 list ( APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake_modules" )
 include(utils)
 
-#
-# Set the package version for the rocr_debug_agent. It is critical that this
-# value track what is used in the rocr_debug_agent source. The code from utils
-# module will parse the string into major, minor and patch sub-fields
-#
 get_version("1.0.0")
 message ( "-- LIB-VERSION: ${VERSION_MAJOR}.${VERSION_MINOR}.${VERSION_PATCH}" )
 
@@ -251,17 +246,17 @@ add_dependencies(${TARGET_NAME} LC_OBJ)
 target_link_libraries(${TARGET_NAME} PRIVATE ${ROCR_LIB} c stdc++ dl pthread rt)
 link_directories(${HSAKMT_LIB})
 
-# Add install directives for rocr_debug_agent
+# Add install directives for rocm-debug-agent-test
 install(TARGETS ${TARGET_NAME} DESTINATION ${PROJECT_NAME} COMPONENT ${TARGET_NAME})
 
-# Add packaging directives for rocr_debug_agent_test
+# Add packaging directives for rocm-debug-agent-test
 set(CPACK_PACKAGE_NAME ${TARGET_NAME})
 set(CPACK_PACKAGE_VENDOR "AMD")
 set(CPACK_PACKAGE_VERSION_MAJOR ${BUILD_VERSION_MAJOR})
 set(CPACK_PACKAGE_VERSION_MINOR ${BUILD_VERSION_MINOR})
 set(CPACK_PACKAGE_VERSION_PATCH ${BUILD_VERSION_PATCH})
 set(CPACK_PACKAGE_CONTACT "Advanced Micro Devices Inc.")
-set(CPACK_PACKAGE_DESCRIPTION_SUMMARY "Tests for rocr_debug_agent standalone functions")
+set(CPACK_PACKAGE_DESCRIPTION_SUMMARY "Tests for rocm-debug-agent functions")
 set(CPACK_RESOURCE_FILE_LICENSE "${CMAKE_CURRENT_SOURCE_DIR}/LICENSE.txt" )
 
 # RPM package specific variables

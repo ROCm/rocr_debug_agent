@@ -2,13 +2,14 @@
 #define UTIL_H_
 
 #include <algorithm>
-#include <assert.h>
 #include <fcntl.h>
 #include <hsa.h>
 #include <hsa_ext_amd.h>
 #include <iostream>
 #include <memory>
 #include <vector>
+
+#define TEST_ASSERT(expr, msg) if (!(expr)) { printf("rocm debug agent test failed: %s at file %s, line %d.\n", msg, __FILE__, __LINE__); abort(); }
 
 typedef struct __attribute__((aligned(16))) arguments_t {
   const int *a;
