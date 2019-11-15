@@ -211,11 +211,12 @@ DebugAgentStatus ProcessQueueWaveStates(GPUAgentInfo* pAgent, QueueInfo *pQueue)
             }
         }
 
-        if (((uint64_t)pQueue->pSaveAreaHeader + header->wave_state_offset - header->wave_state_size) != (uint64_t)wave_area)
-        {
-            AGENT_ERROR("Context save size check fail.");
-            return DEBUG_AGENT_STATUS_FAILURE;
-        }
+    }
+
+    if (((uint64_t)pQueue->pSaveAreaHeader + header->wave_state_offset - header->wave_state_size) != (uint64_t)wave_area)
+    {
+        AGENT_ERROR("Context save size check fail.");
+        return DEBUG_AGENT_STATUS_FAILURE;
     }
 
     return DEBUG_AGENT_STATUS_SUCCESS;
