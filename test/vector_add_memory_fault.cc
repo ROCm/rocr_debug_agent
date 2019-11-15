@@ -26,7 +26,6 @@ void VectorAddMemoryFaultTest(hsa_agent_t cpuAgent, hsa_agent_t gpuAgent) {
   int *M_RESULT_DEVICE = NULL;
   int M_RESULT_HOST[M_ORDER * M_ORDER];
 
-
   // get queue size
   uint32_t queue_size = 0;
   err = hsa_agent_get_info(gpuAgent,
