@@ -5,13 +5,22 @@ from subprocess import Popen, PIPE
 
 # set up
 if (len(sys.argv)  != 2):
-    raise Exception("rocm-debug-agent run_test input error!")
+    raise Exception("ERROR: Please specify test binary location. For example: $python3.6 run_test.py ./build")
 else:
     test_binary_directory = sys.argv[1]
     print ("Test binary directory: ", os.path.abspath(test_binary_directory))
-    print ("librocm-debug-agent.so directroy: ", os.environ["LD_LIBRARY_PATH"])
     os.environ["HSA_TOOLS_LIB"] = "librocm-debug-agent.so"
     os.chdir(test_binary_directory)
+    # pre test to check if librocm-debug-agent.so can be found
+    p = Popen(['./rocm-debug-agent-test', '0'], stdout=PIPE, stderr=PIPE)
+    output, err = p.communicate()
+    out_str = output.decode('utf-8')
+    err_str = err.decode('utf-8')
+    if (err_str):
+        print (err_str)
+        if ('\"librocm-debug-agent.so\" failed to load' in err_str):
+            print("ERROR: Cannot find librocm-debug-agent.so, please set its location with environment variable LD_LIBRARY_PATH")
+        sys.exit(1)
 
 # test 0
 def check_test_0():

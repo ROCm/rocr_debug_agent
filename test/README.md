@@ -26,15 +26,29 @@ export PATH=path/to/llvm-objdump:$PATH
 ```
 export HSA_TOOLS_LIB=librocm-debug-agent.so
 ```
-* Run all tests
+* Use python script to run and check test results. Require python 3.6+, provide test binary location as input, for example:
+```
+python3.6 run_test.py ./build
+```
+Expected output
+
+```
+Test binary directory:  /path/to/rocm-debug-agent-test
+librocm-debug-agent.so directroy:  /path/to/rocm-debug-agent
+Starting rocm-debug-agent-test 0
+Starting rocm-debug-agent test 1
+Starting rocm-debug-agent test 2
+rocm-debug-agent test Pass!
+```
+
+* Run all tests and print the output
 ```
 ./rocm-debug-agent-test
 ```
-* Run single test, for example test 0
+* Run single test and print the output, for example test 0
 ```
 ./rocm-debug-agent-test 0
 ```
-
 Expected output
 
 test 0
@@ -332,18 +346,18 @@ Code Object:/tmp/ROCm_Tmp_PID_4391/ROCm_Code_Object_0:      file format ELF64-am
 
 Disassembly of section .text:
 vector_add_debug_trap:
-; /home/qingchuan/workspace/compute-master/hsa/rocm-debug-agent/test/vector_add_debug_trap_kernel.cl:7
+; /path/to/source/file/vector_add_debug_trap_kernel.cl:7
 ; c[gid] = a[gid] + b[gid];
         v_cndmask_b32_e32 v1, v1, v6, vcc                          // 0000000012CC: 00020D01
         v_addc_co_u32_e64 v6, s[4:5], v7, v8, s[4:5]               // 0000000012D0: D11C0406 00121107
         v_mov_b32_e32 v2, v1                                       // 0000000012D8: 7E040301
         v_mov_b32_e32 v3, v6                                       // 0000000012DC: 7E060306
         global_store_dword v[2:3], v0, off                         // 0000000012E0: DC708000 007F0002
-; /home/qingchuan/workspace/compute-master/hsa/rocm-debug-agent/test/vector_add_debug_trap_kernel.cl:8
+; /path/to/source/file/vector_add_debug_trap_kernel.cl:8
 ; __builtin_trap();
         s_mov_b64 s[0:1], s[6:7]                                   // 0000000012E8: BE800106
         s_trap 2                                                   // 0000000012EC: BF920002
-; /home/qingchuan/workspace/compute-master/hsa/rocm-debug-agent/test/vector_add_debug_trap_kernel.cl:9
+; /path/to/source/file/vector_add_debug_trap_kernel.cl:9
 ; }
         s_endpgm                                                   // 0000000012F0: BF810000
 
@@ -644,7 +658,7 @@ Code Object:/tmp/ROCm_Tmp_PID_4406/ROCm_Code_Object_0:      file format ELF64-am
 
 Disassembly of section .text:
 vector_add_memory_fault:
-; /home/qingchuan/workspace/compute-master/hsa/rocm-debug-agent/test/vector_add_memory_fault_kernel.cl:7
+; /path/to/source/file/vector_add_memory_fault_kernel.cl:7
 ; c[gid*10] = a[gid] + b[gid];
         v_mov_b32_e32 v7, v3                                       // 0000000012E4: 7E0E0303
         v_mov_b32_e32 v8, v5                                       // 0000000012E8: 7E100305
@@ -653,7 +667,7 @@ vector_add_memory_fault:
         v_mov_b32_e32 v2, v0                                       // 0000000012FC: 7E040300
         v_mov_b32_e32 v3, v6                                       // 000000001300: 7E060306
         global_store_dword v[2:3], v1, off                         // 000000001304: DC708000 007F0102
-; /home/qingchuan/workspace/compute-master/hsa/rocm-debug-agent/test/vector_add_memory_fault_kernel.cl:8
+; /path/to/source/file/vector_add_memory_fault_kernel.cl:8
 ; }
         s_endpgm                                                   // 00000000130C: BF810000
 
