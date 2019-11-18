@@ -13,26 +13,26 @@ Build the test
 ```
 
 Run the test
-* export LD_LIBRARY_PATH with path librocr_debug_agent64.so, if it is not at the default location /opt/rocm/lib
+* export LD_LIBRARY_PATH with path librocm-debug-agent.so, if it is not at the default location /opt/rocm/lib
 ```
-export LD_LIBRARY_PATH=/path/to/librocr_debug_agent64.so
+export LD_LIBRARY_PATH=/path/to/librocm-debug-agent.so
 ```
 * Include llvm-objdump in `$PATH`, if it is not at the default location /opt/rocm/opencl/bin/x86_64/
   llvm-objdump needs to support target “amdgcn - AMD GCN GPUs”.
 ```
 export PATH=path/to/llvm-objdump:$PATH
 ```
-* export HSA_TOOLS_LIB with librocr_debug_agent64.so to let ROC runtime load debug agent library.
+* export HSA_TOOLS_LIB with librocm-debug-agent.so to let ROC runtime load debug agent library.
 ```
-export HSA_TOOLS_LIB=librocr_debug_agent64.so
+export HSA_TOOLS_LIB=librocm-debug-agent.so
 ```
 * Run all tests
 ```
-./rocr_debug_agent_test
+./rocm-debug-agent-test
 ```
 * Run single test, for example test 0
 ```
-./rocr_debug_agent_test 0
+./rocm-debug-agent-test 0
 ```
 
 Expected output
@@ -48,7 +48,7 @@ test 0
 test1
 ```
   *** Debug Agent Test: VectorAddDebugTrapTest start ***
-[rocr debug agent]:
+[rocm debug agent]:
 Queue error state in GPU agent: AMD gfx900
 Node: 2
 Queue ID: 140068470472704 (Debug trap;)
@@ -332,18 +332,18 @@ Code Object:/tmp/ROCm_Tmp_PID_4391/ROCm_Code_Object_0:      file format ELF64-am
 
 Disassembly of section .text:
 vector_add_debug_trap:
-; /home/qingchuan/workspace/compute-master/hsa/rocr_debug_agent/test/vector_add_debug_trap_kernel.cl:7
+; /home/qingchuan/workspace/compute-master/hsa/rocm-debug-agent/test/vector_add_debug_trap_kernel.cl:7
 ; c[gid] = a[gid] + b[gid];
         v_cndmask_b32_e32 v1, v1, v6, vcc                          // 0000000012CC: 00020D01
         v_addc_co_u32_e64 v6, s[4:5], v7, v8, s[4:5]               // 0000000012D0: D11C0406 00121107
         v_mov_b32_e32 v2, v1                                       // 0000000012D8: 7E040301
         v_mov_b32_e32 v3, v6                                       // 0000000012DC: 7E060306
         global_store_dword v[2:3], v0, off                         // 0000000012E0: DC708000 007F0002
-; /home/qingchuan/workspace/compute-master/hsa/rocr_debug_agent/test/vector_add_debug_trap_kernel.cl:8
+; /home/qingchuan/workspace/compute-master/hsa/rocm-debug-agent/test/vector_add_debug_trap_kernel.cl:8
 ; __builtin_trap();
         s_mov_b64 s[0:1], s[6:7]                                   // 0000000012E8: BE800106
         s_trap 2                                                   // 0000000012EC: BF920002
-; /home/qingchuan/workspace/compute-master/hsa/rocr_debug_agent/test/vector_add_debug_trap_kernel.cl:9
+; /home/qingchuan/workspace/compute-master/hsa/rocm-debug-agent/test/vector_add_debug_trap_kernel.cl:9
 ; }
         s_endpgm                                                   // 0000000012F0: BF810000
 
@@ -360,7 +360,7 @@ test 2 (Note: since ROC runtime abort after kernel memeory access fault, program
 ```
   *** Debug Agent Test: Debug agent tests start ***
   *** Debug Agent Test: VectorAddMemoryFaultTest start ***
-[rocr debug agent]:
+[rocm debug agent]:
 Memory access fault by GPU agent: AMD gfx900
 Node: 2
 Address: 0x7FEDDB176xxx (page not present;write access to a read-only page;)
@@ -644,7 +644,7 @@ Code Object:/tmp/ROCm_Tmp_PID_4406/ROCm_Code_Object_0:      file format ELF64-am
 
 Disassembly of section .text:
 vector_add_memory_fault:
-; /home/qingchuan/workspace/compute-master/hsa/rocr_debug_agent/test/vector_add_memory_fault_kernel.cl:7
+; /home/qingchuan/workspace/compute-master/hsa/rocm-debug-agent/test/vector_add_memory_fault_kernel.cl:7
 ; c[gid*10] = a[gid] + b[gid];
         v_mov_b32_e32 v7, v3                                       // 0000000012E4: 7E0E0303
         v_mov_b32_e32 v8, v5                                       // 0000000012E8: 7E100305
@@ -653,7 +653,7 @@ vector_add_memory_fault:
         v_mov_b32_e32 v2, v0                                       // 0000000012FC: 7E040300
         v_mov_b32_e32 v3, v6                                       // 000000001300: 7E060306
         global_store_dword v[2:3], v1, off                         // 000000001304: DC708000 007F0102
-; /home/qingchuan/workspace/compute-master/hsa/rocr_debug_agent/test/vector_add_memory_fault_kernel.cl:8
+; /home/qingchuan/workspace/compute-master/hsa/rocm-debug-agent/test/vector_add_memory_fault_kernel.cl:8
 ; }
         s_endpgm                                                   // 00000000130C: BF810000
 

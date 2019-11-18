@@ -1,6 +1,6 @@
-# ROCr Debug Agent
+# ROC Debug Agent
 
-The ROCr Debug Agent is a library that can be loaded by ROCm Platform Runtime to provide the following functionality:
+The ROCdebug-agent is a library that can be loaded by ROCm Platform Runtime to provide the following functionality:
 
 * Print the state of wavefronts that report memory violation or upon executing a "s_trap 2" instruction.
 * Allows SIGINT (`ctrl c`) or SIGTERM (`kill -15`) to print wavefront state of aborted GPU dispatches.
@@ -8,19 +8,19 @@ The ROCr Debug Agent is a library that can be loaded by ROCm Platform Runtime to
 
 ## Usage
 
-To use the ROCr Debug Agent set the following environment variable:
+To use the ROCdebug-agent set the following environment variable:
 
 ```sh
-export HSA_TOOLS_LIB=librocr_debug_agent64.so
+export HSA_TOOLS_LIB=librocm-debug-agent.so
 ```
 
-This will use the ROCr Debug Agent library installed at /opt/rocm/lib/librocr_debug_agent64.so by default since the ROCm installation adds /opt/rocm/lib to the system library path. To use a different version set the LD_LIBRARY_PATH, for example:
+This will use ROCdebug-agent library installed at /opt/rocm/lib/librocm-debug-agent.so by default since the ROCm installation adds /opt/rocm/lib to the system library path. To use a different version set the LD_LIBRARY_PATH, for example:
 
 ```sh
-export LD_LIBRARY_PATH=/path_to_directory_containing_librocr_debug_agent64.so
+export LD_LIBRARY_PATH=/path_to_directory_containing_librocm-debug-agent.so
 ```
 
-To display the machine code instructions of wavefronts, together with the source text location, the ROCr Debug Agent using the llvm-objdump tool. (1) Compile the code object with "-g" for OpenCL, or "-gline-tables-only" for HIP/hcc. (2) Ensure a llvm-objdump that supports AMD GCN GPUs is on your '$PATH`. For example, for the ROCm1.9:
+To display the machine code instructions of wavefronts, together with the source text location, the ROCdebug-agent using the llvm-objdump tool. (1) Compile the code object with "-g" for OpenCL, or "-gline-tables-only" for HIP/hcc. (2) Ensure a llvm-objdump that supports AMD GCN GPUs is on your '$PATH`. For example, for the ROCm1.9:
 
 ```sh
 export PATH=/opt/rocm/opencl/bin/x86_64/:$PATH
@@ -153,7 +153,7 @@ unset ROCM_DEBUG_ENABLE_LINUX_SIGNALS
 
 ### Code Object Saving
 
-When the ROCr Debug Agent is enabled, each GPU code object loaded by the ROCm Platform Runtime will be saved in a file in the code object directory. By default the code object directory is `/tmp/ROCm_Tmp_PID_XXXX/` where `XXXX` is the application process ID. The code object directory can be specified using the following environent variable:
+When the ROCdebug-agent is enabled, each GPU code object loaded by the ROCm Platform Runtime will be saved in a file in the code object directory. By default the code object directory is `/tmp/ROCm_Tmp_PID_XXXX/` where `XXXX` is the application process ID. The code object directory can be specified using the following environent variable:
 
 ```sh
 export ROCM_DEBUG_SAVE_CODE_OBJECT=code_object_directory
@@ -173,7 +173,7 @@ unset ROCM_DEBUG_SAVE_CODE_OBJECT
 
 ### Logging
 
-By default ROCr Debug Agent logging is disabled. It can be enabled to display to `stdout` using:
+By default ROCdebug-agent logging is disabled. It can be enabled to display to `stdout` using:
 
 ```sh
 export ROCM_DEBUG_ENABLE_AGENTLOG=stdout
@@ -196,6 +196,6 @@ unset ROCM_DEBUG_ENABLE_AGENTLOG
 ## Repository Contents
 
 * `src`
-  * Contains the sources for building the ROCr Debug Agent. See the `README.md` for directions.
+  * Contains the sources for building the ROCdebug-agent. See the `README.md` for directions.
 * `test`
-  * Contains the tests for the ROCr Debug Agent. See the `README.md` for directions.
+  * Contains the tests for the ROCdebug-agent. See the `README.md` for directions.

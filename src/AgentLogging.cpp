@@ -251,7 +251,7 @@ void AgentOP(const char* message)
 void AgentPrint(const char* message)
 {
     std::cout.flush();
-    std::cout << "[rocr debug agent]: " << message;
+    std::cout << "[rocm debug agent]: " << message;
     std::cout.flush();
 }
 

@@ -1,15 +1,15 @@
-# Building the rocr_debug_agent
+# Building the ROCdebug-agent
 
-The rocr_debug_agent can be built on Ubuntu 16.04, Ubuntu 18.04, and Centos 7.6.
+The ROCdebug-agent can be built on Ubuntu 16.04, Ubuntu 18.04, and Centos 7.6.
 
-To build the rocr_debug_agent, compatible versions of the runtime and the
+To build the ROCdebug-agent, compatible versions of the runtime and the
 libhsakmt library must be available. The latest versions of these files are
 available from the ROCR-Runtime and ROCT-Thunk-Interface repositories, here:
 
 * ROCR-Runtime https://github.com/RadeonOpenCompute/ROCR-Runtime
 * ROCT-Thunk-Interface: https://github.com/RadeonOpenCompute/ROCT-Thunk-Interface
 
-Build the rocr_debug_agent Library
+Build the ROCdebug-agent Library
 
 1. Specify the ROCR-Runtime headers and libraries path, the ROCT-Thunk-Interface
    headers and libraries path, and the lightning compiler path in Debug_Agent_PREFIX_PATH

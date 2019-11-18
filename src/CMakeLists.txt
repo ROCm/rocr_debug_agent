@@ -194,20 +194,21 @@ set_target_properties(${TARGET_NAME} PROPERTIES
   VERSION "${BUILD_VERSION_MAJOR}.${BUILD_VERSION_MINOR}"
   SOVERSION "${BUILD_VERSION_MAJOR}")
 
-# Add install directives for rocr_debug_agent
+# Add install directives for rocm-debug-agent
 install(TARGETS ${TARGET_NAME} DESTINATION lib)
 
-# Add packaging directives for rocr_debug_agent
+# Add packaging directives for rocm-debug-agent
 set(CPACK_PACKAGE_NAME ${PROJECT_NAME})
 set(CPACK_PACKAGE_VENDOR "AMD")
 set(CPACK_PACKAGE_VERSION_MAJOR ${BUILD_VERSION_MAJOR})
 set(CPACK_PACKAGE_VERSION_MINOR ${BUILD_VERSION_MINOR})
 set(CPACK_PACKAGE_VERSION_PATCH ${BUILD_VERSION_PATCH})
 set(CPACK_PACKAGE_CONTACT "Advanced Micro Devices Inc.")
-set(CPACK_PACKAGE_DESCRIPTION_SUMMARY "Radeon Open Compute (ROCm) Runtime debug agent")
+set(CPACK_PACKAGE_DESCRIPTION_SUMMARY "Radeon Open Compute (ROCm) debug agent")
 set(CPACK_RESOURCE_FILE_LICENSE "${CMAKE_CURRENT_SOURCE_DIR}/LICENSE.txt" )
 
 # Debian package specific variables
+# TODO: change the link once the github project name is changed
 set(CPACK_DEBIAN_PACKAGE_HOMEPAGE "https://github.com/ROCm-Developer-Tools/rocr_debug_agent")
 
 # RPM package specific variables
