@@ -27,7 +27,7 @@ void VectorAddNormalTest(hsa_agent_t cpuAgent, hsa_agent_t gpuAgent) {
   uint32_t queue_size = 0;
   err = hsa_agent_get_info(gpuAgent,
                            HSA_AGENT_INFO_QUEUE_MAX_SIZE, &queue_size);
-  TEST_ASSERT(err != HSA_STATUS_SUCCESS, "hsa_agent_get_info");
+  TEST_ASSERT(err == HSA_STATUS_SUCCESS, "hsa_agent_get_info");
 
   // create queue
   err = hsa_queue_create(gpuAgent,
