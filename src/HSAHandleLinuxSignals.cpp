@@ -40,7 +40,6 @@
 // Debug Agent Headers
 #include "AgentLogging.h"
 #include "AgentUtils.h"
-#include "HSADebugAgentGDBInterface.h"
 #include "HSADebugAgent.h"
 #include "HSADebugInfo.h"
 #include "HSAHandleQueueError.h"
@@ -53,7 +52,7 @@ void InitialLinuxSignalsHandler()
     char *pSignalsEnvVar;
     pSignalsEnvVar = std::getenv("ROCM_DEBUG_ENABLE_LINUX_SIGNALS");
 
-    if ((pSignalsEnvVar == nullptr))
+    if (pSignalsEnvVar == nullptr)
     {
         return;
     }

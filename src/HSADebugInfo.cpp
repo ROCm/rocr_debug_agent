@@ -49,7 +49,6 @@
 // Debug Agent Headers
 #include "AgentLogging.h"
 #include "AgentUtils.h"
-#include "HSADebugAgentGDBInterface.h"
 #include "HSADebugAgent.h"
 #include "HSADebugInfo.h"
 

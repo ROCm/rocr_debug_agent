@@ -40,7 +40,6 @@
 // Debug Agent Headers
 #include "AgentLogging.h"
 #include "AgentUtils.h"
-#include "HSADebugAgentGDBInterface.h"
 
 // The logging is disabled by default
 // The logger can be enabled by env variables

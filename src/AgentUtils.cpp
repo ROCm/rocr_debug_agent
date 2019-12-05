@@ -45,7 +45,7 @@
 // Debug Agent Headers
 #include "AgentLogging.h"
 #include "AgentUtils.h"
-#include "HSADebugAgentGDBInterface.h"
+#include "HSADebugInfo.h"
 
 // Just a simple function so that all the exit behavior can be handled in one place
 // We can add logging parameters but it is expected that you would call the logging

@@ -38,6 +38,10 @@
 #include <mutex>
 #include <atomic>
 
+#define HSA_DEBUG_AGENT_VERSION 1
+#define AGENT_MAX_AGENT_NAME_LEN  64
+#define AGENT_MAX_FILE_PATH_LEN 128
+
 // forward declaration.
 typedef struct _RocmGpuDebug RocmGpuDebug;
 

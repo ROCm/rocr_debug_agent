@@ -44,7 +44,6 @@
 #include "AgentLogging.h"
 #include "AgentUtils.h"
 #include "HSADebugAgent.h"
-#include "HSADebugAgentGDBInterface.h"
 #include "HSADebugInfo.h"
 #include "HSAHandleMemoryFault.h"
 #include "HSAHandleQueueError.h"
