@@ -481,7 +481,7 @@ void PrintWaves(GPUAgentInfo* pAgent, std::map<uint64_t, std::pair<uint64_t, Wav
                 arg_start_addr << "--start-address=0x" << std::hex << std::uppercase << (pc_code_obj_offset - disasm_context);
                 arg_stop_addr << "--stop-address=0x" << std::hex << std::uppercase << (pc_code_obj_offset + disasm_context);
 
-                std::exit(execlp("/opt/rocm/opencl/bin/x86_64/llvm-objdump", "llvm-objdump", "-triple=amdgcn-amd-amdhsa",
+                std::exit(execlp("llvm-objdump", "llvm-objdump", "-triple=amdgcn-amd-amdhsa",
                                  (char *)(mcpuString.str().c_str()), "-disassemble", "-source", "-line-numbers", (char *)(arg_start_addr.str().c_str()),
                                  (char *)(arg_stop_addr.str().c_str()), (char *)code_obj_path, (char *)NULL));
             }
@@ -514,7 +514,7 @@ void PrintWaves(GPUAgentInfo* pAgent, std::map<uint64_t, std::pair<uint64_t, Wav
             {
                 err << "Code Object:\n"
                     << code_obj_path << "\n\n";
-                err << "(Disassembly unavailable - is amdgcn-capable llvm-objdump in /opt/rocm/opencl/bin/x86_64/)\n\n";
+                err << "(Disassembly unavailable - is amdgcn-capable llvm-objdump available in system path?)\n\n";
             }
         }
         else

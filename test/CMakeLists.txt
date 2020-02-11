@@ -131,10 +131,10 @@ find_library(HSAKMT_LIB ${ROC_THUNK_LIBRARY}.so
   HINTS /opt/rocm/lib)
 
 find_path(LC_BIN clang
-  HINTS /opt/rocm/opencl/bin/x86_64)
+  HINTS /opt/rocm/llvm/bin)
 
 find_path(CL_BITL opencl.amdgcn.bc
-  HINTS /opt/rocm/opencl/lib/x86_64/bitcode)
+  HINTS /opt/rocm/lib)
 
 find_path(CL_INCP opencl-c.h
   HINTS /opt/rocm/opencl/include)
