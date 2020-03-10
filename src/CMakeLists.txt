@@ -60,10 +60,23 @@
 cmake_minimum_required(VERSION 3.5.0)
 
 project(rocm-debug-agent VERSION 1.0.0)
-set(TARGET_NAME "${PROJECT_NAME}" )
+set(TARGET_NAME "${PROJECT_NAME}")
 set(BUILD_VERSION_MAJOR ${PROJECT_VERSION_MAJOR})
 set(BUILD_VERSION_MINOR ${PROJECT_VERSION_MINOR})
 set(BUILD_VERSION_PATCH ${PROJECT_VERSION_PATCH})
+
+set(build_info)
+if(DEFINED ENV{ROCM_BUILD_ID})
+  set(build_info -$ENV{ROCM_BUILD_ID})
+endif()
+
+set(LIB_VERSION_MAJOR ${BUILD_VERSION_MAJOR})
+set(LIB_VERSION_MINOR ${BUILD_VERSION_MINOR})
+if(DEFINED ENV{ROCM_LIBPATCH_VERSION})
+  set(LIB_VERSION_PATCH ${BUILD_VERSION_PATCH}.$ENV{ROCM_LIBPATCH_VERSION})
+else()
+  set(LIB_VERSION_PATCH ${BUILD_VERSION_PATCH})
+endif()
 
 # Build is not supported on Windows plaform
 if(WIN32)
@@ -132,9 +145,6 @@ find_path(HSAKMT_INC hsakmt.h
 find_library(HSAKMT_LIB ${ROC_THUNK_LIBRARY}.so
   HINTS /opt/rocm/lib)
 
-find_path(LC_BIN clang
-  HINTS /opt/rocm/opencl/bin/x86_64)
-
 # Determine Roc Runtime header files are accessible
 if(NOT ROCR_INC)
   message(FATAL_ERROR "ROC Runtime headers can't be found")
@@ -152,10 +162,6 @@ if(NOT HSAKMT_LIB)
   message(FATAL_ERROR "ROC Thunk libraries can't be found")
 endif()
 
-if(NOT LC_BIN)
-  message(FATAL_ERROR "Lightning Compiler can't be found")
-endif()
-
 # Add cmake_modules to default module path
 list ( APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake_modules" )
 include(utils)
@@ -169,7 +175,6 @@ message("-----HSA-Runtime-Inc: ${ROCR_INC}")
 message("-----HSA-Runtime-Lib: ${ROCR_LIB}")
 message("-------HSA-Thunk-Inc: ${HSAKMT_INC}")
 message("-----------HSA-Thunk: ${HSAKMT_LIB}")
-message("--Lightning-Compiler: ${LC_BIN}")
 message("-----CMAKE_CXX_FLAGS: ${CMAKE_CXX_FLAGS}")
 message("---CMAKE_PREFIX_PATH: ${CMAKE_PREFIX_PATH}")
 message(" ")
@@ -191,8 +196,8 @@ set_target_properties(${TARGET_NAME} PROPERTIES
   CXX_STANDARD 11
   CXX_STANDARD_REQUIRED Yes
   CXX_EXTENSIONS No
-  VERSION "${BUILD_VERSION_MAJOR}.${BUILD_VERSION_MINOR}"
-  SOVERSION "${BUILD_VERSION_MAJOR}")
+  VERSION "${LIB_VERSION_MAJOR}.${LIB_VERSION_MINOR}"
+  SOVERSION "${LIB_VERSION_MAJOR}")
 
 # Add install directives for rocm-debug-agent
 install(TARGETS ${TARGET_NAME} DESTINATION lib)
@@ -200,9 +205,9 @@ install(TARGETS ${TARGET_NAME} DESTINATION lib)
 # Add packaging directives for rocm-debug-agent
 set(CPACK_PACKAGE_NAME ${PROJECT_NAME})
 set(CPACK_PACKAGE_VENDOR "AMD")
-set(CPACK_PACKAGE_VERSION_MAJOR ${BUILD_VERSION_MAJOR})
-set(CPACK_PACKAGE_VERSION_MINOR ${BUILD_VERSION_MINOR})
-set(CPACK_PACKAGE_VERSION_PATCH ${BUILD_VERSION_PATCH})
+set(CPACK_PACKAGE_VERSION_MAJOR ${LIB_VERSION_MAJOR})
+set(CPACK_PACKAGE_VERSION_MINOR ${LIB_VERSION_MINOR})
+set(CPACK_PACKAGE_VERSION_PATCH ${LIB_VERSION_PATCH}${build_info})
 set(CPACK_PACKAGE_CONTACT "Advanced Micro Devices Inc.")
 set(CPACK_PACKAGE_DESCRIPTION_SUMMARY "Radeon Open Compute (ROCm) debug agent")
 set(CPACK_RESOURCE_FILE_LICENSE "${CMAKE_CURRENT_SOURCE_DIR}/LICENSE.txt" )
