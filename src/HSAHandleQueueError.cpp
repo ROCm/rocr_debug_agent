@@ -119,37 +119,12 @@ static void PrintQueueErrorInfo(hsa_status_t status, QueueInfo* pQueue)
     err << "\n";
     err << "Queue error state in GPU agent: " << pAgent->agentName << std::endl;
     err << "Node: " << pAgent->nodeId << std::endl;
-    err << "Queue ID: " << pQueue->queueId << " (";
+    err << "Queue ID: " << pQueue->queueId << std::endl;
+    err << "Error Code: ";
 
-    switch (status)
-    {
-    case HSA_STATUS_ERROR_OUT_OF_RESOURCES:
-        err << "Out of scratch;";
-        break;
-    case HSA_STATUS_ERROR_INCOMPATIBLE_ARGUMENTS:
-        err << "Invalid dim;";
-        break;
-    case HSA_STATUS_ERROR_INVALID_ALLOCATION:
-        err << "Invalid group memor;";
-        break;
-    case HSA_STATUS_ERROR_INVALID_CODE_OBJECT:
-        err << "Invalid (or NULL) code;";
-        break;
-    case HSA_STATUS_ERROR_INVALID_PACKET_FORMAT:
-        err << "Invalid format;";
-        break;
-    case HSA_STATUS_ERROR_INVALID_ARGUMENT:
-        err << "Group is too large;";
-        break;
-    case HSA_STATUS_ERROR_INVALID_ISA:
-        err << "Out of VGPRs;";
-        break;
-    case HSA_STATUS_ERROR_EXCEPTION:
-        err << "Debug trap;";
-        break;
-    default: // HSA_STATUS_ERROR
-        err << "Undefined code;";
-    }
-    err << ")\n\n";
+    const char* msg = "UNKNOWN ERROR";
+    hsa_status_string(status, &msg);
+    err << msg;
+    err << "\n\n";
     AGENT_PRINT(err.str());
 }
