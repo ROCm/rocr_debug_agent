@@ -54,10 +54,10 @@ def check_test_1():
                   's0:',
                   'v0:',
                   '0x00000002', # one of sgprs should be '2'
-                  '0x0000:  0x00000001',  #First uint32_t in LDS is '1'
-                  'vector_add_debug_trap_kernel.cl:10',
-                  '__builtin_trap();',
-                  's_trap 2']
+                  '0x0000:  0x00000001']  #First uint32_t in LDS is '1'
+#                  'vector_add_debug_trap_kernel.cl:10',
+#                  '__builtin_trap();',
+#                  's_trap 2']
     p = Popen(['./rocm-debug-agent-test', '1'], stdout=PIPE, stderr=PIPE)
     output, err = p.communicate()
     out_str = output.decode('utf-8')
@@ -91,9 +91,9 @@ def check_test_2():
                   's0:',
                   'v0:',
                   '0x00000002', # one of sgprs should be '2'
-                  '0x0000:  0x00000001', #First uint32_t in LDS is '1'
-                  'vector_add_memory_fault_kernel.cl:10',
-                  'global_store_dword']
+                  '0x0000:  0x00000001'] #First uint32_t in LDS is '1'
+#                  'vector_add_memory_fault_kernel.cl:10',
+#                  'global_store_dword']
     p = Popen(['./rocm-debug-agent-test', '2'], stdout=PIPE, stderr=PIPE)
     output, err = p.communicate()
     out_str = output.decode('utf-8')
