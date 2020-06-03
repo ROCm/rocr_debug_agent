@@ -199,3 +199,11 @@ unset ROCM_DEBUG_ENABLE_AGENTLOG
   * Contains the sources for building the ROCdebug-agent. See the `README.md` for directions.
 * `test`
   * Contains the tests for the ROCdebug-agent. See the `README.md` for directions.
+
+
+## Known Limitations and Restrictions
+
+ROCdebug-agent is broken in RCOm 3.5 and 3.6 with following error:
+```sh
+Error: Debug Agent: Cannot get queue info from KMT.
+```
