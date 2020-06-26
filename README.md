@@ -1,35 +1,5 @@
-ROCm Debug Agent Library (ROCdebug-agent)
-=========================================
-
-DISCLAIMER
-----------
-
-The information contained herein is for informational purposes only and is
-subject to change without notice. While every precaution has been taken in the
-preparation of this document, it may contain technical inaccuracies, omissions
-and typographical errors, and AMD is under no obligation to update or otherwise
-correct this information.  Advanced Micro Devices, Inc. makes no
-representations or warranties with respect to the accuracy or completeness of
-the contents of this document, and assumes no liability of any kind, including
-the implied warranties of noninfringement, merchantability or fitness for
-particular purposes, with respect to the operation or use of AMD hardware,
-software or other products described herein.  No license, including implied or
-arising by estoppel, to any intellectual property rights is granted by this
-document. Terms and limitations applicable to the purchase or use of AMD’s
-products are as set forth in a signed agreement between the parties or in AMD’s
-Standard Terms and Conditions of Sale.
-
-AMD®, the AMD Arrow logo, ROCm® and combinations thereof are trademarks of
-Advanced Micro Devices, Inc.  Linux® is the registered trademark of Linus
-Torvalds in the U.S. and other countries.  RedHat® and the Shadowman logo are
-registered trademarks of Red Hat, Inc. www.redhat.com in the U.S. and other
-countries.  SUSE® is a registered trademark of SUSE LLC in the United Stated
-and other countries.  Ubuntu® and the Ubuntu logo are registered trademarks of
-Canonical Ltd.  Other product names used in this publication are for
-identification purposes only and may be trademarks of their respective
-companies.
-
-Copyright (c) 2018-2020 Advanced Micro Devices, Inc.  All rights reserved.
+AMD ROCm Debug Agent Library (ROCdebug-agent)
+=============================================
 
 Introduction
 ------------
@@ -147,7 +117,7 @@ Aborted (core dumped)
 
 The supported triggering events are:
 
-- **Memory fault**
+- __Memory fault__
 
   A memory fault happens when an AMD GPU accesses a page that is not
   accessible.  The information about the memory fault is printed.  For example:
@@ -167,17 +137,17 @@ The supported triggering events are:
   wave_0: pc=0x7fbe4cc0d0b4 (stopped, reason: MEMORY_VIOLATION)
   ````
 
-- **Assert trap**
+- __Assert trap__
 
   This occurs when an ``s_trap 2`` instruction is executed.  The
   ``__builtin_trap()`` language builtin, or ``llvm.trap`` LLVM IR instruction,
   can be used to generate this AMD GPU instruction.
 
-- **Illegal instruction**
+- __Illegal instruction__
 
   This occurs when the hardware detects an illegal instruction.
 
-- **SIGQUIT ``(Ctrl-\)``**
+- __SIGQUIT ``(Ctrl-\)``__
 
   A SIGQUIT signal can be sent to a process with the ``kill -s SIGQUIT <pid>``
   command or by pressing ``Ctrl-\``.  See the ``--disable-linux-signals``
@@ -196,13 +166,13 @@ ROCM_DEBUG_AGENT_OPTIONS="--all --save-code-objects" \
 
 The supported options are:
 
-- **``-a``, ``--all``**
+- __``-a``, ``--all``__
 
   Prints all wavefronts.
 
   If not specified, only wavefronts that have a triggering event are printed.
 
-- **``-s [DIR]``, ``--save-code-objects[=DIR]``**
+- __``-s [DIR]``, ``--save-code-objects[=DIR]``__
 
   Saves all loaded code objects.  If the directory is not specified, the code
   objects are saved in the current directory.
@@ -219,13 +189,13 @@ The supported options are:
   file____rocm-debug-agent_rocm-debug-agent-test_offset_14309_size_31336
   ````
 
-- **``-o <file-path>``, ``--output=<file-path>``**
+- __``-o <file-path>``, ``--output=<file-path>``__
 
   Saves the output produced by the Debug Agent in the specified file.
 
   By default, the output is redirected to ``stderr``.
 
-- **``-d``, ``--disable-linux-signals``**
+- __``-d``, ``--disable-linux-signals``__
 
   Disables installing a SIGQUIT signal handler, so that the default Linux
   handler may dump a core file.
@@ -233,14 +203,14 @@ The supported options are:
   By default, the Debug Agent installs a SIGQUIT handler to print the state of
   all wavefronts when a SIGQUIT signal is sent to the process.
 
-- **``-l <log-level>``, ``--log-level=<log-level>``**
+- __``-l <log-level>``, ``--log-level=<log-level>``__
 
   Changes the Debug Agent and Debugger API log level. The log level can be
   `none`, `info`, `warning`, or `error`.
 
   The default log level is ``none``.
 
-- **``-h``, ``--help``**
+- __``-h``, ``--help``__
 
   Displays a usage message and aborts the process.
 
@@ -254,10 +224,25 @@ Building the ROCdebug-agent library has the following prerequisites:
 
 1. A C++17 compiler such as GCC 7 or Clang 5.
 
-2. AMD Radeon Open Ecosystem (ROCm) Runtime software stack which can be
-   installed as part of the ROCm release by the ``rocm-dev`` package.
+2. The AMD ROCm software stack which can be installed as part of the AMD ROCm
+   release by the ``rocm-dev`` package.
 
-3. Python version 3.6 or later is required to run the tests.
+3. For Ubuntu 18.04 the following adds the needed packages:
+   ````shell
+   apt install libelf-dev libdw-dev
+   ````
+
+4. For CentOS 8.1 and RHEL 8.1 the following adds the needed packages:
+   ````shell
+   yum install elfutils-libelf-devel elfutils-libs-devel
+   ````
+
+5. For SLES 15 Service Pack 1 the following adds the needed packages:
+   ````shell
+   zypper install libelf-devel libdw-devel
+   ````
+
+6. Python version 3.6 or later is required to run the tests.
 
 An example command-line to build and install the ROCdebug-agent library on
 Linux is:
@@ -333,3 +318,33 @@ Known Limitations and Restrictions
 
 - A disassembly of the wavefront faulting PC is only provided if it is within a
   code object.
+
+Disclaimer
+----------
+
+The information contained herein is for informational purposes only and is
+subject to change without notice. While every precaution has been taken in the
+preparation of this document, it may contain technical inaccuracies, omissions
+and typographical errors, and AMD is under no obligation to update or otherwise
+correct this information.  Advanced Micro Devices, Inc. makes no
+representations or warranties with respect to the accuracy or completeness of
+the contents of this document, and assumes no liability of any kind, including
+the implied warranties of noninfringement, merchantability or fitness for
+particular purposes, with respect to the operation or use of AMD hardware,
+software or other products described herein.  No license, including implied or
+arising by estoppel, to any intellectual property rights is granted by this
+document. Terms and limitations applicable to the purchase or use of AMD’s
+products are as set forth in a signed agreement between the parties or in AMD’s
+Standard Terms and Conditions of Sale.
+
+AMD®, the AMD Arrow logo, ROCm® and combinations thereof are trademarks of
+Advanced Micro Devices, Inc.  Linux® is the registered trademark of Linus
+Torvalds in the U.S. and other countries.  RedHat® and the Shadowman logo are
+registered trademarks of Red Hat, Inc. www.redhat.com in the U.S. and other
+countries.  SUSE® is a registered trademark of SUSE LLC in the United Stated
+and other countries.  Ubuntu® and the Ubuntu logo are registered trademarks of
+Canonical Ltd.  Other product names used in this publication are for
+identification purposes only and may be trademarks of their respective
+companies.
+
+Copyright (c) 2018-2020 Advanced Micro Devices, Inc.  All rights reserved.
