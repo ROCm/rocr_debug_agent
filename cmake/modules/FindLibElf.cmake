@@ -22,7 +22,7 @@ find_library(FIND_LIBELF_LIBRARIES
     /usr/local/lib)
 
 include(FindPackageHandleStandardArgs)
-find_package_handle_standard_args(LIBELF DEFAULT_MSG
+find_package_handle_standard_args(LibElf DEFAULT_MSG
                                   FIND_LIBELF_INCLUDES FIND_LIBELF_LIBRARIES)
 mark_as_advanced(FIND_LIBELF_INCLUDES FIND_LIBELF_LIBRARIES)
 

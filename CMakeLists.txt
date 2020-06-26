@@ -34,7 +34,7 @@
 
 cmake_minimum_required(VERSION 3.8.0)
 
-project(ROCM_DEBUG_AGENT VERSION 2.0.0)
+project(ROCM_DEBUG_AGENT VERSION 2.0.1)
 
 # The project command does not set the <PROJECT-NAME>_NAME variable so must set
 # it explicitly.
@@ -48,7 +48,8 @@ set_target_properties(rocm-debug-agent PROPERTIES
   CXX_STANDARD_REQUIRED ON
   CXX_EXTENSIONS OFF
   VERSION ${ROCM_DEBUG_AGENT_VERSION}
-  SOVERSION ${ROCM_DEBUG_AGENT_VERSION_MAJOR})
+  SOVERSION ${ROCM_DEBUG_AGENT_VERSION_MAJOR}
+  NO_SYSTEM_FROM_IMPORTED ON)
 
 set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_SOURCE_DIR}/cmake/modules/")
 
@@ -65,7 +66,7 @@ find_package(LibElf REQUIRED)
 find_package(LibDw REQUIRED)
 
 target_include_directories(rocm-debug-agent
-  PRIVATE ${ROCR_INCLUDES} ${LIBELF_INCLUDES} ${LIBDW_INCLUDES})
+  SYSTEM PRIVATE ${ROCR_INCLUDES} ${LIBELF_INCLUDES} ${LIBDW_INCLUDES})
 target_compile_options(rocm-debug-agent PRIVATE -Werror -Wall)
 
 if(DEFINED ENV{ROCM_BUILD_ID})

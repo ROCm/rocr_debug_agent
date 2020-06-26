@@ -20,7 +20,7 @@ find_library(FIND_LIBDW_LIBRARIES
     /usr/local/lib)
 
 include(FindPackageHandleStandardArgs)
-find_package_handle_standard_args(LIBDW DEFAULT_MSG
+find_package_handle_standard_args(LibDw DEFAULT_MSG
                                   FIND_LIBDW_INCLUDES FIND_LIBDW_LIBRARIES)
 mark_as_advanced(FIND_LIBDW_INCLUDES FIND_LIBDW_LIBRARIES)
 
