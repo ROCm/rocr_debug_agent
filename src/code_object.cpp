@@ -302,13 +302,13 @@ code_object_t::open ()
 namespace
 {
 
-const std::vector<std::string> *
+std::optional<std::reference_wrapper<const std::vector<std::string>>>
 get_source_file_index (const std::string &file_name)
 {
   static std::unordered_map<std::string, std::vector<std::string>> file_map;
 
   if (auto it = file_map.find (file_name); it != file_map.end ())
-    return &it->second;
+    return it->second;
 
   std::ifstream file (file_name);
   if (!file)
@@ -324,7 +324,7 @@ get_source_file_index (const std::string &file_name)
   while (std::getline (file, line))
     lines.emplace_back (line);
 
-  return &lines;
+  return lines;
 }
 
 } /* namespace */
@@ -576,10 +576,10 @@ code_object_t::disassemble (amd_dbgapi_architecture_id_t architecture_id,
                   agent_out << std::setfill (' ') << std::setw (8) << std::left
                             << std::dec << line;
 
-                  if (auto *lines = get_source_file_index (file_name); !lines)
+                  if (auto lines = get_source_file_index (file_name); !lines)
                     agent_out << file_name << ": No such file or directory.";
-                  else if (line <= lines->size ())
-                    agent_out << lines->at (line - 1);
+                  else if (line <= lines->get ().size ())
+                    agent_out << lines->get ()[line - 1];
 
                   agent_out << std::endl;
                 }
