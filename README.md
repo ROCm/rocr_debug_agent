@@ -234,7 +234,7 @@ Building the ROCdebug-agent library has the following prerequisites:
 
 4. For CentOS 8.1 and RHEL 8.1 the following adds the needed packages:
    ````shell
-   yum install elfutils-libelf-devel elfutils-libs-devel
+   yum install elfutils-libelf-devel elfutils-devel
    ````
 
 5. For SLES 15 Service Pack 1 the following adds the needed packages:
