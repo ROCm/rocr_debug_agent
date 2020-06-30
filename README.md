@@ -191,7 +191,7 @@ The supported options are:
 
 - __``-o <file-path>``, ``--output=<file-path>``__
 
-  Saves the output produced by the Debug Agent in the specified file.
+  Saves the output produced by the ROCdebug-agent in the specified file.
 
   By default, the output is redirected to ``stderr``.
 
@@ -200,12 +200,12 @@ The supported options are:
   Disables installing a SIGQUIT signal handler, so that the default Linux
   handler may dump a core file.
 
-  By default, the Debug Agent installs a SIGQUIT handler to print the state of
+  By default, the ROCdebug-agent installs a SIGQUIT handler to print the state of
   all wavefronts when a SIGQUIT signal is sent to the process.
 
 - __``-l <log-level>``, ``--log-level=<log-level>``__
 
-  Changes the Debug Agent and Debugger API log level. The log level can be
+  Changes the ROCdebug-agent and ROCdbgapi log level. The log level can be
   `none`, `info`, `warning`, or `error`.
 
   The default log level is ``none``.
@@ -214,7 +214,7 @@ The supported options are:
 
   Displays a usage message and aborts the process.
 
-Build the AMD Debug Agent Library
+Build the ROCdebug-agent library
 ---------------------------------
 
 The ROCdebug-agent library can be built on Ubuntu 18.04, Ubuntu 20.04, Centos
@@ -254,7 +254,7 @@ cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=../install ..
 make
 ````
 
-Use the ``CMAKE_INSTALL_PREFIX`` to specify where the Debug Agent library
+Use the ``CMAKE_INSTALL_PREFIX`` to specify where the ROCdebug-agent library
 should be installed.  The default location is `/usr`.
 
 Use ``CMAKE_MODULE_PATH`` to specify a ``';'`` separated list of paths that
@@ -283,7 +283,7 @@ To use the ROCdebug-agent library, the ROCdbgapi library must be installed.
 This can be installed as part of the ROCm release by the ``rocm-dbgapi``
 package.
 
-Test the AMD Debug Agent Library
+Test the ROCdebug-agent library
 --------------------------------
 
 To test the ROCdebug-agent library:
