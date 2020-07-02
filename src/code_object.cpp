@@ -465,13 +465,12 @@ code_object_t::disassemble (amd_dbgapi_architecture_id_t architecture_id,
   /* Load the line number table, and low/high pc for all CUs.  */
   load_debug_info ();
 
-  constexpr int context_byte_size = 32;
+  constexpr int context_byte_size = 24;
   amd_dbgapi_global_address_t start_pc;
 
   /* Try to find a line number that precedes `pc` by `context_byte_size` bytes.
-     If we don't have a line number map, simply subtract an offset from the pc,
-     hoping that we'll land on a valid instruction, or that the disassembler
-     will right itself after disassembling a few instructions.  */
+     If we don't have a line number map, simply start the disassembly from the
+     current pc.  */
 
   if (auto it = m_line_number_map->upper_bound (pc);
       it != m_line_number_map->begin ())
@@ -522,12 +521,42 @@ code_object_t::disassemble (amd_dbgapi_architecture_id_t architecture_id,
             << "0x" << std::hex << (m_load_address + m_mem_size) << "]"
             << std::endl;
 
+  /* Remember the start_pc address to print the first source line.  */
+  amd_dbgapi_global_address_t saved_start_pc{ start_pc };
+
+  /* Now that we know start_pc is a valid instruction address, skip ahead until
+     the distance between start_pc and pc is <= context_byte_size.  */
+  while ((pc - start_pc) > context_byte_size)
+    {
+      std::vector<uint8_t> buffer (largest_instruction_size);
+
+      amd_dbgapi_size_t size = buffer.size ();
+      if (amd_dbgapi_read_memory (
+              m_process_id, AMD_DBGAPI_WAVE_NONE, AMD_DBGAPI_LANE_NONE,
+              AMD_DBGAPI_ADDRESS_SPACE_GLOBAL, start_pc, &size, buffer.data ())
+          != AMD_DBGAPI_STATUS_SUCCESS)
+        break;
+
+      if (amd_dbgapi_disassemble_instruction (
+              architecture_id, start_pc, &size, buffer.data (), nullptr,
+              amd_dbgapi_symbolizer_id_t{}, nullptr)
+          != AMD_DBGAPI_STATUS_SUCCESS)
+        break;
+
+      if ((pc - (start_pc + size)) < context_byte_size)
+        break;
+
+      start_pc += size;
+    }
+
   std::string prev_file_name;
   size_t prev_line_number{ 0 };
+  amd_dbgapi_global_address_t addr{ start_pc };
 
-  for (amd_dbgapi_global_address_t addr = start_pc; addr < end_pc;)
+  while (addr < end_pc)
     {
-      if (auto it = m_line_number_map->find (addr);
+      if (auto it
+          = m_line_number_map->find (addr == start_pc ? saved_start_pc : addr);
           it != m_line_number_map->end ())
         {
           const std::string &file_name = it->second.first;
@@ -539,7 +568,16 @@ code_object_t::disassemble (amd_dbgapi_architecture_id_t architecture_id,
           if (file_name != prev_file_name)
             agent_out << file_name << ":" << std::endl;
 
-          if (line_number != prev_line_number)
+          /* If the source line for `addr` is a different line than the
+             previous one printed, then print it.  If the previous line printed
+             is in the same file and an earlier line, and if all the lines
+             between it and the source line for `addr` have no associated
+             instructions (indicated by their being no entries in the line
+             number map that mention them), then display those lines as well as
+             a source line block.  That allows the disassembly to show all the
+             source file lines, including those that have no associated code.
+           */
+          if (file_name != prev_file_name || line_number != prev_line_number)
             {
               size_t first_line = line_number;
               size_t last_line = line_number;
@@ -548,7 +586,7 @@ code_object_t::disassemble (amd_dbgapi_architecture_id_t architecture_id,
                  line_number that does not appear in the line number table.
                */
               if (file_name == prev_file_name
-                  && line_number > prev_line_number)
+                  && (line_number + 1) > prev_line_number)
                 {
                   while (--first_line > prev_line_number)
                     {
@@ -586,6 +624,12 @@ code_object_t::disassemble (amd_dbgapi_architecture_id_t architecture_id,
 
           prev_file_name = file_name;
           prev_line_number = line_number;
+
+          /* If the start_pc address is not the begining of a line number
+             block, then print ... to show that the following instruction is
+             not the first in the block.  */
+          if (addr == start_pc && start_pc != saved_start_pc)
+            agent_out << "    ..." << std::endl;
         }
 
       std::vector<uint8_t> buffer (largest_instruction_size);
@@ -647,6 +691,14 @@ code_object_t::disassemble (amd_dbgapi_architecture_id_t architecture_id,
 
       addr += size;
     }
+
+  /* If the end_pc address (addr) is not the begining of a new line number
+     block, then print ... to show that the previous instruction was
+     not the last of the instructions associated with the previous source ine
+     printed.  */
+  if (auto it = m_line_number_map->find (addr);
+      it == m_line_number_map->end ())
+    agent_out << "    ..." << std::endl;
 
   agent_out << std::endl << "End of disassembly." << std::endl;
 }
