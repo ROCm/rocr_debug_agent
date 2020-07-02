@@ -87,7 +87,7 @@ private:
 
   std::optional<
       std::map<amd_dbgapi_global_address_t, amd_dbgapi_global_address_t>>
-      m_compilation_unit_low_high_pc_map;
+      m_pc_ranges_map;
 
   std::optional<std::map<amd_dbgapi_global_address_t,
                          std::pair<std::string, amd_dbgapi_size_t>>>

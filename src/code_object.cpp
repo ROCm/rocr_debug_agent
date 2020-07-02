@@ -393,7 +393,7 @@ code_object_t::load_debug_info ()
 {
   agent_assert (is_open () && "code object is not opened");
 
-  if (m_line_number_map && m_compilation_unit_low_high_pc_map)
+  if (m_line_number_map && m_pc_ranges_map)
     return;
 
   std::unique_ptr<Dwarf, void (*) (Dwarf *)> dbg (
@@ -403,7 +403,7 @@ code_object_t::load_debug_info ()
     return;
 
   m_line_number_map.emplace ();
-  m_compilation_unit_low_high_pc_map.emplace ();
+  m_pc_ranges_map.emplace ();
 
   Dwarf_Off cu_offset{ 0 }, next_offset;
   size_t header_size;
@@ -415,36 +415,35 @@ code_object_t::load_debug_info ()
       if (!dwarf_offdie (dbg.get (), cu_offset + header_size, &die))
         continue;
 
-      Dwarf_Addr lowpc = 0;
-      Dwarf_Addr highpc = 0;
+      ptrdiff_t offset = 0;
+      Dwarf_Addr base, start{ 0 }, end{ 0 };
 
-      if (!dwarf_lowpc (&die, &lowpc) && !dwarf_highpc (&die, &highpc))
-        m_compilation_unit_low_high_pc_map->emplace (m_load_address + lowpc,
-                                                     m_load_address + highpc);
+      /* dwarf_ranges returns a single contiguous range
+         (DW_AT_low_pc/DW_AT_high_pc), or a series of non-contiguous ranges
+         (DW_AT_ranges). */
+      while ((offset = dwarf_ranges (&die, offset, &base, &start, &end) > 0))
+        m_pc_ranges_map->emplace (m_load_address + start,
+                                  m_load_address + end);
 
       Dwarf_Lines *lines;
       size_t line_count;
       if (dwarf_getsrclines (&die, &lines, &line_count))
         continue;
 
-      for (size_t index = 0; index < line_count; ++index)
+      for (size_t i = 0; i < line_count; ++i)
         {
-          Dwarf_Line *line = dwarf_onesrcline (lines, index);
-
           Dwarf_Addr addr;
-          if (dwarf_lineaddr (line, &addr))
-            addr = 0;
-
-          auto file = dwarf_linesrc (line, nullptr, nullptr);
-
           int line_number;
-          if (dwarf_lineno (line, &line_number))
-            line_number = 0;
 
-          if (addr && line_number)
-            m_line_number_map->emplace (
-                m_load_address + addr,
-                std::make_pair (std::string (file), line_number));
+          if (Dwarf_Line *line = dwarf_onesrcline (lines, i);
+              line && !dwarf_lineaddr (line, &addr)
+              && !dwarf_lineno (line, &line_number) && line_number)
+            {
+              m_line_number_map->emplace (
+                  m_load_address + addr,
+                  std::make_pair (dwarf_linesrc (line, nullptr, nullptr),
+                                  line_number));
+            }
         }
 
       cu_offset = next_offset;
@@ -500,8 +499,8 @@ code_object_t::disassemble (amd_dbgapi_architecture_id_t architecture_id,
   /* If pc is included in a [lowpc,highpc] interval, clamp start_pc and
      end_pc.  */
 
-  if (auto it = m_compilation_unit_low_high_pc_map->upper_bound (pc);
-      it != m_compilation_unit_low_high_pc_map->begin ())
+  if (auto it = m_pc_ranges_map->upper_bound (pc);
+      it != m_pc_ranges_map->begin ())
     {
       if (auto [low_pc, high_pc] = *std::prev (it); pc < high_pc)
         {
@@ -578,7 +577,7 @@ code_object_t::disassemble (amd_dbgapi_architecture_id_t architecture_id,
 
                   if (auto lines = get_source_file_index (file_name); !lines)
                     agent_out << file_name << ": No such file or directory.";
-                  else if (line <= lines->get ().size ())
+                  else if (line && line <= lines->get ().size ())
                     agent_out << lines->get ()[line - 1];
 
                   agent_out << std::endl;
