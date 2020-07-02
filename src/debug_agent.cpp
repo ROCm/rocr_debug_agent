@@ -52,6 +52,7 @@
 #include <iterator>
 #include <map>
 #include <memory>
+#include <mutex>
 #include <optional>
 #include <string>
 #include <type_traits>
@@ -429,6 +430,13 @@ stop_all_wavefronts (amd_dbgapi_process_id_t process_id)
 void
 print_wavefronts (bool all_wavefronts)
 {
+  /* This function is not thread-safe and not re-entrant.  */
+  static std::mutex lock;
+  if (!lock.try_lock ())
+    return;
+  /* Make sure the lock is released when this function returns.  */
+  std::scoped_lock sl (std::adopt_lock, lock);
+
   DBGAPI_CHECK (amd_dbgapi_initialize (&dbgapi_callbacks));
 
   amd_dbgapi_process_id_t process_id;
