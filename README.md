@@ -4,8 +4,8 @@ AMD ROCm Debug Agent Library (ROCdebug-agent)
 Introduction
 ------------
 
-The ROCdebug-agent is a library that can be loaded by the ROCm Platform Runtime
-(ROCr) to provide the following functionality:
+The AMD ROCm Debug Agent (ROCdebug-agent) is a library that can be loaded by the
+ROCm Platform Runtime (ROCr) to provide the following functionality:
 
 - Print the state of all AMD GPU wavefronts that caused a queue error (for
   example, causing a memory violation, executing an ``s_trap 2``, or executing
