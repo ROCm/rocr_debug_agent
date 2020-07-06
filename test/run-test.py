@@ -9,7 +9,7 @@ if (len(sys.argv)  != 2):
 else:
     test_binary_directory = sys.argv[1]
     print ("Test binary directory: ", os.path.abspath(test_binary_directory))
-    os.environ["LD_LIBRARY_PATH"] = os.path.abspath(test_binary_directory) + "/..:$LD_LIBRARY_PATH"
+    os.environ["LD_LIBRARY_PATH"] += ":" + os.path.abspath(test_binary_directory) + "/.."
     os.environ["HSA_TOOLS_LIB"] = "librocm-debug-agent.so.2"
     os.chdir(test_binary_directory)
     # pre test to check if librocm-debug-agent.so.2 can be found
