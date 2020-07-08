@@ -50,5 +50,9 @@ install(TARGETS rocm-debug-agent-test
     DESTINATION bin
   COMPONENT tests)
 
+install(FILES run-test.py
+  DESTINATION bin
+  COMPONENT tests)
+
 add_test(NAME rocm-debug-agent-test
   COMMAND python ${CMAKE_CURRENT_SOURCE_DIR}/run-test.py ${CMAKE_CURRENT_BINARY_DIR})
