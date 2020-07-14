@@ -53,7 +53,7 @@ def check_test_1():
                   '0x0000: 22222222 11111111', # First uint64_t in LDS is '1111111122222222'
                   'Disassembly for function vector_add_assert_trap(int*, int*, int*)',
                   'vector_add_assert_trap.cpp:',
-                  '53          __builtin_trap ();',
+#                  '53          __builtin_trap ();', # Source files not always available (When install tests from package)
                   's_trap 2']
     p = Popen(['./rocm-debug-agent-test', '1'], stdout=PIPE, stderr=PIPE)
     output, err = p.communicate()
