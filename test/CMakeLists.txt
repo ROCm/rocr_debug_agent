@@ -32,6 +32,8 @@
 ##
 ################################################################################
 
+cmake_minimum_required(VERSION 3.8.0)
+
 project(ROCM_DEBUG_AGENT_TEST VERSION ${ROCM_DEBUG_AGENT_VERSION})
 
 set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "/opt/rocm/hip/cmake")
@@ -50,9 +52,12 @@ install(TARGETS rocm-debug-agent-test
     DESTINATION bin
   COMPONENT tests)
 
-install(FILES run-test.py
-  DESTINATION bin
+file(GLOB HEADERS "*.h")
+
+install(FILES CMakeLists.txt run-test.py ${SOURCES} ${HEADERS}
+  DESTINATION share/src/rocm-debug-agent
   COMPONENT tests)
 
+enable_testing()
 add_test(NAME rocm-debug-agent-test
   COMMAND python ${CMAKE_CURRENT_SOURCE_DIR}/run-test.py ${CMAKE_CURRENT_BINARY_DIR})
