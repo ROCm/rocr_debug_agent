@@ -55,7 +55,7 @@ install(TARGETS rocm-debug-agent-test
 file(GLOB HEADERS "*.h")
 
 install(FILES CMakeLists.txt run-test.py ${SOURCES} ${HEADERS}
-  DESTINATION share/src/rocm-debug-agent
+  DESTINATION src/rocm-debug-agent
   COMPONENT tests)
 
 enable_testing()
