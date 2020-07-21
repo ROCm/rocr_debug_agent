@@ -847,6 +847,8 @@ OnLoad (void *table, uint64_t runtime_version, uint64_t failed_tool_count,
 {
   bool disable_sigquit{ false };
 
+  set_log_level (log_level_t::warning);
+
   std::istringstream args_stream;
   if (const char *env = ::getenv ("ROCM_DEBUG_AGENT_OPTIONS"))
     args_stream.str (env);
@@ -897,25 +899,13 @@ OnLoad (void *table, uint64_t runtime_version, uint64_t failed_tool_count,
             print_usage ();
 
           if (argument == "none")
-            {
-              log_level = log_level_t::none;
-              amd_dbgapi_set_log_level (AMD_DBGAPI_LOG_LEVEL_NONE);
-            }
+            set_log_level (log_level_t::none);
           else if (argument == "info")
-            {
-              log_level = log_level_t::info;
-              amd_dbgapi_set_log_level (AMD_DBGAPI_LOG_LEVEL_INFO);
-            }
+            set_log_level (log_level_t::info);
           else if (argument == "warning")
-            {
-              log_level = log_level_t::warning;
-              amd_dbgapi_set_log_level (AMD_DBGAPI_LOG_LEVEL_WARNING);
-            }
+            set_log_level (log_level_t::warning);
           else if (argument == "error")
-            {
-              log_level = log_level_t::error;
-              amd_dbgapi_set_log_level (AMD_DBGAPI_LOG_LEVEL_FATAL_ERROR);
-            }
+            set_log_level (log_level_t::error);
           else
             print_usage ();
           break;

@@ -30,6 +30,7 @@
 
 #include "logging.h"
 
+#include <amd-dbgapi.h>
 #include <cstdio>
 #include <stdarg.h>
 
@@ -38,7 +39,7 @@
 namespace amd::debug_agent
 {
 
-log_level_t log_level = log_level_t::none;
+log_level_t log_level = log_level_t::warning;
 
 std::ofstream agent_out;
 
@@ -70,4 +71,26 @@ log (log_level_t level, const char *format, ...)
 }
 
 } /* namespace detail */
+
+void
+set_log_level (log_level_t level)
+{
+  log_level = level;
+  switch (level)
+    {
+    case log_level_t::none:
+      amd_dbgapi_set_log_level (AMD_DBGAPI_LOG_LEVEL_NONE);
+      break;
+    case log_level_t::info:
+      amd_dbgapi_set_log_level (AMD_DBGAPI_LOG_LEVEL_INFO);
+      break;
+    case log_level_t::warning:
+      amd_dbgapi_set_log_level (AMD_DBGAPI_LOG_LEVEL_WARNING);
+      break;
+    case log_level_t::error:
+      amd_dbgapi_set_log_level (AMD_DBGAPI_LOG_LEVEL_FATAL_ERROR);
+      break;
+    }
+}
+
 } /* namespace amd::debug_agent */
