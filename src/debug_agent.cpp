@@ -444,6 +444,43 @@ print_wavefronts (bool all_wavefronts)
       reinterpret_cast<amd_dbgapi_client_process_id_t> (&process_id),
       &process_id));
 
+  /* Check the runtime state.  */
+  while (true)
+    {
+      amd_dbgapi_event_id_t event_id;
+      amd_dbgapi_event_kind_t event_kind;
+
+      DBGAPI_CHECK (
+          amd_dbgapi_next_pending_event (process_id, &event_id, &event_kind));
+
+      if (event_kind == AMD_DBGAPI_EVENT_KIND_RUNTIME)
+        {
+          amd_dbgapi_runtime_state_t runtime_state;
+
+          DBGAPI_CHECK (amd_dbgapi_event_get_info (
+              process_id, event_id, AMD_DBGAPI_EVENT_INFO_RUNTIME_STATE,
+              sizeof (runtime_state), &runtime_state));
+
+          switch (runtime_state)
+            {
+            case AMD_DBGAPI_RUNTIME_STATE_LOADED_SUCCESS:
+              break;
+
+            case AMD_DBGAPI_RUNTIME_STATE_UNLOADED:
+              agent_error ("invalid runtime state %d", runtime_state);
+
+            case AMD_DBGAPI_RUNTIME_STATE_LOADED_ERROR_RESTRICTION:
+              agent_error ("unable to enable GPU debugging due to a "
+                           "restriction error");
+              break;
+            }
+        }
+
+      /* No more events.  */
+      if (event_kind == AMD_DBGAPI_EVENT_KIND_NONE)
+        break;
+    }
+
   std::map<amd_dbgapi_global_address_t, code_object_t> code_object_map;
 
   amd_dbgapi_code_object_id_t *code_objects_id;
