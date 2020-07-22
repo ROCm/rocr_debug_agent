@@ -50,7 +50,7 @@ hip_add_executable(rocm-debug-agent-test ${SOURCES}
 file(GLOB HEADERS "*.h")
 
 install(FILES CMakeLists.txt run-test.py ${SOURCES} ${HEADERS}
-  DESTINATION src/rocm-debug-agent
+  DESTINATION src/rocm-debug-agent-test
   COMPONENT tests)
 
 enable_testing()

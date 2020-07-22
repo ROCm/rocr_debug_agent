@@ -271,13 +271,12 @@ To install the ROCdebug-agent library:
 make install
 ````
 
-The installed ROCdebug-agent library will be placed in:
+The installed ROCdebug-agent library and tests will be placed in:
 
 - ``<install-prefix>/lib/librocm-debug-agent.so.2*``
-- ``<install-prefix>/bin/rocm-debug-agent-test``
-- ``<install-prefix>/bin/run-test.py``
 - ``<install-prefix>/share/rocm-debug-agent/LICENSE.txt``
 - ``<install-prefix>/share/rocm-debug-agent/README.md``
+- ``<install-prefix>/src/rocm-debug-agent-test/*``
 
 To use the ROCdebug-agent library, the ROCdbgapi library must be installed.
 This can be installed as part of the ROCm release by the ``rocm-dbgapi``
