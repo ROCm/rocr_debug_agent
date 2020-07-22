@@ -47,11 +47,6 @@ hip_add_executable(rocm-debug-agent-test ${SOURCES}
                 --amdgpu-target=gfx908
   CLANG_OPTIONS -ggdb)
 
-install(TARGETS rocm-debug-agent-test
-  RUNTIME
-    DESTINATION bin
-  COMPONENT tests)
-
 file(GLOB HEADERS "*.h")
 
 install(FILES CMakeLists.txt run-test.py ${SOURCES} ${HEADERS}
