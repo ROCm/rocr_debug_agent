@@ -227,19 +227,22 @@ Building the ROCdebug-agent library has the following prerequisites:
 2. The AMD ROCm software stack which can be installed as part of the AMD ROCm
    release by the ``rocm-dev`` package.
 
-3. For Ubuntu 18.04 the following adds the needed packages:
+3. For Ubuntu 18.04 and Ubuntu 20.04 the following adds the needed packages:
+
    ````shell
-   apt install libelf-dev libdw-dev
+   apt install gcc g++ make cmake libelf-dev libdw-dev
    ````
 
 4. For CentOS 8.1 and RHEL 8.1 the following adds the needed packages:
+
    ````shell
-   yum install elfutils-libelf-devel elfutils-devel
+   yum install gcc gcc-c++ make cmake elfutils-libelf-devel elfutils-devel
    ````
 
 5. For SLES 15 Service Pack 1 the following adds the needed packages:
+
    ````shell
-   zypper install libelf-devel libdw-devel
+   zypper install gcc gcc-c++ make cmake libelf-devel libdw-devel
    ````
 
 6. Python version 3.6 or later is required to run the tests.
