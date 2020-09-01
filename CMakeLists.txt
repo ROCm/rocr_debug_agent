@@ -67,7 +67,7 @@ find_package(LibDw REQUIRED)
 
 target_include_directories(rocm-debug-agent
   SYSTEM PRIVATE ${ROCR_INCLUDES} ${LIBELF_INCLUDES} ${LIBDW_INCLUDES})
-target_compile_options(rocm-debug-agent PRIVATE -Werror -Wall)
+target_compile_options(rocm-debug-agent PRIVATE -Wall)
 
 if(DEFINED ENV{ROCM_BUILD_ID})
   # ROCM_BUILD_ID is set by the ROCm-CI build environment.
