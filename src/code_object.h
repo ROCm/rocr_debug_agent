@@ -59,8 +59,7 @@ private:
   find_symbol (amd_dbgapi_global_address_t address);
 
 public:
-  code_object_t (amd_dbgapi_process_id_t process_id,
-                 amd_dbgapi_code_object_id_t code_object_id);
+  code_object_t (amd_dbgapi_code_object_id_t code_object_id);
   code_object_t (code_object_t &&rhs);
 
   ~code_object_t ();
@@ -95,7 +94,6 @@ private:
 
   std::string m_uri;
   amd_dbgapi_code_object_id_t const m_code_object_id;
-  amd_dbgapi_process_id_t const m_process_id;
 };
 
 } /* namespace amd::debug_agent */

@@ -194,13 +194,12 @@ register_value_string (const std::string &register_type,
 }
 
 void
-print_registers (amd_dbgapi_process_id_t process_id,
-                 amd_dbgapi_wave_id_t wave_id)
+print_registers (amd_dbgapi_wave_id_t wave_id)
 {
   amd_dbgapi_architecture_id_t architecture_id;
-  DBGAPI_CHECK (amd_dbgapi_wave_get_info (
-      process_id, wave_id, AMD_DBGAPI_WAVE_INFO_ARCHITECTURE,
-      sizeof (architecture_id), &architecture_id));
+  DBGAPI_CHECK (
+      amd_dbgapi_wave_get_info (wave_id, AMD_DBGAPI_WAVE_INFO_ARCHITECTURE,
+                                sizeof (architecture_id), &architecture_id));
 
   size_t class_count;
   amd_dbgapi_register_class_id_t *register_class_ids;
@@ -209,8 +208,8 @@ print_registers (amd_dbgapi_process_id_t process_id,
 
   size_t register_count;
   amd_dbgapi_register_id_t *register_ids;
-  DBGAPI_CHECK (amd_dbgapi_wave_register_list (
-      process_id, wave_id, &register_count, &register_ids));
+  DBGAPI_CHECK (
+      amd_dbgapi_wave_register_list (wave_id, &register_count, &register_ids));
 
   for (size_t i = 0; i < class_count; ++i)
     {
@@ -218,9 +217,8 @@ print_registers (amd_dbgapi_process_id_t process_id,
 
       char *class_name_;
       DBGAPI_CHECK (amd_dbgapi_architecture_register_class_get_info (
-          architecture_id, register_class_id,
-          AMD_DBGAPI_REGISTER_CLASS_INFO_NAME, sizeof (class_name_),
-          &class_name_));
+          register_class_id, AMD_DBGAPI_REGISTER_CLASS_INFO_NAME,
+          sizeof (class_name_), &class_name_));
       std::string class_name (class_name_);
       free (class_name_);
 
@@ -236,34 +234,33 @@ print_registers (amd_dbgapi_process_id_t process_id,
 
           amd_dbgapi_register_class_state_t state;
           DBGAPI_CHECK (amd_dbgapi_register_is_in_register_class (
-              architecture_id, register_id, register_class_id, &state));
+              register_class_id, register_id, &state));
 
           if (state != AMD_DBGAPI_REGISTER_CLASS_STATE_MEMBER)
             continue;
 
           char *register_name_;
-          DBGAPI_CHECK (amd_dbgapi_wave_register_get_info (
-              process_id, wave_id, register_id, AMD_DBGAPI_REGISTER_INFO_NAME,
+          DBGAPI_CHECK (amd_dbgapi_register_get_info (
+              register_id, AMD_DBGAPI_REGISTER_INFO_NAME,
               sizeof (register_name_), &register_name_));
           std::string register_name (register_name_);
           free (register_name_);
 
           char *register_type_;
-          DBGAPI_CHECK (amd_dbgapi_wave_register_get_info (
-              process_id, wave_id, register_id, AMD_DBGAPI_REGISTER_INFO_TYPE,
+          DBGAPI_CHECK (amd_dbgapi_register_get_info (
+              register_id, AMD_DBGAPI_REGISTER_INFO_TYPE,
               sizeof (register_type_), &register_type_));
           std::string register_type (register_type_);
           free (register_type_);
 
           size_t register_size;
-          DBGAPI_CHECK (amd_dbgapi_wave_register_get_info (
-              process_id, wave_id, register_id, AMD_DBGAPI_REGISTER_INFO_SIZE,
+          DBGAPI_CHECK (amd_dbgapi_register_get_info (
+              register_id, AMD_DBGAPI_REGISTER_INFO_SIZE,
               sizeof (register_size), &register_size));
 
           std::vector<uint8_t> buffer (register_size);
-          DBGAPI_CHECK (
-              amd_dbgapi_read_register (process_id, wave_id, register_id, 0,
-                                        register_size, buffer.data ()));
+          DBGAPI_CHECK (amd_dbgapi_read_register (
+              wave_id, register_id, 0, register_size, buffer.data ()));
 
           const size_t num_register_per_line = 16 / register_size;
 
@@ -292,13 +289,17 @@ print_registers (amd_dbgapi_process_id_t process_id,
 }
 
 void
-print_local_memory (amd_dbgapi_process_id_t process_id,
-                    amd_dbgapi_wave_id_t wave_id)
+print_local_memory (amd_dbgapi_wave_id_t wave_id)
 {
+  amd_dbgapi_process_id_t process_id;
+  DBGAPI_CHECK (amd_dbgapi_wave_get_info (wave_id,
+                                          AMD_DBGAPI_WAVE_INFO_PROCESS,
+                                          sizeof (process_id), &process_id));
+
   amd_dbgapi_architecture_id_t architecture_id;
-  DBGAPI_CHECK (amd_dbgapi_wave_get_info (
-      process_id, wave_id, AMD_DBGAPI_WAVE_INFO_ARCHITECTURE,
-      sizeof (architecture_id), &architecture_id));
+  DBGAPI_CHECK (
+      amd_dbgapi_wave_get_info (wave_id, AMD_DBGAPI_WAVE_INFO_ARCHITECTURE,
+                                sizeof (architecture_id), &architecture_id));
 
   amd_dbgapi_address_space_id_t local_address_space_id;
   DBGAPI_CHECK (amd_dbgapi_dwarf_address_space_to_address_space (
@@ -375,8 +376,8 @@ stop_all_wavefronts (amd_dbgapi_process_id_t process_id)
             {
               amd_dbgapi_wave_id_t wave_id;
               DBGAPI_CHECK (amd_dbgapi_event_get_info (
-                  process_id, event_id, AMD_DBGAPI_EVENT_INFO_WAVE,
-                  sizeof (wave_id), &wave_id));
+                  event_id, AMD_DBGAPI_EVENT_INFO_WAVE, sizeof (wave_id),
+                  &wave_id));
 
               waiting_to_stop.erase (wave_id.handle);
               already_stopped.emplace (wave_id.handle);
@@ -388,8 +389,8 @@ stop_all_wavefronts (amd_dbgapi_process_id_t process_id)
 
       amd_dbgapi_wave_id_t *wave_ids;
       size_t wave_count;
-      DBGAPI_CHECK (
-          amd_dbgapi_wave_list (process_id, &wave_count, &wave_ids, nullptr));
+      DBGAPI_CHECK (amd_dbgapi_process_wave_list (process_id, &wave_count,
+                                                  &wave_ids, nullptr));
 
       /* Stop all waves that are still running.  */
       for (size_t i = 0; i < wave_count; ++i)
@@ -413,7 +414,7 @@ stop_all_wavefronts (amd_dbgapi_process_id_t process_id)
 
           /* FIXME: The wave could be single-stepping, how are we going to
              restore the state?  */
-          DBGAPI_CHECK (amd_dbgapi_wave_stop (process_id, wave_id));
+          DBGAPI_CHECK (amd_dbgapi_wave_stop (wave_id));
 
           waiting_to_stop.emplace (wave_id.handle);
         }
@@ -458,7 +459,7 @@ print_wavefronts (bool all_wavefronts)
           amd_dbgapi_runtime_state_t runtime_state;
 
           DBGAPI_CHECK (amd_dbgapi_event_get_info (
-              process_id, event_id, AMD_DBGAPI_EVENT_INFO_RUNTIME_STATE,
+              event_id, AMD_DBGAPI_EVENT_INFO_RUNTIME_STATE,
               sizeof (runtime_state), &runtime_state));
 
           switch (runtime_state)
@@ -485,12 +486,12 @@ print_wavefronts (bool all_wavefronts)
 
   amd_dbgapi_code_object_id_t *code_objects_id;
   size_t code_object_count;
-  DBGAPI_CHECK (amd_dbgapi_code_object_list (process_id, &code_object_count,
-                                             &code_objects_id, nullptr));
+  DBGAPI_CHECK (amd_dbgapi_process_code_object_list (
+      process_id, &code_object_count, &code_objects_id, nullptr));
 
   for (size_t i = 0; i < code_object_count; ++i)
     {
-      code_object_t code_object (process_id, code_objects_id[i]);
+      code_object_t code_object (code_objects_id[i]);
 
       code_object.open ();
       if (!code_object.is_open ())
@@ -520,29 +521,28 @@ print_wavefronts (bool all_wavefronts)
 
   amd_dbgapi_wave_id_t *wave_ids;
   size_t wave_count;
-  DBGAPI_CHECK (
-      amd_dbgapi_wave_list (process_id, &wave_count, &wave_ids, nullptr));
+  DBGAPI_CHECK (amd_dbgapi_process_wave_list (process_id, &wave_count,
+                                              &wave_ids, nullptr));
 
   for (size_t i = 0; i < wave_count; ++i)
     {
       amd_dbgapi_wave_id_t wave_id = wave_ids[i];
 
       amd_dbgapi_wave_state_t state;
-      DBGAPI_CHECK (amd_dbgapi_wave_get_info (process_id, wave_id,
-                                              AMD_DBGAPI_WAVE_INFO_STATE,
-                                              sizeof (state), &state));
+      DBGAPI_CHECK (amd_dbgapi_wave_get_info (
+          wave_id, AMD_DBGAPI_WAVE_INFO_STATE, sizeof (state), &state));
 
       if (state != AMD_DBGAPI_WAVE_STATE_STOP)
         continue;
 
       std::underlying_type_t<amd_dbgapi_wave_stop_reason_t> stop_reason;
-      DBGAPI_CHECK (amd_dbgapi_wave_get_info (
-          process_id, wave_id, AMD_DBGAPI_WAVE_INFO_STOP_REASON,
-          sizeof (stop_reason), &stop_reason));
+      DBGAPI_CHECK (
+          amd_dbgapi_wave_get_info (wave_id, AMD_DBGAPI_WAVE_INFO_STOP_REASON,
+                                    sizeof (stop_reason), &stop_reason));
 
       amd_dbgapi_global_address_t pc;
-      DBGAPI_CHECK (amd_dbgapi_wave_get_info (
-          process_id, wave_id, AMD_DBGAPI_WAVE_INFO_PC, sizeof (pc), &pc));
+      DBGAPI_CHECK (amd_dbgapi_wave_get_info (wave_id, AMD_DBGAPI_WAVE_INFO_PC,
+                                              sizeof (pc), &pc));
 
       if (i)
         agent_out << std::endl;
@@ -623,8 +623,8 @@ print_wavefronts (bool all_wavefronts)
         agent_out << "running";
       agent_out << ")" << std::endl;
 
-      print_registers (process_id, wave_id);
-      print_local_memory (process_id, wave_id);
+      print_registers (wave_id);
+      print_local_memory (wave_id);
 
       /* Find the code object that contains this pc, and disassemble
          instructions around `pc`  */
@@ -639,7 +639,7 @@ print_wavefronts (bool all_wavefronts)
         {
           amd_dbgapi_architecture_id_t architecture_id;
           DBGAPI_CHECK (amd_dbgapi_wave_get_info (
-              process_id, wave_id, AMD_DBGAPI_WAVE_INFO_ARCHITECTURE,
+              wave_id, AMD_DBGAPI_WAVE_INFO_ARCHITECTURE,
               sizeof (architecture_id), &architecture_id));
 
           code_object_found->disassemble (architecture_id, pc);
@@ -652,8 +652,8 @@ print_wavefronts (bool all_wavefronts)
       if (stop_reason == AMD_DBGAPI_WAVE_STOP_REASON_NONE)
         {
           /* FIXME: What if the wave was single-stepping?  */
-          DBGAPI_CHECK (amd_dbgapi_wave_resume (
-              process_id, wave_id, AMD_DBGAPI_RESUME_MODE_NORMAL));
+          DBGAPI_CHECK (
+              amd_dbgapi_wave_resume (wave_id, AMD_DBGAPI_RESUME_MODE_NORMAL));
         }
     }
 

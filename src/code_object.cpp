@@ -58,12 +58,11 @@
 namespace amd::debug_agent
 {
 
-code_object_t::code_object_t (amd_dbgapi_process_id_t process_id,
-                              amd_dbgapi_code_object_id_t code_object_id)
-    : m_code_object_id (code_object_id), m_process_id (process_id)
+code_object_t::code_object_t (amd_dbgapi_code_object_id_t code_object_id)
+    : m_code_object_id (code_object_id)
 {
   if (amd_dbgapi_code_object_get_info (
-          process_id, code_object_id, AMD_DBGAPI_CODE_OBJECT_INFO_LOAD_ADDRESS,
+          code_object_id, AMD_DBGAPI_CODE_OBJECT_INFO_LOAD_ADDRESS,
           sizeof (m_load_address), &m_load_address)
       != AMD_DBGAPI_STATUS_SUCCESS)
     {
@@ -72,7 +71,7 @@ code_object_t::code_object_t (amd_dbgapi_process_id_t process_id,
     }
 
   char *value;
-  if (amd_dbgapi_code_object_get_info (m_process_id, m_code_object_id,
+  if (amd_dbgapi_code_object_get_info (m_code_object_id,
                                        AMD_DBGAPI_CODE_OBJECT_INFO_URI_NAME,
                                        sizeof (value), &value)
       != AMD_DBGAPI_STATUS_SUCCESS)
@@ -87,8 +86,7 @@ code_object_t::code_object_t (amd_dbgapi_process_id_t process_id,
 
 code_object_t::code_object_t (code_object_t &&rhs)
     : m_load_address (rhs.m_load_address), m_mem_size (rhs.m_mem_size),
-      m_uri (std::move (rhs.m_uri)), m_code_object_id (rhs.m_code_object_id),
-      m_process_id (rhs.m_process_id)
+      m_uri (std::move (rhs.m_uri)), m_code_object_id (rhs.m_code_object_id)
 {
   m_fd = rhs.m_fd;
   rhs.m_fd.reset ();
@@ -229,8 +227,15 @@ code_object_t::open ()
               return;
             }
 
+          amd_dbgapi_process_id_t process_id;
+          if (amd_dbgapi_code_object_get_info (
+                  m_code_object_id, AMD_DBGAPI_CODE_OBJECT_INFO_PROCESS,
+                  sizeof (process_id), &process_id)
+              != AMD_DBGAPI_STATUS_SUCCESS)
+            agent_error ("could not get the process from the agent");
+
           buffer.resize (size);
-          if (amd_dbgapi_read_memory (m_process_id, AMD_DBGAPI_WAVE_NONE, 0,
+          if (amd_dbgapi_read_memory (process_id, AMD_DBGAPI_WAVE_NONE, 0,
                                       AMD_DBGAPI_ADDRESS_SPACE_GLOBAL, offset,
                                       &size, buffer.data ())
               != AMD_DBGAPI_STATUS_SUCCESS)
@@ -454,6 +459,13 @@ void
 code_object_t::disassemble (amd_dbgapi_architecture_id_t architecture_id,
                             amd_dbgapi_global_address_t pc)
 {
+  amd_dbgapi_process_id_t process_id;
+  if (amd_dbgapi_code_object_get_info (m_code_object_id,
+                                       AMD_DBGAPI_CODE_OBJECT_INFO_PROCESS,
+                                       sizeof (process_id), &process_id)
+      != AMD_DBGAPI_STATUS_SUCCESS)
+    agent_error ("could not get the process from the agent");
+
   amd_dbgapi_size_t largest_instruction_size;
   if (amd_dbgapi_architecture_get_info (
           architecture_id,
@@ -532,7 +544,7 @@ code_object_t::disassemble (amd_dbgapi_architecture_id_t architecture_id,
 
       amd_dbgapi_size_t size = buffer.size ();
       if (amd_dbgapi_read_memory (
-              m_process_id, AMD_DBGAPI_WAVE_NONE, AMD_DBGAPI_LANE_NONE,
+              process_id, AMD_DBGAPI_WAVE_NONE, AMD_DBGAPI_LANE_NONE,
               AMD_DBGAPI_ADDRESS_SPACE_GLOBAL, start_pc, &size, buffer.data ())
           != AMD_DBGAPI_STATUS_SUCCESS)
         break;
@@ -636,7 +648,7 @@ code_object_t::disassemble (amd_dbgapi_architecture_id_t architecture_id,
 
       amd_dbgapi_size_t size = buffer.size ();
       if (amd_dbgapi_read_memory (
-              m_process_id, AMD_DBGAPI_WAVE_NONE, AMD_DBGAPI_LANE_NONE,
+              process_id, AMD_DBGAPI_WAVE_NONE, AMD_DBGAPI_LANE_NONE,
               AMD_DBGAPI_ADDRESS_SPACE_GLOBAL, addr, &size, buffer.data ())
           != AMD_DBGAPI_STATUS_SUCCESS)
         {
