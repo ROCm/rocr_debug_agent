@@ -339,8 +339,10 @@ code_object_t::load_symbol_map ()
 {
   agent_assert (is_open () && "code object is not opened");
 
-  if (m_symbol_map)
+  if (m_symbol_map.has_value ())
     return;
+
+  m_symbol_map.emplace ();
 
   std::unique_ptr<Elf, void (*) (Elf *)> elf (
       elf_begin (*m_fd, ELF_C_READ, nullptr),
@@ -348,8 +350,6 @@ code_object_t::load_symbol_map ()
 
   if (!elf)
     return;
-
-  m_symbol_map.emplace ();
 
   /* Slurp the symbol table.  */
   Elf_Scn *scn = nullptr;
@@ -398,17 +398,17 @@ code_object_t::load_debug_info ()
 {
   agent_assert (is_open () && "code object is not opened");
 
-  if (m_line_number_map && m_pc_ranges_map)
+  if (m_line_number_map.has_value () && m_pc_ranges_map.has_value ())
     return;
+
+  m_line_number_map.emplace ();
+  m_pc_ranges_map.emplace ();
 
   std::unique_ptr<Dwarf, void (*) (Dwarf *)> dbg (
       dwarf_begin (*m_fd, DWARF_C_READ), [] (Dwarf *dbg) { dwarf_end (dbg); });
 
   if (!dbg)
     return;
-
-  m_line_number_map.emplace ();
-  m_pc_ranges_map.emplace ();
 
   Dwarf_Off cu_offset{ 0 }, next_offset;
   size_t header_size;
