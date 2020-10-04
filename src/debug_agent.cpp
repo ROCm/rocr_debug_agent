@@ -366,8 +366,8 @@ stop_all_wavefronts (amd_dbgapi_process_id_t process_id)
           amd_dbgapi_event_id_t event_id;
           amd_dbgapi_event_kind_t kind;
 
-          DBGAPI_CHECK (
-              amd_dbgapi_next_pending_event (process_id, &event_id, &kind));
+          DBGAPI_CHECK (amd_dbgapi_process_next_pending_event (
+              process_id, &event_id, &kind));
 
           if (event_id.handle == AMD_DBGAPI_EVENT_NONE.handle)
             break;
@@ -451,8 +451,8 @@ print_wavefronts (bool all_wavefronts)
       amd_dbgapi_event_id_t event_id;
       amd_dbgapi_event_kind_t event_kind;
 
-      DBGAPI_CHECK (
-          amd_dbgapi_next_pending_event (process_id, &event_id, &event_kind));
+      DBGAPI_CHECK (amd_dbgapi_process_next_pending_event (
+          process_id, &event_id, &event_kind));
 
       if (event_kind == AMD_DBGAPI_EVENT_KIND_RUNTIME)
         {
