@@ -699,11 +699,11 @@ handle_system_event (const hsa_amd_event_t *event, void *data)
             return "execute access to a non-executable page";
           case HSA_AMD_MEMORY_FAULT_HOST_ONLY:
             return "access to host only page";
-          case HSA_AMD_MEMORY_FAULT_DRAM_ECC:
+          case HSA_AMD_MEMORY_FAULT_DRAMECC:
             return "uncorrectable DRAM ECC failure";
           case HSA_AMD_MEMORY_FAULT_IMPRECISE:
             return "can't determine the exact fault address";
-          case HSA_AMD_MEMORY_FAULT_SRAM_ECC:
+          case HSA_AMD_MEMORY_FAULT_SRAMECC:
             return "SRAM ECC failure";
           case HSA_AMD_MEMORY_FAULT_HANG:
             return "GPU reset following unspecified hang";
