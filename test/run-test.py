@@ -71,8 +71,12 @@ def check_test_1():
             all_output_string_found = False
             print ("\"", check_str, "\" Not Found in dump.")
 
-    #if (err_str):
-    #    print (err_str)
+    if (not all_output_string_found):
+        print("rocm-debug-agent test print out.")
+        print(out_str)
+        print("rocm-debug-agent test error message.")
+        print(err_str)
+
 
     return all_output_string_found
 
@@ -106,8 +110,11 @@ def check_test_2():
             all_output_string_found = False
             print ("\"", check_str, "\" Not Found in dump.")
 
-    #if (err_str):
-    #    print (err_str)
+    if (not all_output_string_found):
+        print("rocm-debug-agent test print out.")
+        print(out_str)
+        print("rocm-debug-agent test error message.")
+        print(err_str)
 
     return all_output_string_found
 
