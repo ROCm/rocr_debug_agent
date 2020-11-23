@@ -675,45 +675,7 @@ handle_system_event (const hsa_amd_event_t *event, void *data)
   if (event->event_type != HSA_AMD_GPU_MEMORY_FAULT_EVENT)
     return HSA_STATUS_SUCCESS;
 
-  agent_out << "System event (HSA_AMD_GPU_MEMORY_FAULT_EVENT: ";
-
-  uint32_t fault_reason = event->memory_fault.fault_reason_mask;
-  std::string fault_reason_str;
-  while (fault_reason)
-    {
-      /* Consume one bit from the fault reason.  */
-      uint32_t one_bit = fault_reason ^ (fault_reason & (fault_reason - 1));
-      fault_reason ^= one_bit;
-
-      if (!fault_reason_str.empty ())
-        fault_reason_str += ", ";
-
-      fault_reason_str += [] (hsa_amd_memory_fault_reason_t reason) {
-        switch (reason)
-          {
-          case HSA_AMD_MEMORY_FAULT_PAGE_NOT_PRESENT:
-            return "page not present or supervisor privilege";
-          case HSA_AMD_MEMORY_FAULT_READ_ONLY:
-            return "write access to a read-only page";
-          case HSA_AMD_MEMORY_FAULT_NX:
-            return "execute access to a non-executable page";
-          case HSA_AMD_MEMORY_FAULT_HOST_ONLY:
-            return "access to host only page";
-          case HSA_AMD_MEMORY_FAULT_DRAMECC:
-            return "uncorrectable DRAM ECC failure";
-          case HSA_AMD_MEMORY_FAULT_IMPRECISE:
-            return "can't determine the exact fault address";
-          case HSA_AMD_MEMORY_FAULT_SRAMECC:
-            return "SRAM ECC failure";
-          case HSA_AMD_MEMORY_FAULT_HANG:
-            return "GPU reset following unspecified hang";
-          }
-        return "";
-      }(static_cast<hsa_amd_memory_fault_reason_t> (one_bit));
-    }
-
-  agent_out << fault_reason_str << ")" << std::endl;
-
+  agent_out << "System event (HSA_AMD_GPU_MEMORY_FAULT_EVENT)" << std::endl;
   agent_out << "Faulting page: 0x" << std::hex
             << event->memory_fault.virtual_address << std::endl
             << std::endl;
