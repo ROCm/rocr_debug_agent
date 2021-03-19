@@ -211,6 +211,17 @@ print_registers (amd_dbgapi_wave_id_t wave_id)
   DBGAPI_CHECK (
       amd_dbgapi_wave_register_list (wave_id, &register_count, &register_ids));
 
+  auto hash = [] (const amd_dbgapi_register_id_t &id) {
+    return std::hash<decltype (id.handle)>{}(id.handle);
+  };
+  auto equal_to = [] (const amd_dbgapi_register_id_t &lhs,
+                      const amd_dbgapi_register_id_t &rhs) {
+    return std::equal_to<decltype (lhs.handle)>{}(lhs.handle, rhs.handle);
+  };
+  std::unordered_set<amd_dbgapi_register_id_t, decltype (hash),
+                     decltype (equal_to)>
+      printed_registers (0, hash, equal_to);
+
   for (size_t i = 0; i < class_count; ++i)
     {
       amd_dbgapi_register_class_id_t register_class_id = register_class_ids[i];
@@ -222,8 +233,13 @@ print_registers (amd_dbgapi_wave_id_t wave_id)
       std::string class_name (class_name_);
       free (class_name_);
 
-      if (class_name == "general" || class_name == "all")
-        continue;
+      /* Always print the "general" register class last.  */
+      if (class_name == "general" && i < (class_count - 1))
+        {
+          register_class_ids[i--] = register_class_ids[class_count - 1];
+          register_class_ids[class_count - 1] = register_class_id;
+          continue;
+        }
 
       agent_out << std::endl << class_name << " registers:";
 
@@ -231,6 +247,11 @@ print_registers (amd_dbgapi_wave_id_t wave_id)
       for (size_t j = 0, column = 0; j < register_count; ++j)
         {
           amd_dbgapi_register_id_t register_id = register_ids[j];
+
+          /* Skip this register if is has already been printed as part of
+             another register class.  */
+          if (printed_registers.find (register_id) != printed_registers.end ())
+            continue;
 
           amd_dbgapi_register_class_state_t state;
           DBGAPI_CHECK (amd_dbgapi_register_is_in_register_class (
@@ -279,6 +300,8 @@ print_registers (amd_dbgapi_wave_id_t wave_id)
           agent_out << std::right << std::setfill (' ') << std::setw (16)
                     << (register_name + ": ")
                     << register_value_string (register_type, buffer);
+
+          printed_registers.emplace (register_id);
         }
 
       agent_out << std::endl;
