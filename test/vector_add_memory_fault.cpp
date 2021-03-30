@@ -124,5 +124,4 @@ VectorAddMemoryFaultTest ()
   hipFree (M_RESULT_DEVICE);
   free (M_IN0_HOST);
   free (M_IN1_HOST);
-  free (M_RESULT_HOST);
 }
