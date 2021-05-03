@@ -124,7 +124,7 @@ add_subdirectory(test)
 # Add packaging directives for rocm-debug-agent
 set(CPACK_PACKAGE_NAME rocm-debug-agent)
 set(CPACK_PACKAGE_VENDOR "Advanced Micro Devices, Inc")
-set(CPACK_PACKAGE_CONTACT "Advanced Micro Devices Inc.")
+set(CPACK_PACKAGE_CONTACT "ROCm Debugger Support <dl.ROCm-Debugger.support@amd.com>")
 set(CPACK_PACKAGE_DESCRIPTION_SUMMARY "Radeon Open Compute Debug Agent (ROCdebug-agent)")
 set(CPACK_PACKAGE_VERSION ${ROCM_DEBUG_AGENT_VERSION})
 set(CPACK_RESOURCE_FILE_LICENSE "${CMAKE_CURRENT_SOURCE_DIR}/LICENSE.txt")
