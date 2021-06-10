@@ -93,39 +93,9 @@ static amd_dbgapi_callbacks_t dbgapi_callbacks = {
         return AMD_DBGAPI_STATUS_SUCCESS;
       },
 
-  /* enable_notify_shared_library callback.  */
-  .enable_notify_shared_library =
-      [] (amd_dbgapi_client_process_id_t client_process_id,
-          const char *library_name, amd_dbgapi_shared_library_id_t library_id,
-          amd_dbgapi_shared_library_state_t *library_state) {
-        /* If the debug agent is loaded, then the ROCR is already loaded.   */
-        *library_state = (library_name == "libhsa-runtime64.so.1"s)
-                             ? AMD_DBGAPI_SHARED_LIBRARY_STATE_LOADED
-                             : AMD_DBGAPI_SHARED_LIBRARY_STATE_UNLOADED;
-        return AMD_DBGAPI_STATUS_SUCCESS;
-      },
-
-  /* disable_notify_shared_library callback.  */
-  .disable_notify_shared_library =
-      [] (amd_dbgapi_client_process_id_t client_process_id,
-          amd_dbgapi_shared_library_id_t library_id) {
-        return AMD_DBGAPI_STATUS_SUCCESS;
-      },
-
-  /* get_symbol_address callback.  */
-  .get_symbol_address =
-      [] (amd_dbgapi_client_process_id_t client_process_id,
-          amd_dbgapi_shared_library_id_t library_id, const char *symbol_name,
-          amd_dbgapi_global_address_t *address) {
-        *address = reinterpret_cast<amd_dbgapi_global_address_t> (
-            dlsym (RTLD_DEFAULT, symbol_name));
-        return AMD_DBGAPI_STATUS_SUCCESS;
-      },
-
   /* set_breakpoint callback.  */
   .insert_breakpoint =
       [] (amd_dbgapi_client_process_id_t client_process_id,
-          amd_dbgapi_shared_library_id_t shared_library_id,
           amd_dbgapi_global_address_t address,
           amd_dbgapi_breakpoint_id_t breakpoint_id) {
         return AMD_DBGAPI_STATUS_SUCCESS;
@@ -558,7 +528,7 @@ print_wavefronts (bool all_wavefronts)
       if (state != AMD_DBGAPI_WAVE_STATE_STOP)
         continue;
 
-      std::underlying_type_t<amd_dbgapi_wave_stop_reason_t> stop_reason;
+      std::underlying_type_t<amd_dbgapi_wave_stop_reasons_t> stop_reason;
       DBGAPI_CHECK (
           amd_dbgapi_wave_get_info (wave_id, AMD_DBGAPI_WAVE_INFO_STOP_REASON,
                                     sizeof (stop_reason), &stop_reason));
@@ -588,7 +558,7 @@ print_wavefronts (bool all_wavefronts)
           if (!stop_reason_str.empty ())
             stop_reason_str += "|";
 
-          stop_reason_str += [] (amd_dbgapi_wave_stop_reason_t reason) {
+          stop_reason_str += [] (amd_dbgapi_wave_stop_reasons_t reason) {
             switch (reason)
               {
               case AMD_DBGAPI_WAVE_STOP_REASON_NONE:
@@ -599,8 +569,6 @@ print_wavefronts (bool all_wavefronts)
                 return "WATCHPOINT";
               case AMD_DBGAPI_WAVE_STOP_REASON_SINGLE_STEP:
                 return "SINGLE_STEP";
-              case AMD_DBGAPI_WAVE_STOP_REASON_QUEUE_ERROR:
-                return "QUEUE_ERROR";
               case AMD_DBGAPI_WAVE_STOP_REASON_FP_INPUT_DENORMAL:
                 return "FP_INPUT_DENORMAL";
               case AMD_DBGAPI_WAVE_STOP_REASON_FP_DIVIDE_BY_0:
@@ -623,19 +591,19 @@ print_wavefronts (bool all_wavefronts)
                 return "TRAP";
               case AMD_DBGAPI_WAVE_STOP_REASON_MEMORY_VIOLATION:
                 return "MEMORY_VIOLATION";
+              case AMD_DBGAPI_WAVE_STOP_REASON_APERTURE_VIOLATION:
+                return "APERTURE_VIOLATION";
               case AMD_DBGAPI_WAVE_STOP_REASON_ILLEGAL_INSTRUCTION:
                 return "ILLEGAL_INSTRUCTION";
               case AMD_DBGAPI_WAVE_STOP_REASON_ECC_ERROR:
                 return "ECC_ERROR";
               case AMD_DBGAPI_WAVE_STOP_REASON_FATAL_HALT:
                 return "FATAL_HALT";
-              case AMD_DBGAPI_WAVE_STOP_REASON_XNACK_ERROR:
-                return "XNACK_ERROR";
               case AMD_DBGAPI_WAVE_STOP_REASON_RESERVED:
                 return "RESERVED";
               }
             return "";
-          }(static_cast<amd_dbgapi_wave_stop_reason_t> (one_bit));
+          }(static_cast<amd_dbgapi_wave_stop_reasons_t> (one_bit));
         }
       while (stop_reason_bits);
 
@@ -676,7 +644,7 @@ print_wavefronts (bool all_wavefronts)
         {
           /* FIXME: What if the wave was single-stepping?  */
           DBGAPI_CHECK (
-              amd_dbgapi_wave_resume (wave_id, AMD_DBGAPI_RESUME_MODE_NORMAL));
+              amd_dbgapi_wave_resume (wave_id, AMD_DBGAPI_RESUME_MODE_NORMAL, AMD_DBGAPI_EXCEPTION_NONE));
         }
     }
 
