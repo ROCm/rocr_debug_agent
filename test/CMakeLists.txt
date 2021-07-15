@@ -43,8 +43,6 @@ file(GLOB SOURCES "*.cpp")
 
 set_source_files_properties(${SOURCES} PROPERTIES HIP_SOURCE_PROPERTY_FORMAT 1)
 hip_add_executable(rocm-debug-agent-test ${SOURCES}
-  HIPCC_OPTIONS --amdgpu-target=gfx900 --amdgpu-target=gfx906
-                --amdgpu-target=gfx908 --amdgpu-target=gfx90a
   CLANG_OPTIONS -ggdb)
 
 file(GLOB HEADERS "*.h")
