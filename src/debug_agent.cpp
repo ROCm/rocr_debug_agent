@@ -691,6 +691,7 @@ void
 handle_queue_error (hsa_status_t error_code, hsa_queue_t *queue, void *data)
 {
   if (error_code == hsa_status_t (HSA_STATUS_ERROR_MEMORY_APERTURE_VIOLATION)
+      || error_code == hsa_status_t (HSA_STATUS_ERROR_MEMORY_FAULT)
       || error_code == hsa_status_t (HSA_STATUS_ERROR_ILLEGAL_INSTRUCTION)
       || error_code == HSA_STATUS_ERROR_EXCEPTION)
     {
