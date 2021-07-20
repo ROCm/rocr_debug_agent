@@ -824,6 +824,11 @@ OnLoad (void *table, uint64_t runtime_version, uint64_t failed_tool_count,
           { "help", no_argument, nullptr, 'h' },
           { 0 } };
 
+  /* We use getopt_long locally, so make sure to preserve and reset the
+     global optind.  */
+  int saved_optind = optind;
+  optind = 1;
+
   while (int c = getopt_long (argc, argv, ":as::o:dl:h", options, nullptr))
     {
       if (c == -1)
@@ -902,6 +907,10 @@ OnLoad (void *table, uint64_t runtime_version, uint64_t failed_tool_count,
           print_usage ();
         }
     }
+
+  /* Restore the global optind.  */
+  optind = saved_optind;
+
   std::for_each (args.begin (), args.end (), [] (char *str) { free (str); });
 
   if (!agent_out.is_open ())
