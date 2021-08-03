@@ -85,8 +85,9 @@ def check_test_2():
     print("Starting rocm-debug-agent test 2")
 
     #TODO: use regular expressions instead of strings
-    check_list = ['System event (HSA_AMD_GPU_MEMORY_FAULT_EVENT)',
-                  'Faulting page: 0x',
+    check_list = [
+#                  'System event (HSA_AMD_GPU_MEMORY_FAULT_EVENT)',
+#                  'Faulting page: 0x',
                   '(stopped, reason: MEMORY_VIOLATION)',
                   'exec: ffffffffffffffff',
 #                  'status: 00012461',
