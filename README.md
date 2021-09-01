@@ -320,6 +320,11 @@ Known Limitations and Restrictions
 
 - A disassembly of the wavefront faulting PC is only provided if it is within a
   code object.
+- A disassembly of the wavefront faulting PC only includes source text
+  correlation and surrounding context if the ``libdw.so`` library included with
+  the distribution supports the DWARF present in the code object. Otherwise,
+  the disassembly may only shows the instructions immediately after the
+  faulting PC.  Ubuntu 18.04 is known to have issues in supporting DWARF 5.
 
 Disclaimer
 ----------
