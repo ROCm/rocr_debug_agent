@@ -1,4 +1,5 @@
 import os
+import re
 import sys
 import inspect
 from subprocess import Popen, PIPE
@@ -46,16 +47,16 @@ def check_test_1():
     print("Starting rocm-debug-agent test 1")
 
     #TODO: use regular expressions instead of strings
-    check_list = ['Queue error (HSA_STATUS_ERROR_EXCEPTION: An HSAIL operation resulted in a hardware exception.)',
-                  '(stopped, reason: ASSERT_TRAP)',
-                   'exec: 0000000000000001',
+    check_list = ['Queue error \(HSA_STATUS_ERROR_EXCEPTION: An HSAIL operation resulted in a hardware exception\.\)',
+                  '\(stopped, reason: ASSERT_TRAP\)',
+                   'exec: (00000000)?00000001',
 #                  'status: 00012061',
 #                  'trapsts: 20000000',
 #                  'm0: 00000000',
                   's0:',
                   'v0:',
                   '0x0000: 22222222 11111111', # First uint64_t in LDS is '1111111122222222'
-                  'Disassembly for function vector_add_assert_trap(int*, int*, int*)',
+                  'Disassembly for function vector_add_assert_trap\(int\*, int\*, int\*\)',
                   'vector_add_assert_trap.cpp:',
 #                  '53          __builtin_trap ();', # Source files not always available (When install tests from package)
                   's_trap 2']
@@ -67,7 +68,8 @@ def check_test_1():
     # check output string
     all_output_string_found = True
     for check_str in check_list:
-        if (not (check_str in err_str)):
+        pattern = re.compile(check_str)
+        if (not (pattern.search(err_str))):
             all_output_string_found = False
             print ("\"", check_str, "\" Not Found in dump.")
 
@@ -86,17 +88,17 @@ def check_test_2():
 
     #TODO: use regular expressions instead of strings
     check_list = [
-#                  'System event (HSA_AMD_GPU_MEMORY_FAULT_EVENT)',
+#                  'System event \(HSA_AMD_GPU_MEMORY_FAULT_EVENT\)',
 #                  'Faulting page: 0x',
-                  '(stopped, reason: MEMORY_VIOLATION)',
-                  'exec: ffffffffffffffff',
+                  '\(stopped, reason: MEMORY_VIOLATION\)',
+                  'exec: (ffffffff)?ffffffff',
 #                  'status: 00012461',
 #                  'trapsts: 30000100',
 #                  'm0: 00001008',
                   's0:',
                   'v0:',
                   '0x0000: 22222222 11111111', # First uint64_t in LDS is '1111111122222222'
-                  'Disassembly for function vector_add_memory_fault(int*, int*, int*)',
+                  'Disassembly for function vector_add_memory_fault\(int\*, int\*, int\*\)',
                   'vector_add_memory_fault.cpp:']
 #                  'global_store_dword'] # Without precise memory, we can't guarantee that
     p = Popen(['./rocm-debug-agent-test', '2'], stdout=PIPE, stderr=PIPE)
@@ -107,7 +109,8 @@ def check_test_2():
     # check output string
     all_output_string_found = True
     for check_str in check_list:
-        if (not (check_str in err_str)):
+        pattern = re.compile(check_str)
+        if (not (pattern.search(err_str))):
             all_output_string_found = False
             print ("\"", check_str, "\" Not Found in dump.")
 
