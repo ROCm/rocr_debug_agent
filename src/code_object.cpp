@@ -41,6 +41,7 @@
 #include <libelf.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/mman.h>
 #include <unistd.h>
 
 #include <algorithm>
@@ -254,7 +255,7 @@ code_object_t::open ()
     {
     }
 
-  int fd = ::open ("/tmp", O_TMPFILE | O_RDWR, 0666);
+  int fd = ::memfd_create (m_uri.c_str (), MFD_ALLOW_SEALING | MFD_CLOEXEC);
   if (fd == -1)
     {
       agent_warning ("could not create a temporary file for code object");
