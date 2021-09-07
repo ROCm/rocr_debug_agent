@@ -41,7 +41,9 @@
 #include <libelf.h>
 #include <stdlib.h>
 #include <string.h>
+#if HAVE_MEMFD_CREATE
 #include <sys/mman.h>
+#endif /* HAVE_MEMFD_CREATE */
 #include <unistd.h>
 
 #include <algorithm>
@@ -255,7 +257,12 @@ code_object_t::open ()
     {
     }
 
-  int fd = ::memfd_create (m_uri.c_str (), MFD_ALLOW_SEALING | MFD_CLOEXEC);
+  int fd =
+#if HAVE_MEMFD_CREATE
+    ::memfd_create (m_uri.c_str (), MFD_ALLOW_SEALING | MFD_CLOEXEC);
+#else /* !HAVE_MEMFD_CREATE */
+    ::open ("/tmp", O_TMPFILE | O_RDWR, 0666);
+#endif /* !HAVE_MEMFD_CREATE */
   if (fd == -1)
     {
       agent_warning ("could not create a temporary file for code object");

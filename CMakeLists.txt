@@ -98,6 +98,17 @@ else()
   endif()
 endif()
 
+# Check for memfd_create headers and libs
+include(CheckCSourceCompiles)
+check_c_source_compiles("
+  #define _GNU_SOURCE
+  #include <sys/mman.h>
+  int main() { return memfd_create (\"cmake_test\", 0); }
+  " HAVE_MEMFD_CREATE)
+if (HAVE_MEMFD_CREATE)
+  add_definitions(-DHAVE_MEMFD_CREATE)
+endif()
+
 target_link_libraries(rocm-debug-agent
   PRIVATE amd-dbgapi ${ROCR_LIBRARIES} ${LIBELF_LIBRARIES} ${LIBDW_LIBRARIES} ${CMAKE_DL_LIBS}
   -Wl,--version-script=${CMAKE_CURRENT_SOURCE_DIR}/src/exportmap -Wl,--no-undefined)
