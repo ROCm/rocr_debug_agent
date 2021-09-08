@@ -33,10 +33,11 @@ wavefronts' pc will be printed.  For example:
 ````
 
 To use the ROCdebug-agent set the ``HSA_TOOLS_LIB`` environment variable to the
-file name or path of the library.  For example:
+file name or path of the library and the ``HSA_ENABLE_DEBUG`` environment variable
+to ``1``.  For example:
 
 ````sh
-HSA_TOOLS_LIB=/opt/rocm/lib/librocm-debug-agent.so.2 ./my_program
+HSA_TOOLS_LIB=/opt/rocm/lib/librocm-debug-agent.so.2 HSA_ENABLE_DEBUG=1 ./my_program
 ````
 
 If the application encounters a triggering event, it will print the state of
@@ -161,7 +162,7 @@ variable.  For example:
 
 ````shell
 ROCM_DEBUG_AGENT_OPTIONS="--all --save-code-objects" \
-    HSA_TOOLS_LIB=librocm-debug-agent.so.2 ./my_program
+    HSA_TOOLS_LIB=librocm-debug-agent.so.2 HSA_ENABLE_DEBUG=1 ./my_program
 ````
 
 The supported options are:
@@ -310,9 +311,9 @@ Total Test time (real) =   1.59 sec
 Tests can be run individually outside of the CTest harness.  For example:
 
 ````shell
-HSA_TOOLS_LIB=librocm-debug-agent.so.2 test/rocm-debug-agent-test 0
-HSA_TOOLS_LIB=librocm-debug-agent.so.2 test/rocm-debug-agent-test 1
-HSA_TOOLS_LIB=librocm-debug-agent.so.2 test/rocm-debug-agent-test 2
+HSA_TOOLS_LIB=librocm-debug-agent.so.2 HSA_ENABLE_DEBUG=1 test/rocm-debug-agent-test 0
+HSA_TOOLS_LIB=librocm-debug-agent.so.2 HSA_ENABLE_DEBUG=1 test/rocm-debug-agent-test 1
+HSA_TOOLS_LIB=librocm-debug-agent.so.2 HSA_ENABLE_DEBUG=1 test/rocm-debug-agent-test 2
 ````
 
 Known Limitations and Restrictions
