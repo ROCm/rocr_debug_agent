@@ -599,8 +599,10 @@ print_wavefronts (bool all_wavefronts)
                 return "ECC_ERROR";
               case AMD_DBGAPI_WAVE_STOP_REASON_FATAL_HALT:
                 return "FATAL_HALT";
+#if AMD_DBGAPI_VERSION_MAJOR == 0 &&  AMD_DBGAPI_VERSION_MINOR < 58
               case AMD_DBGAPI_WAVE_STOP_REASON_RESERVED:
                 return "RESERVED";
+#endif
               }
             return "";
           }(static_cast<amd_dbgapi_wave_stop_reasons_t> (one_bit));
