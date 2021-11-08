@@ -57,10 +57,12 @@ def check_test_1():
                   's0:',
                   'v0:',
                   '0x0000: 22222222 11111111', # First uint64_t in LDS is '1111111122222222'
-                  'Disassembly for function vector_add_assert_trap\(int\*, int\*, int\*\)',
-                  'vector_add_assert_trap.cpp:',
+                  'Disassembly for function vector_add_assert_trap\(int\*, int\*, int\*\)'
+#                  'vector_add_assert_trap.cpp:', # Debug info may not be available on some older distributions
 #                  '53          __builtin_trap ();', # Source files not always available (When install tests from package)
-                  's_trap 2']
+#                  's_trap 2'
+                  ]
+
     p = Popen(['./rocm-debug-agent-test', '1'], stdout=PIPE, stderr=PIPE)
     output, err = p.communicate()
     out_str = output.decode('utf-8')
@@ -99,9 +101,10 @@ def check_test_2():
                   's0:',
                   'v0:',
                   '0x0000: 22222222 11111111', # First uint64_t in LDS is '1111111122222222'
-                  'Disassembly for function vector_add_memory_fault\(int\*, int\*, int\*\)',
-                  'vector_add_memory_fault.cpp:']
-#                  'global_store_dword'] # Without precise memory, we can't guarantee that
+                  'Disassembly for function vector_add_memory_fault\(int\*, int\*, int\*\)'
+#                  'vector_add_memory_fault.cpp:', Debug info may not be available on some older distributions
+#                  'global_store_dword' # Without precise memory, we can't guarantee that
+                  ]
     p = Popen(['./rocm-debug-agent-test', '2'], stdout=PIPE, stderr=PIPE)
     output, err = p.communicate()
     out_str = output.decode('utf-8')
