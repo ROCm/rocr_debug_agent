@@ -81,6 +81,9 @@ set_log_level (log_level_t level)
     case log_level_t::none:
       amd_dbgapi_set_log_level (AMD_DBGAPI_LOG_LEVEL_NONE);
       break;
+    case log_level_t::verbose:
+      amd_dbgapi_set_log_level (AMD_DBGAPI_LOG_LEVEL_VERBOSE);
+      break;
     case log_level_t::info:
       amd_dbgapi_set_log_level (AMD_DBGAPI_LOG_LEVEL_INFO);
       break;

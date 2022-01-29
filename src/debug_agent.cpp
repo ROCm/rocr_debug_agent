@@ -781,7 +781,8 @@ print_usage ()
             << "                              "
                "file."
             << std::endl;
-  std::cerr << "  -l, --log-level={none|info|warning|error}" << std::endl
+  std::cerr << "  -l, --log-level={none|error|warning|info|verbose}"
+            << std::endl
             << "                              "
                "Change the Debug Agent and Debugger API log"
             << std::endl
@@ -861,6 +862,8 @@ OnLoad (void *table, uint64_t runtime_version, uint64_t failed_tool_count,
 
           if (argument == "none")
             set_log_level (log_level_t::none);
+          else if (argument == "verbose")
+            set_log_level (log_level_t::verbose);
           else if (argument == "info")
             set_log_level (log_level_t::info);
           else if (argument == "warning")

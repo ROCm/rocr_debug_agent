@@ -45,7 +45,9 @@ enum class log_level_t
   /* Print error, and warning messages.  */
   warning = 2,
   /* Print error, warning, and info messages.  */
-  info = 3
+  info = 3,
+  /* Print error, warning, info, and verbose  messages.  */
+  verbose = 4
 };
 
 extern log_level_t log_level;
