@@ -238,7 +238,7 @@ code_object_t::open ()
             agent_error ("could not get the process from the agent");
 
           buffer.resize (size);
-          if (amd_dbgapi_read_memory (process_id, AMD_DBGAPI_WAVE_NONE, 0,
+          if (amd_dbgapi_read_memory (process_id, AMD_DBGAPI_WAVE_NONE, AMD_DBGAPI_LANE_NONE,
                                       AMD_DBGAPI_ADDRESS_SPACE_GLOBAL, offset,
                                       &size, buffer.data ())
               != AMD_DBGAPI_STATUS_SUCCESS)

@@ -34,7 +34,7 @@
 
 cmake_minimum_required(VERSION 3.8.0)
 
-project(ROCM_DEBUG_AGENT VERSION 2.0.2)
+project(ROCM_DEBUG_AGENT VERSION 2.0.3)
 
 # The project command does not set the <PROJECT-NAME>_NAME variable so must set
 # it explicitly.
