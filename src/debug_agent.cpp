@@ -32,7 +32,7 @@
 #include "debug.h"
 #include "logging.h"
 
-#include <amd-dbgapi.h>
+#include <amd-dbgapi/amd-dbgapi.h>
 #include <hsa/hsa.h>
 #include <hsa/hsa_api_trace.h>
 #include <hsa/hsa_ext_amd.h>

@@ -30,7 +30,7 @@
 
 #include "logging.h"
 
-#include <amd-dbgapi.h>
+#include <amd-dbgapi/amd-dbgapi.h>
 #include <cstdio>
 #include <stdarg.h>
 
