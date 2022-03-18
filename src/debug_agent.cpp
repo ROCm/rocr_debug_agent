@@ -365,19 +365,35 @@ stop_all_wavefronts (amd_dbgapi_process_id_t process_id)
           if (event_id.handle == AMD_DBGAPI_EVENT_NONE.handle)
             break;
 
-          if (kind == AMD_DBGAPI_EVENT_KIND_WAVE_STOP)
+          if (kind == AMD_DBGAPI_EVENT_KIND_WAVE_STOP
+              || kind == AMD_DBGAPI_EVENT_KIND_WAVE_COMMAND_TERMINATED)
             {
               amd_dbgapi_wave_id_t wave_id;
               DBGAPI_CHECK (amd_dbgapi_event_get_info (
                   event_id, AMD_DBGAPI_EVENT_INFO_WAVE, sizeof (wave_id),
                   &wave_id));
 
-              waiting_to_stop.erase (wave_id.handle);
-              already_stopped.emplace (wave_id.handle);
+              agent_assert (waiting_to_stop.find (wave_id.handle)
+                            != waiting_to_stop.end ());
 
-              agent_log (log_level_t::info, "wave_%ld is stopped",
-                         wave_id.handle);
+              waiting_to_stop.erase (wave_id.handle);
+
+              if (kind == AMD_DBGAPI_EVENT_KIND_WAVE_STOP)
+                {
+                  already_stopped.emplace (wave_id.handle);
+
+                  agent_log (log_level_t::info, "wave_%ld is stopped",
+                             wave_id.handle);
+                }
+              else /* kind == AMD_DBGAPI_EVENT_KIND_COMMAND_TERMINATED */
+                {
+                  agent_log (log_level_t::info,
+                             "wave_%ld terminated while stopping",
+                             wave_id.handle);
+                }
             }
+
+          DBGAPI_CHECK (amd_dbgapi_event_processed (event_id));
         }
 
       amd_dbgapi_wave_id_t *wave_ids;
@@ -401,13 +417,47 @@ stop_all_wavefronts (amd_dbgapi_process_id_t process_id)
               continue;
             }
 
-          agent_log (log_level_t::info,
-                     "wave_%ld is running, sending stop request",
-                     wave_id.handle);
+          amd_dbgapi_wave_state_t state;
+          if (amd_dbgapi_status_t status = amd_dbgapi_wave_get_info (
+                  wave_id, AMD_DBGAPI_WAVE_INFO_STATE, sizeof (state), &state);
+              status == AMD_DBGAPI_STATUS_ERROR_INVALID_WAVE_ID)
+            {
+              /* The wave could have terminated since it was reported in the
+                 last wave list.  Skip it.  */
+              continue;
+            }
+          else if (status != AMD_DBGAPI_STATUS_SUCCESS)
+            agent_error ("amd_dbgapi_wave_get_info failed (rc=%d)", status);
 
-          /* FIXME: The wave could be single-stepping, how are we going to
-             restore the state?  */
-          DBGAPI_CHECK (amd_dbgapi_wave_stop (wave_id));
+          if (state == AMD_DBGAPI_WAVE_STATE_STOP)
+            {
+              already_stopped.emplace (wave_ids[i].handle);
+
+              agent_log (log_level_t::info, "wave_%ld is already stopped",
+                         wave_id.handle);
+              continue;
+            }
+          if (state == AMD_DBGAPI_WAVE_STATE_SINGLE_STEP)
+            {
+              /* The wave is single-stepping, it will stop and report an event
+                 once the instruction execution is complete.  */
+              agent_log (log_level_t::info, "wave_%ld is single-stepping",
+                         wave_id.handle);
+              continue;
+            }
+
+          if (amd_dbgapi_status_t status = amd_dbgapi_wave_stop (wave_id);
+              status == AMD_DBGAPI_STATUS_ERROR_INVALID_WAVE_ID)
+            {
+              /* The wave could have terminated since it was reported in the
+                 last wave list.  Skip it.  */
+              continue;
+            }
+          else if (status != AMD_DBGAPI_STATUS_SUCCESS)
+            agent_error ("amd_dbgapi_wave_stop failed (rc=%d)", status);
+
+          agent_log (log_level_t::info,
+                     "wave_%ld is running, sent stop request", wave_id.handle);
 
           waiting_to_stop.emplace (wave_id.handle);
         }
@@ -473,6 +523,8 @@ print_wavefronts (bool all_wavefronts)
       /* No more events.  */
       if (event_kind == AMD_DBGAPI_EVENT_KIND_NONE)
         break;
+
+      DBGAPI_CHECK (amd_dbgapi_event_processed (event_id));
     }
 
   std::map<amd_dbgapi_global_address_t, code_object_t> code_object_map;
