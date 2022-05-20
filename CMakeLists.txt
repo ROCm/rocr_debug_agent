@@ -36,6 +36,8 @@ cmake_minimum_required(VERSION 3.8.0)
 
 project(rocm-debug-agent VERSION 2.0.3)
 
+include(GNUInstallDirs)
+
 file(GLOB SOURCES "src/*.cpp")
 add_library(rocm-debug-agent SHARED ${SOURCES})
 
@@ -118,11 +120,11 @@ target_compile_definitions(rocm-debug-agent
 install(TARGETS rocm-debug-agent
   LIBRARY
     NAMELINK_SKIP
-    DESTINATION lib
+    DESTINATION ${CMAKE_INSTALL_LIBDIR}
   COMPONENT runtime)
 
 install(FILES LICENSE.txt README.md
-  DESTINATION share/doc/rocm-debug-agent
+  DESTINATION ${CMAKE_INSTALL_DOCDIR}
   COMPONENT runtime)
 
 enable_testing()
