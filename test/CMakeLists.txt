@@ -34,7 +34,7 @@
 
 cmake_minimum_required(VERSION 3.8.0)
 
-project(ROCM_DEBUG_AGENT_TEST VERSION ${ROCM_DEBUG_AGENT_VERSION})
+project(rocm-debug-agent-test)
 
 set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "/opt/rocm/hip/cmake")
 find_package(HIP REQUIRED MODULE)
