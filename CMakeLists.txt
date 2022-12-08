@@ -126,6 +126,16 @@ install(TARGETS rocm-debug-agent
 install(FILES LICENSE.txt README.md
   DESTINATION ${CMAKE_INSTALL_DOCDIR}
   COMPONENT runtime)
+# ASAN package requires libraries and license file
+install(TARGETS rocm-debug-agent
+  LIBRARY
+    NAMELINK_SKIP
+    DESTINATION ${CMAKE_INSTALL_LIBDIR}
+  COMPONENT asan)
+
+install(FILES LICENSE.txt
+  DESTINATION ${CMAKE_INSTALL_DOCDIR}-asan
+  COMPONENT asan)
 
 enable_testing()
 add_subdirectory(test)
@@ -164,6 +174,9 @@ set(CPACK_RPM_RUNTIME_PACKAGE_NAME "rocm-debug-agent")
 set(CPACK_RPM_RUNTIME_PACKAGE_REQUIRES "rocm-dbgapi, rocm-core")
 set(CPACK_RPM_TESTS_PACKAGE_REQUIRES "rocm-debug-agent, rocm-core")
 
+# RPM package specific variable for ASAN
+set(CPACK_RPM_ASAN_PACKAGE_NAME "rocm-debug-agent-asan")
+set(CPACK_RPM_ASAN_PACKAGE_REQUIRES "rocm-dbgapi-asan, rocm-core-asan")
 # Debian package specific variables
 if(DEFINED ENV{CPACK_DEBIAN_PACKAGE_RELEASE})
   set(CPACK_DEBIAN_PACKAGE_RELEASE $ENV{CPACK_DEBIAN_PACKAGE_RELEASE})
@@ -177,15 +190,24 @@ set(CPACK_DEBIAN_RUNTIME_PACKAGE_NAME "rocm-debug-agent")
 set(CPACK_DEBIAN_RUNTIME_PACKAGE_DEPENDS "rocm-dbgapi, rocm-core")
 set(CPACK_DEBIAN_TESTS_PACKAGE_DEPENDS "rocm-debug-agent, rocm-core")
 
+# Debian package specific variable for ASAN
+set(CPACK_DEBIAN_ASAN_PACKAGE_NAME "rocm-debug-agent-asan")
+set(CPACK_DEBIAN_ASAN_PACKAGE_DEPENDS "rocm-dbgapi-asan, rocm-core-asan")
 # Remove dependency on rocm-core if -DROCM_DEP_ROCMCORE=ON not given to cmake
 if(NOT ROCM_DEP_ROCMCORE)
     string(REGEX REPLACE ",? ?rocm-core" "" CPACK_RPM_RUNTIME_PACKAGE_REQUIRES ${CPACK_RPM_RUNTIME_PACKAGE_REQUIRES})
     string(REGEX REPLACE ",? ?rocm-core" "" CPACK_RPM_TESTS_PACKAGE_REQUIRES ${CPACK_RPM_TESTS_PACKAGE_REQUIRES})
     string(REGEX REPLACE ",? ?rocm-core" "" CPACK_DEBIAN_TESTS_PACKAGE_DEPENDS ${CPACK_DEBIAN_TESTS_PACKAGE_DEPENDS})
     string(REGEX REPLACE ",? ?rocm-core" "" CPACK_DEBIAN_RUNTIME_PACKAGE_DEPENDS ${CPACK_DEBIAN_RUNTIME_PACKAGE_DEPENDS})
+    string(REGEX REPLACE ",? ?rocm-core-asan" "" CPACK_DEBIAN_ASAN_PACKAGE_DEPENDS ${CPACK_DEBIAN_ASAN_PACKAGE_DEPENDS})
+    string(REGEX REPLACE ",? ?rocm-core-asan" "" CPACK_RPM_ASAN_PACKAGE_REQUIRES ${CPACK_RPM_ASAN_PACKAGE_REQUIRES})
 endif()
 
-set(CPACK_COMPONENTS_ALL runtime tests)
+if(ENABLE_ASAN_PACKAGING)
+  set(CPACK_COMPONENTS_ALL asan)
+else()
+  set(CPACK_COMPONENTS_ALL runtime tests)
+endif()
 
 if (NOT CPack_CMake_INCLUDED)
   include(CPack)
@@ -199,3 +221,7 @@ cpack_add_component(tests
   DISPLAY_NAME "Tests"
   DESCRIPTION "Tests for the ROCdebug-agent"
   DEPENDS runtime)
+
+cpack_add_component(asan
+  DISPLAY_NAME "Asan"
+  DESCRIPTION "AddressSanitizer libraries for the ROCdebug-agent")
