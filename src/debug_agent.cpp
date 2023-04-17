@@ -95,6 +95,61 @@ struct
   std::optional<std::promise<void>> promise;
 } g_rbrk_sync;
 
+amd_dbgapi_status_t
+amd_dbgapi_client_process_get_info (
+    amd_dbgapi_client_process_id_t client_process_id,
+    amd_dbgapi_client_process_info_t query, size_t value_size, void *value)
+{
+  if (value == nullptr)
+    return AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT;
+
+  switch (query)
+    {
+    case AMD_DBGAPI_CLIENT_PROCESS_INFO_OS_PID:
+      if (value_size != sizeof (amd_dbgapi_os_process_id_t))
+        return AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT_COMPATIBILITY;
+      *static_cast<amd_dbgapi_os_process_id_t *> (value) = getpid ();
+      return AMD_DBGAPI_STATUS_SUCCESS;
+
+    case AMD_DBGAPI_CLIENT_PROCESS_INFO_CORE_STATE:
+      return AMD_DBGAPI_STATUS_ERROR_NOT_AVAILABLE;
+    }
+
+  return AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT;
+}
+
+amd_dbgapi_status_t
+amd_dbgapi_xfer_global_memory (
+    amd_dbgapi_client_process_id_t client_process_id,
+    amd_dbgapi_global_address_t global_address, amd_dbgapi_size_t *value_size,
+    void *read_buffer, const void *write_buffer)
+{
+  if ((read_buffer == nullptr) == (write_buffer == nullptr))
+    return AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT_COMPATIBILITY;
+
+  if (client_process_id == 0)
+    return AMD_DBGAPI_STATUS_ERROR_INVALID_ARGUMENT;
+
+  int *self_mem_fd = reinterpret_cast<int *> (client_process_id);
+  if (*self_mem_fd == 0)
+    return AMD_DBGAPI_STATUS_ERROR;
+
+  ssize_t nbytes;
+  if (write_buffer == nullptr)
+    nbytes = pread (*self_mem_fd, read_buffer, *value_size, global_address);
+  else
+    nbytes = pwrite (*self_mem_fd, write_buffer, *value_size, global_address);
+
+  if (nbytes == -1)
+    {
+      perror ((write_buffer == nullptr) ? "pread failed" : "pwrite failed");
+      return AMD_DBGAPI_STATUS_ERROR_MEMORY_ACCESS;
+    }
+
+  *value_size = nbytes;
+  return AMD_DBGAPI_STATUS_SUCCESS;
+}
+
 static amd_dbgapi_callbacks_t dbgapi_callbacks = {
   /* allocate_memory.  */
   .allocate_memory = malloc,
@@ -103,11 +158,7 @@ static amd_dbgapi_callbacks_t dbgapi_callbacks = {
   .deallocate_memory = free,
 
   /* get_os_pid.  */
-  .get_os_pid =
-      [] (amd_dbgapi_client_process_id_t client_process_id, pid_t *pid) {
-        *pid = getpid ();
-        return AMD_DBGAPI_STATUS_SUCCESS;
-      },
+  .client_process_get_info = amd_dbgapi_client_process_get_info,
 
   /* set_breakpoint callback.  */
   .insert_breakpoint =
@@ -134,6 +185,9 @@ static amd_dbgapi_callbacks_t dbgapi_callbacks = {
           }
         return AMD_DBGAPI_STATUS_ERROR;
       },
+
+  /* xfer_global_memory callback.  */
+  .xfer_global_memory = amd_dbgapi_xfer_global_memory,
 
   /* log_message callback.  */
   .log_message =
@@ -929,6 +983,12 @@ dbgapi_worker (int listen_fd, bool all_wavefronts, bool precise_memory)
 
   /* Enable and attach dbgapi.  */
   DBGAPI_CHECK (amd_dbgapi_initialize (&dbgapi_callbacks));
+
+  int self_mem_fd = open ("/proc/self/mem", O_RDWR);
+  if (self_mem_fd == -1)
+    agent_error ("Failed to open /proc/self/mem: %s\n", strerror (errno));
+  std::unique_ptr<int, std::function<void (int *)>> self_mem_fd_closer (
+      &self_mem_fd, [] (int *fd) { close (*fd); });
 
   DBGAPI_CHECK (amd_dbgapi_process_attach (
       reinterpret_cast<amd_dbgapi_client_process_id_t> (&process_id),
