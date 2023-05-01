@@ -31,7 +31,7 @@
 #ifndef _ROCM_DEBUG_AGENT_CODE_OBJECT_H
 #define _ROCM_DEBUG_AGENT_CODE_OBJECT_H 1
 
-#include <amd-dbgapi.h>
+#include <amd-dbgapi/amd-dbgapi.h>
 
 #include <cstddef>
 #include <map>

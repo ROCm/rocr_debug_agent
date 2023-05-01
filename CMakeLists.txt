@@ -34,11 +34,9 @@
 
 cmake_minimum_required(VERSION 3.8.0)
 
-project(ROCM_DEBUG_AGENT VERSION 2.0.3)
+project(rocm-debug-agent VERSION 2.0.3)
 
-# The project command does not set the <PROJECT-NAME>_NAME variable so must set
-# it explicitly.
-set(ROCM_DEBUG_AGENT_NAME "${PROJECT_NAME}")
+include(GNUInstallDirs)
 
 file(GLOB SOURCES "src/*.cpp")
 add_library(rocm-debug-agent SHARED ${SOURCES})
@@ -47,8 +45,8 @@ set_target_properties(rocm-debug-agent PROPERTIES
   CXX_STANDARD 17
   CXX_STANDARD_REQUIRED ON
   CXX_EXTENSIONS OFF
-  VERSION ${ROCM_DEBUG_AGENT_VERSION}
-  SOVERSION ${ROCM_DEBUG_AGENT_VERSION_MAJOR}
+  VERSION ${PROJECT_VERSION}
+  SOVERSION ${PROJECT_VERSION_MAJOR}
   NO_SYSTEM_FROM_IMPORTED ON)
 
 set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_SOURCE_DIR}/cmake/modules/")
@@ -122,11 +120,11 @@ target_compile_definitions(rocm-debug-agent
 install(TARGETS rocm-debug-agent
   LIBRARY
     NAMELINK_SKIP
-    DESTINATION lib
+    DESTINATION ${CMAKE_INSTALL_LIBDIR}
   COMPONENT runtime)
 
 install(FILES LICENSE.txt README.md
-  DESTINATION share/doc/rocm-debug-agent
+  DESTINATION ${CMAKE_INSTALL_DOCDIR}
   COMPONENT runtime)
 
 enable_testing()
@@ -137,7 +135,7 @@ set(CPACK_PACKAGE_NAME rocm-debug-agent)
 set(CPACK_PACKAGE_VENDOR "Advanced Micro Devices, Inc")
 set(CPACK_PACKAGE_CONTACT "ROCm Debugger Support <rocm-gdb.support@amd.com>")
 set(CPACK_PACKAGE_DESCRIPTION_SUMMARY "Radeon Open Compute Debug Agent (ROCdebug-agent)")
-set(CPACK_PACKAGE_VERSION ${ROCM_DEBUG_AGENT_VERSION})
+set(CPACK_PACKAGE_VERSION ${PROJECT_VERSION})
 set(CPACK_RESOURCE_FILE_LICENSE "${CMAKE_CURRENT_SOURCE_DIR}/LICENSE.txt")
 
 if(DEFINED ENV{ROCM_LIBPATCH_VERSION})
