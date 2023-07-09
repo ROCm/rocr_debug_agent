@@ -38,23 +38,29 @@
 #include <hsa/hsa_ext_amd.h>
 
 #include <dlfcn.h>
+#include <fcntl.h>
 #include <getopt.h>
 #include <signal.h>
 #include <string.h>
+#include <sys/epoll.h>
 #include <sys/stat.h>
 #include <unistd.h>
 
 #include <algorithm>
+#include <atomic>
 #include <cstdint>
 #include <cstdlib>
+#include <future>
 #include <iomanip>
 #include <iostream>
 #include <iterator>
+#include <link.h>
 #include <map>
 #include <memory>
 #include <mutex>
 #include <optional>
 #include <string>
+#include <thread>
 #include <type_traits>
 #include <unordered_map>
 #include <unordered_set>
@@ -68,8 +74,9 @@
           status != AMD_DBGAPI_STATUS_SUCCESS)                                \
         agent_error ("%s:%d: %s failed (rc=%d)", __FILE__, __LINE__, #expr,   \
                      status);                                                 \
-    }                                                                         \
-  while (false)
+  } while (false)
+
+extern r_debug _amdgpu_r_debug;
 
 using namespace amd::debug_agent;
 using namespace std::string_literals;
@@ -78,6 +85,14 @@ namespace
 {
 std::optional<std::string> g_code_objects_dir;
 bool g_all_wavefronts{ false };
+
+/* Global state accessed by the dbgapi callbacks.  */
+std::optional<amd_dbgapi_breakpoint_id_t> g_rbrk_breakpoint_id;
+struct
+{
+  std::atomic<bool> guard;
+  std::optional<std::promise<void>> promise;
+} g_rbrk_sync;
 
 static amd_dbgapi_callbacks_t dbgapi_callbacks = {
   /* allocate_memory.  */
@@ -98,14 +113,25 @@ static amd_dbgapi_callbacks_t dbgapi_callbacks = {
       [] (amd_dbgapi_client_process_id_t client_process_id,
           amd_dbgapi_global_address_t address,
           amd_dbgapi_breakpoint_id_t breakpoint_id) {
-        return AMD_DBGAPI_STATUS_SUCCESS;
+        if (address == _amdgpu_r_debug.r_brk)
+          {
+            g_rbrk_breakpoint_id.emplace (breakpoint_id);
+            return AMD_DBGAPI_STATUS_SUCCESS;
+          }
+        return AMD_DBGAPI_STATUS_ERROR;
       },
 
   /* remove_breakpoint callback.  */
   .remove_breakpoint =
       [] (amd_dbgapi_client_process_id_t client_process_id,
           amd_dbgapi_breakpoint_id_t breakpoint_id) {
-        return AMD_DBGAPI_STATUS_SUCCESS;
+        if (g_rbrk_breakpoint_id.has_value ()
+            && breakpoint_id.handle == g_rbrk_breakpoint_id.value ().handle)
+          {
+            g_rbrk_breakpoint_id.reset ();
+            return AMD_DBGAPI_STATUS_SUCCESS;
+          }
+        return AMD_DBGAPI_STATUS_ERROR;
       },
 
   /* log_message callback.  */
@@ -472,7 +498,7 @@ stop_all_wavefronts (amd_dbgapi_process_id_t process_id)
 }
 
 void
-print_wavefronts (bool all_wavefronts)
+print_wavefronts (amd_dbgapi_process_id_t process_id, bool all_wavefronts)
 {
   /* This function is not thread-safe and not re-entrant.  */
   static std::mutex lock;
@@ -480,52 +506,6 @@ print_wavefronts (bool all_wavefronts)
     return;
   /* Make sure the lock is released when this function returns.  */
   std::scoped_lock sl (std::adopt_lock, lock);
-
-  DBGAPI_CHECK (amd_dbgapi_initialize (&dbgapi_callbacks));
-
-  amd_dbgapi_process_id_t process_id;
-  DBGAPI_CHECK (amd_dbgapi_process_attach (
-      reinterpret_cast<amd_dbgapi_client_process_id_t> (&process_id),
-      &process_id));
-
-  /* Check the runtime state.  */
-  while (true)
-    {
-      amd_dbgapi_event_id_t event_id;
-      amd_dbgapi_event_kind_t event_kind;
-
-      DBGAPI_CHECK (amd_dbgapi_process_next_pending_event (
-          process_id, &event_id, &event_kind));
-
-      if (event_kind == AMD_DBGAPI_EVENT_KIND_RUNTIME)
-        {
-          amd_dbgapi_runtime_state_t runtime_state;
-
-          DBGAPI_CHECK (amd_dbgapi_event_get_info (
-              event_id, AMD_DBGAPI_EVENT_INFO_RUNTIME_STATE,
-              sizeof (runtime_state), &runtime_state));
-
-          switch (runtime_state)
-            {
-            case AMD_DBGAPI_RUNTIME_STATE_LOADED_SUCCESS:
-              break;
-
-            case AMD_DBGAPI_RUNTIME_STATE_UNLOADED:
-              agent_error ("invalid runtime state %d", runtime_state);
-
-            case AMD_DBGAPI_RUNTIME_STATE_LOADED_ERROR_RESTRICTION:
-              agent_error ("unable to enable GPU debugging due to a "
-                           "restriction error");
-              break;
-            }
-        }
-
-      /* No more events.  */
-      if (event_kind == AMD_DBGAPI_EVENT_KIND_NONE)
-        break;
-
-      DBGAPI_CHECK (amd_dbgapi_event_processed (event_id));
-    }
 
   std::map<amd_dbgapi_global_address_t, code_object_t> code_object_map;
 
@@ -554,12 +534,6 @@ print_wavefronts (bool all_wavefronts)
                                std::move (code_object));
     }
   free (code_objects_id);
-
-  DBGAPI_CHECK (amd_dbgapi_process_set_progress (
-      process_id, AMD_DBGAPI_PROGRESS_NO_FORWARD));
-
-  DBGAPI_CHECK (amd_dbgapi_process_set_wave_creation (
-      process_id, AMD_DBGAPI_WAVE_CREATION_STOP));
 
   if (all_wavefronts)
     stop_all_wavefronts (process_id);
@@ -651,15 +625,14 @@ print_wavefronts (bool all_wavefronts)
                 return "ECC_ERROR";
               case AMD_DBGAPI_WAVE_STOP_REASON_FATAL_HALT:
                 return "FATAL_HALT";
-#if AMD_DBGAPI_VERSION_MAJOR == 0 &&  AMD_DBGAPI_VERSION_MINOR < 58
+#if AMD_DBGAPI_VERSION_MAJOR == 0 && AMD_DBGAPI_VERSION_MINOR < 58
               case AMD_DBGAPI_WAVE_STOP_REASON_RESERVED:
                 return "RESERVED";
 #endif
               }
             return "";
           }(static_cast<amd_dbgapi_wave_stop_reasons_t> (one_bit));
-        }
-      while (stop_reason_bits);
+      } while (stop_reason_bits);
 
       agent_out << " (";
       if (stop_reason != AMD_DBGAPI_WAVE_STOP_REASON_NONE)
@@ -693,113 +666,9 @@ print_wavefronts (bool all_wavefronts)
         {
           /* TODO: Add disassembly even if we did not find a code object  */
         }
-
-      if (stop_reason == AMD_DBGAPI_WAVE_STOP_REASON_NONE)
-        {
-          /* FIXME: What if the wave was single-stepping?  */
-          DBGAPI_CHECK (
-              amd_dbgapi_wave_resume (wave_id, AMD_DBGAPI_RESUME_MODE_NORMAL, AMD_DBGAPI_EXCEPTION_NONE));
-        }
     }
 
   free (wave_ids);
-
-  DBGAPI_CHECK (amd_dbgapi_process_set_wave_creation (
-      process_id, AMD_DBGAPI_WAVE_CREATION_NORMAL));
-
-  DBGAPI_CHECK (amd_dbgapi_process_set_progress (process_id,
-                                                 AMD_DBGAPI_PROGRESS_NORMAL));
-
-  DBGAPI_CHECK (amd_dbgapi_process_detach (process_id));
-  DBGAPI_CHECK (amd_dbgapi_finalize ());
-}
-
-hsa_status_t
-handle_system_event (const hsa_amd_event_t *event, void *data)
-{
-  if (event->event_type != HSA_AMD_GPU_MEMORY_FAULT_EVENT)
-    return HSA_STATUS_SUCCESS;
-
-  agent_out << "System event (HSA_AMD_GPU_MEMORY_FAULT_EVENT)" << std::endl;
-  agent_out << "Faulting page: 0x" << std::hex
-            << event->memory_fault.virtual_address << std::endl
-            << std::endl;
-
-  print_wavefronts (g_all_wavefronts);
-
-  /* FIXME: We really should be returning to the ROCr and let it print more
-     information then abort.  */
-  abort ();
-}
-
-struct callback_and_data_t
-{
-  void (*callback) (hsa_status_t error_code, hsa_queue_t *source, void *data);
-  void *data;
-};
-
-std::unordered_map<hsa_queue_t *, std::unique_ptr<callback_and_data_t>>
-    original_callbacks;
-
-void
-handle_queue_error (hsa_status_t error_code, hsa_queue_t *queue, void *data)
-{
-  if (error_code == hsa_status_t (HSA_STATUS_ERROR_MEMORY_APERTURE_VIOLATION)
-      || error_code == hsa_status_t (HSA_STATUS_ERROR_MEMORY_FAULT)
-      || error_code == hsa_status_t (HSA_STATUS_ERROR_ILLEGAL_INSTRUCTION)
-      || error_code == HSA_STATUS_ERROR_EXCEPTION)
-    {
-      const char *queue_error_str{ nullptr };
-
-      hsa_status_t status = hsa_status_string (error_code, &queue_error_str);
-      agent_assert (status == HSA_STATUS_SUCCESS);
-
-      agent_out << "Queue error (" << queue_error_str << ")" << std::endl
-                << std::endl;
-
-      print_wavefronts (g_all_wavefronts);
-    }
-
-  /* Call the original callback.  */
-  if (auto *original_callback = reinterpret_cast<callback_and_data_t *> (data);
-      original_callback->callback)
-    (*original_callback->callback) (error_code, queue,
-                                    original_callback->data);
-}
-
-decltype (CoreApiTable::hsa_queue_create_fn) original_hsa_queue_create_fn = {};
-
-hsa_status_t
-queue_create (hsa_agent_t agent, uint32_t size, hsa_queue_type32_t type,
-              void (*callback) (hsa_status_t status, hsa_queue_t *source,
-                                void *data),
-              void *data, uint32_t private_segment_size,
-              uint32_t group_segment_size, hsa_queue_t **queue)
-{
-  auto original_callback = std::make_unique<callback_and_data_t> (
-      callback_and_data_t{ callback, data });
-
-  hsa_status_t status = (*original_hsa_queue_create_fn) (
-      agent, size, type, handle_queue_error, original_callback.get (),
-      private_segment_size, group_segment_size, queue);
-
-  if (status == HSA_STATUS_SUCCESS)
-    original_callbacks.emplace (*queue, std::move (original_callback));
-
-  return status;
-}
-
-decltype (CoreApiTable::hsa_queue_destroy_fn) original_hsa_queue_destroy_fn
-    = {};
-
-hsa_status_t
-queue_destroy (hsa_queue_t *queue)
-{
-  if (auto it = original_callbacks.find (queue);
-      it != original_callbacks.end ())
-    original_callbacks.erase (it);
-
-  return (*original_hsa_queue_destroy_fn) (queue);
 }
 
 void
@@ -846,6 +715,450 @@ print_usage ()
             << std::endl;
 
   abort ();
+}
+
+/* Called when we expect dbgapi events to be present.  Fetch all events from
+   dbgapi and act on the required events.  */
+
+void
+process_dbgapi_events (amd_dbgapi_process_id_t process_id, bool all_wavefronts)
+{
+  /* Consume all events available in the queue.  */
+  bool need_print_waves = false;
+  bool wave_need_resume = false;
+  while (true)
+    {
+      amd_dbgapi_event_id_t event_id;
+      amd_dbgapi_event_kind_t event_kind;
+      DBGAPI_CHECK (amd_dbgapi_process_next_pending_event (
+          process_id, &event_id, &event_kind));
+
+      if (event_kind == AMD_DBGAPI_EVENT_KIND_NONE)
+        break;
+
+      switch (event_kind)
+        {
+        case AMD_DBGAPI_EVENT_KIND_WAVE_STOP:
+          {
+            /* Fetch the stop reason.  For a debug trap, we just resume
+               execution.  */
+            amd_dbgapi_wave_stop_reasons_t stop_reason;
+            amd_dbgapi_wave_id_t wave_id;
+            DBGAPI_CHECK (amd_dbgapi_event_get_info (
+                event_id, AMD_DBGAPI_EVENT_INFO_WAVE, sizeof (wave_id),
+                &wave_id));
+            DBGAPI_CHECK (amd_dbgapi_wave_get_info (
+                wave_id, AMD_DBGAPI_WAVE_INFO_STOP_REASON,
+                sizeof (stop_reason), &stop_reason));
+
+            if (stop_reason == AMD_DBGAPI_WAVE_STOP_REASON_DEBUG_TRAP)
+              {
+                /* This wave will be silently resumed at the end of this
+                   procedure.  */
+                wave_need_resume = true;
+              }
+            else
+              need_print_waves = true;
+            break;
+          }
+
+        case AMD_DBGAPI_EVENT_KIND_QUEUE_ERROR:
+          {
+            need_print_waves = true;
+            break;
+          }
+
+        case AMD_DBGAPI_EVENT_KIND_RUNTIME:
+        case AMD_DBGAPI_EVENT_KIND_CODE_OBJECT_LIST_UPDATED:
+        case AMD_DBGAPI_EVENT_KIND_BREAKPOINT_RESUME:
+          /* Ignore.  */
+          break;
+
+        default:
+          agent_log (log_level_t::warning, "Unexpected event kind %d",
+                     event_kind);
+          break;
+        }
+
+      /* We cannot resume the wave until this is done.  We should drain all
+         and resume waves once all events are drained.  */
+      DBGAPI_CHECK (amd_dbgapi_event_processed (event_id));
+    }
+
+  /* Some events do not require us to do anythig more.  If so, just return
+     early.  */
+  if (!need_print_waves && !wave_need_resume)
+    return;
+
+  /* TODO, we  should have a RAII object to handle forward progress wave
+     creation mode override.  */
+  DBGAPI_CHECK (amd_dbgapi_process_set_progress (
+      process_id, AMD_DBGAPI_PROGRESS_NO_FORWARD));
+
+  DBGAPI_CHECK (amd_dbgapi_process_set_wave_creation (
+      process_id, AMD_DBGAPI_WAVE_CREATION_STOP));
+
+  if (need_print_waves)
+    print_wavefronts (process_id, all_wavefronts);
+
+  /* We now need to resume execution of the waves present.  This will allow any
+     exception to be delivered to the runtime who will be able to act on it if
+     required.  */
+  amd_dbgapi_wave_id_t *wave_ids;
+  size_t wave_count;
+  DBGAPI_CHECK (amd_dbgapi_process_wave_list (process_id, &wave_count,
+                                              &wave_ids, nullptr));
+  std::unique_ptr<amd_dbgapi_wave_id_t, decltype (free) *> wave_ids_cleaner (
+      wave_ids, free);
+
+  for (size_t i = 0; i < wave_count; ++i)
+    {
+      amd_dbgapi_wave_id_t wave_id = wave_ids[i];
+
+      amd_dbgapi_wave_state_t state;
+      DBGAPI_CHECK (amd_dbgapi_wave_get_info (
+          wave_id, AMD_DBGAPI_WAVE_INFO_STATE, sizeof (state), &state));
+
+      if (state != AMD_DBGAPI_WAVE_STATE_STOP)
+        continue;
+
+      std::underlying_type_t<amd_dbgapi_wave_stop_reasons_t> stop_reason;
+      DBGAPI_CHECK (
+          amd_dbgapi_wave_get_info (wave_id, AMD_DBGAPI_WAVE_INFO_STOP_REASON,
+                                    sizeof (stop_reason), &stop_reason));
+      auto stop_reason_bits{ stop_reason };
+
+      std::underlying_type_t<amd_dbgapi_exceptions_t> resume_exceptions = 0;
+      do
+        {
+          auto one_bit
+              = stop_reason_bits ^ (stop_reason_bits & (stop_reason_bits - 1));
+          stop_reason_bits ^= one_bit;
+
+          switch (stop_reason)
+            {
+            case AMD_DBGAPI_WAVE_STOP_REASON_NONE:
+            case AMD_DBGAPI_WAVE_STOP_REASON_DEBUG_TRAP:
+              resume_exceptions |= AMD_DBGAPI_EXCEPTION_NONE;
+              break;
+
+            case AMD_DBGAPI_WAVE_STOP_REASON_BREAKPOINT:
+            case AMD_DBGAPI_WAVE_STOP_REASON_WATCHPOINT:
+            case AMD_DBGAPI_WAVE_STOP_REASON_ASSERT_TRAP:
+            case AMD_DBGAPI_WAVE_STOP_REASON_TRAP:
+              resume_exceptions |= AMD_DBGAPI_EXCEPTION_WAVE_TRAP;
+              break;
+
+            case AMD_DBGAPI_WAVE_STOP_REASON_SINGLE_STEP:
+              /* Is this even possible?  */
+              resume_exceptions |= AMD_DBGAPI_EXCEPTION_NONE;
+              break;
+
+            case AMD_DBGAPI_WAVE_STOP_REASON_FP_INPUT_DENORMAL:
+            case AMD_DBGAPI_WAVE_STOP_REASON_FP_DIVIDE_BY_0:
+            case AMD_DBGAPI_WAVE_STOP_REASON_FP_OVERFLOW:
+            case AMD_DBGAPI_WAVE_STOP_REASON_FP_UNDERFLOW:
+            case AMD_DBGAPI_WAVE_STOP_REASON_FP_INEXACT:
+            case AMD_DBGAPI_WAVE_STOP_REASON_FP_INVALID_OPERATION:
+            case AMD_DBGAPI_WAVE_STOP_REASON_INT_DIVIDE_BY_0:
+              resume_exceptions |= AMD_DBGAPI_EXCEPTION_WAVE_MATH_ERROR;
+              break;
+
+            case AMD_DBGAPI_WAVE_STOP_REASON_MEMORY_VIOLATION:
+              resume_exceptions |= AMD_DBGAPI_EXCEPTION_WAVE_MEMORY_VIOLATION;
+              break;
+
+            case AMD_DBGAPI_WAVE_STOP_REASON_APERTURE_VIOLATION:
+              resume_exceptions
+                  |= AMD_DBGAPI_EXCEPTION_WAVE_APERTURE_VIOLATION;
+              break;
+
+            case AMD_DBGAPI_WAVE_STOP_REASON_ILLEGAL_INSTRUCTION:
+              resume_exceptions
+                  |= AMD_DBGAPI_EXCEPTION_WAVE_ILLEGAL_INSTRUCTION;
+              break;
+
+            case AMD_DBGAPI_WAVE_STOP_REASON_ECC_ERROR:
+            case AMD_DBGAPI_WAVE_STOP_REASON_FATAL_HALT:
+              resume_exceptions |= AMD_DBGAPI_EXCEPTION_WAVE_ABORT;
+              break;
+
+#if AMD_DBGAPI_VERSION_MAJOR == 0 && AMD_DBGAPI_VERSION_MINOR < 58
+            case AMD_DBGAPI_WAVE_STOP_REASON_RESERVED:
+              break;
+#endif
+            }
+      } while (stop_reason_bits != 0);
+
+      DBGAPI_CHECK (amd_dbgapi_wave_resume (
+          wave_id, AMD_DBGAPI_RESUME_MODE_NORMAL,
+          static_cast<amd_dbgapi_exceptions_t> (resume_exceptions)));
+    }
+
+  DBGAPI_CHECK (amd_dbgapi_process_set_wave_creation (
+      process_id, AMD_DBGAPI_WAVE_CREATION_NORMAL));
+
+  DBGAPI_CHECK (amd_dbgapi_process_set_progress (process_id,
+                                                 AMD_DBGAPI_PROGRESS_NORMAL));
+}
+
+/* Main function of the accessory thread used to handle dbgapi.  The LISTEN_FD
+   parameter is the read end of a pipe where the main application can write
+   to instruct the worker thread to stop.  */
+void
+dbgapi_worker (int listen_fd, bool all_wavefronts)
+{
+  amd_dbgapi_process_id_t process_id;
+  amd_dbgapi_event_id_t event_id;
+  amd_dbgapi_event_kind_t event_kind;
+  amd_dbgapi_notifier_t notifier;
+  int epoll_fd;
+  epoll_event ev{};
+
+  /* Enable and attach dbgapi.  */
+  DBGAPI_CHECK (amd_dbgapi_initialize (&dbgapi_callbacks));
+
+  DBGAPI_CHECK (amd_dbgapi_process_attach (
+      reinterpret_cast<amd_dbgapi_client_process_id_t> (&process_id),
+      &process_id));
+
+  /* Runtime has been activated just before tools are loaded.  We do expect
+     a runtime loaded event to be ready to be consumed.  */
+  DBGAPI_CHECK (amd_dbgapi_process_next_pending_event (process_id, &event_id,
+                                                       &event_kind));
+  if (event_kind != AMD_DBGAPI_EVENT_KIND_RUNTIME)
+    agent_error ("Unexpected event kind %d", event_kind);
+
+  amd_dbgapi_runtime_state_t runtime_state;
+
+  DBGAPI_CHECK (
+      amd_dbgapi_event_get_info (event_id, AMD_DBGAPI_EVENT_INFO_RUNTIME_STATE,
+                                 sizeof (runtime_state), &runtime_state));
+
+  switch (runtime_state)
+    {
+    case AMD_DBGAPI_RUNTIME_STATE_LOADED_SUCCESS:
+      break;
+
+    case AMD_DBGAPI_RUNTIME_STATE_UNLOADED:
+      agent_error ("invalid runtime state %d", runtime_state);
+
+    case AMD_DBGAPI_RUNTIME_STATE_LOADED_ERROR_RESTRICTION:
+      agent_error ("unable to enable GPU debugging due to a "
+                   "restriction error");
+      break;
+    }
+
+  DBGAPI_CHECK (amd_dbgapi_event_processed (event_id));
+
+  DBGAPI_CHECK (amd_dbgapi_process_get_info (process_id,
+                                             AMD_DBGAPI_PROCESS_INFO_NOTIFIER,
+                                             sizeof (notifier), &notifier));
+
+  epoll_fd = epoll_create1 (0);
+  if (epoll_fd == -1)
+    agent_error ("unable to create epoll instance: %s", strerror (errno));
+
+  ev.data.fd = listen_fd;
+  ev.events = EPOLLIN;
+  if (epoll_ctl (epoll_fd, EPOLL_CTL_ADD, listen_fd, &ev) == -1)
+    agent_error ("Unable to add rocr notifier to the epoll instance: %s",
+                 strerror (errno));
+
+  ev.data.fd = notifier;
+  ev.events = EPOLLIN;
+  if (epoll_ctl (epoll_fd, EPOLL_CTL_ADD, notifier, &ev) == -1)
+    agent_error ("Unable to add dbgapi notifier to the epoll instance: %s",
+                 strerror (errno));
+
+  for (bool continue_event_loop = true; continue_event_loop;)
+    {
+      /* We can wait for events on at most 2 file descriptors.  */
+      epoll_event evs[2];
+
+      int nfd = epoll_wait (epoll_fd, evs, sizeof (evs), -1);
+      if (nfd == -1 && errno == EINTR)
+        continue;
+
+      if (nfd == -1)
+        agent_error ("epoll_wait failed: %s", strerror (errno));
+
+      for (int i = 0; i < nfd; i++)
+        {
+          /* Make sure we purge all data from the pipe.  */
+          if (evs[i].data.fd == listen_fd)
+            {
+              char buf = '\0';
+              while (read (evs[i].data.fd, &buf, 1) == -1 && errno == EINTR)
+                ;
+
+              switch (buf)
+                {
+                case 'p':
+                  print_wavefronts (process_id, true);
+                  break;
+                case 'q':
+                  /* It is time to exit the main event loop and detach dbgapi.
+                   */
+                  continue_event_loop = false;
+                  break;
+                case 'b':
+                  {
+                    /* We need the atomic load to ensure that the promise
+                       object we try to access is consistent with the
+                       requesting thread.  */
+                    [[maybe_unused]] bool promise_available
+                        = g_rbrk_sync.guard.load (
+                            std::memory_order::memory_order_acquire);
+
+                    agent_assert (promise_available);
+                    agent_assert (g_rbrk_sync.promise.has_value ());
+
+                    agent_assert (g_rbrk_breakpoint_id.has_value ());
+                    amd_dbgapi_breakpoint_action_t bpaction;
+                    DBGAPI_CHECK (amd_dbgapi_report_breakpoint_hit (
+                        g_rbrk_breakpoint_id.value (), 0, &bpaction));
+
+                    g_rbrk_sync.promise->set_value ();
+                    break;
+                  }
+                }
+            }
+          else if (evs[i].data.fd == notifier)
+            {
+              /* Drain the pipe.  */
+              int r;
+              do
+                {
+                  char buf;
+                  r = read (evs[i].data.fd, &buf, 1);
+              } while (r >= 0 || (r == -1 && errno == EINTR));
+              process_dbgapi_events (process_id, all_wavefronts);
+            }
+          else
+            agent_error ("Unknown file descriptor %d", evs[i].data.fd);
+        }
+    }
+
+  DBGAPI_CHECK (amd_dbgapi_process_detach (process_id));
+  DBGAPI_CHECK (amd_dbgapi_finalize ());
+}
+
+class DebugAgentWorker
+{
+public:
+  DebugAgentWorker ();
+  ~DebugAgentWorker ();
+
+  DebugAgentWorker (const DebugAgentWorker &) = delete;
+  DebugAgentWorker (DebugAgentWorker &&) = delete;
+  DebugAgentWorker &operator= (const DebugAgentWorker &) = delete;
+  DebugAgentWorker &operator= (DebugAgentWorker &&) = delete;
+
+  void query_print_waves () const;
+  void update_code_object_list () const;
+
+private:
+  std::thread m_worker_thread;
+  int m_write_pipe = -1;
+};
+
+DebugAgentWorker::DebugAgentWorker ()
+{
+  int pipefd[2];
+  if (pipe2 (pipefd, O_CLOEXEC) == -1)
+    agent_error ("failed to create pipe: %s", strerror (errno));
+
+  if (fcntl (pipefd[0], F_SETFL, O_NONBLOCK)
+      || fcntl (pipefd[1], F_SETFL, O_NONBLOCK))
+    agent_error ("failed to set pipe non-blocking: %s", strerror (errno));
+
+  m_write_pipe = pipefd[1];
+
+  m_worker_thread = std::thread (dbgapi_worker, pipefd[0], g_all_wavefronts);
+
+  auto pthread_thread = m_worker_thread.native_handle ();
+  if (pthread_setname_np (pthread_thread, "RocrDebugAgent") == -1)
+    agent_error ("Failed to set thread name: %s", strerror (errno));
+}
+
+void
+DebugAgentWorker::query_print_waves () const
+{
+  agent_assert (m_write_pipe != -1);
+  char msg = 'p';
+  write (m_write_pipe, &msg, 1);
+}
+
+void
+DebugAgentWorker::update_code_object_list () const
+{
+  /* It is OK to have this load removed if the assertion is not compiled in.
+     It does not have a role in synchronization.  */
+  agent_assert (
+      !g_rbrk_sync.guard.load (std::memory_order::memory_order_acquire));
+  agent_assert (!g_rbrk_sync.promise.has_value ());
+
+  /* Create the promise/future pair and make sure the promise is visible by
+     the worker thread.  */
+  g_rbrk_sync.promise.emplace ();
+  auto update_brk_future = g_rbrk_sync.promise->get_future ();
+  g_rbrk_sync.guard.store (true, std::memory_order::memory_order_release);
+
+  /* Use the pipe to notify the thread a code object list is requested.  */
+  char msg = 'b';
+  write (m_write_pipe, &msg, 1);
+
+  /* Wait for the worker thread to acknoledge code object update has proceded
+     and reset the synch structure so it can be reused in a later call.  */
+  update_brk_future.wait ();
+  g_rbrk_sync.promise.reset ();
+  g_rbrk_sync.guard.store (false, std::memory_order::memory_order_release);
+}
+
+DebugAgentWorker::~DebugAgentWorker ()
+{
+  if (m_write_pipe != -1)
+    {
+      char msg = 'q';
+      write (m_write_pipe, &msg, 1);
+      m_worker_thread.join ();
+      close (m_write_pipe);
+    }
+}
+
+std::optional<DebugAgentWorker> g_worker_thread;
+std::mutex g_worker_thread_mutex;
+
+decltype (CoreApiTable::hsa_executable_freeze_fn)
+    original_hsa_executable_freeze
+    = {};
+
+decltype (CoreApiTable::hsa_executable_destroy_fn)
+    original_hsa_executable_destroy
+    = {};
+
+hsa_status_t
+debug_agent_hsa_executable_freeze (hsa_executable_t executable,
+                                   const char *options)
+{
+  auto v = original_hsa_executable_freeze (executable, options);
+
+  std::lock_guard<std::mutex> lock (g_worker_thread_mutex);
+  if (g_worker_thread.has_value ())
+    g_worker_thread->update_code_object_list ();
+  return v;
+}
+
+hsa_status_t
+debug_agent_hsa_executable_destroy (hsa_executable_t executable)
+{
+  auto v = original_hsa_executable_destroy (executable);
+
+  std::lock_guard<std::mutex> lock (g_worker_thread_mutex);
+  if (g_worker_thread.has_value ())
+    g_worker_thread->update_code_object_list ();
+  return v;
 }
 
 } /* namespace.  */
@@ -983,6 +1296,12 @@ OnLoad (void *table, uint64_t runtime_version, uint64_t failed_tool_count,
     agent_error ("The environment variable 'HSA_ENABLE_DEBUG' must be set "
                  "to '1' to enable the debug agent");
 
+  {
+    std::lock_guard<std::mutex> lock (g_worker_thread_mutex);
+    /* Now, we can start the worker thread which will listen for events.  */
+    g_worker_thread.emplace ();
+  }
+
   if (!disable_sigquit)
     {
       struct sigaction sig_action;
@@ -991,8 +1310,12 @@ OnLoad (void *table, uint64_t runtime_version, uint64_t failed_tool_count,
       sigemptyset (&sig_action.sa_mask);
 
       sig_action.sa_sigaction = [] (int signal, siginfo_t *, void *) {
-        agent_out << std::endl;
-        print_wavefronts (true);
+        std::lock_guard<std::mutex> lock (g_worker_thread_mutex);
+        if (g_worker_thread.has_value ())
+          {
+            agent_out << std::endl;
+            g_worker_thread->query_print_waves ();
+          }
       };
 
       /* Install a SIGQUIT (Ctrl-\) handler.  */
@@ -1000,18 +1323,19 @@ OnLoad (void *table, uint64_t runtime_version, uint64_t failed_tool_count,
       sigaction (SIGQUIT, &sig_action, nullptr);
     }
 
-  /* Intercept the queue_create & queue_destroy functions.  */
   CoreApiTable *core_table = reinterpret_cast<HsaApiTable *> (table)->core_;
 
-  original_hsa_queue_create_fn = core_table->hsa_queue_create_fn;
-  core_table->hsa_queue_create_fn = &queue_create;
+  original_hsa_executable_freeze = core_table->hsa_executable_freeze_fn;
+  original_hsa_executable_destroy = core_table->hsa_executable_destroy_fn;
 
-  original_hsa_queue_destroy_fn = core_table->hsa_queue_destroy_fn;
-  core_table->hsa_queue_destroy_fn = &queue_destroy;
+  core_table->hsa_executable_freeze_fn = debug_agent_hsa_executable_freeze;
+  core_table->hsa_executable_destroy_fn = debug_agent_hsa_executable_destroy;
 
-  /* Install a system handler to report memory faults.  */
-  return hsa_amd_register_system_event_handler (handle_system_event, table)
-         == HSA_STATUS_SUCCESS;
+  return true;
 }
 
-extern "C" void __attribute__ ((visibility ("default"))) OnUnload () {}
+extern "C" void __attribute__ ((visibility ("default"))) OnUnload ()
+{
+  std::lock_guard<std::mutex> lock (g_worker_thread_mutex);
+  g_worker_thread.reset ();
+}

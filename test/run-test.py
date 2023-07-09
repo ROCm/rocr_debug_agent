@@ -48,7 +48,7 @@ def check_test_1():
     print("Starting rocm-debug-agent test 1")
 
     #TODO: use regular expressions instead of strings
-    check_list = ['Queue error \(HSA_STATUS_ERROR_EXCEPTION: An HSAIL operation resulted in a hardware exception\.\)',
+    check_list = ['HSA_STATUS_ERROR_EXCEPTION: An HSAIL operation resulted in a hardware exception\.',
                   '\(stopped, reason: ASSERT_TRAP\)',
                    'exec: (00000000)?00000001',
 #                  'status: 00012061',
