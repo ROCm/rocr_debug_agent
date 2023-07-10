@@ -1323,11 +1323,6 @@ OnLoad (void *table, uint64_t runtime_version, uint64_t failed_tool_count,
       agent_out.basic_ios<char>::rdbuf (std::cerr.rdbuf ());
     }
 
-  if (const char *env = ::getenv ("HSA_ENABLE_DEBUG");
-      !env || ::strcmp (env, "1"))
-    agent_error ("The environment variable 'HSA_ENABLE_DEBUG' must be set "
-                 "to '1' to enable the debug agent");
-
   {
     std::lock_guard<std::mutex> lock (g_worker_thread_mutex);
     /* Now, we can start the worker thread which will listen for events.  */
