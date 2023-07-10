@@ -85,6 +85,7 @@ namespace
 {
 std::optional<std::string> g_code_objects_dir;
 bool g_all_wavefronts{ false };
+bool g_precise_emmory{ false };
 
 /* Global state accessed by the dbgapi callbacks.  */
 std::optional<amd_dbgapi_breakpoint_id_t> g_rbrk_breakpoint_id;
@@ -687,6 +688,17 @@ print_usage ()
             << "                              "
                "the current directory."
             << std::endl;
+  std::cerr << "  -p, --precise-memory        "
+            << "Enable precise memory mode which ensures that " << std::endl
+            << "                              "
+               "when an exception is reported, the PC points to"
+            << std::endl
+            << "                              "
+               "the instruction immediately after the one that"
+            << std::endl
+            << "                              "
+               "caused the exception."
+            << std::endl;
   std::cerr << "  -o, --output=FILE           "
                "Save the output in FILE. By default, the output"
             << std::endl
@@ -906,7 +918,7 @@ process_dbgapi_events (amd_dbgapi_process_id_t process_id, bool all_wavefronts)
    parameter is the read end of a pipe where the main application can write
    to instruct the worker thread to stop.  */
 void
-dbgapi_worker (int listen_fd, bool all_wavefronts)
+dbgapi_worker (int listen_fd, bool all_wavefronts, bool precise_memory)
 {
   amd_dbgapi_process_id_t process_id;
   amd_dbgapi_event_id_t event_id;
@@ -970,6 +982,20 @@ dbgapi_worker (int listen_fd, bool all_wavefronts)
   if (epoll_ctl (epoll_fd, EPOLL_CTL_ADD, notifier, &ev) == -1)
     agent_error ("Unable to add dbgapi notifier to the epoll instance: %s",
                  strerror (errno));
+
+  if (precise_memory)
+    {
+      amd_dbgapi_status_t r = amd_dbgapi_set_memory_precision (
+          process_id, AMD_DBGAPI_MEMORY_PRECISION_PRECISE);
+      if (r != AMD_DBGAPI_STATUS_SUCCESS)
+        {
+          if (r == AMD_DBGAPI_STATUS_ERROR_NOT_SUPPORTED)
+            agent_warning ("Precise memory not supported for all the agents "
+                           "of this process.");
+          else
+            agent_error ("amd_dbgapi_set_memory_precision failed");
+        }
+    }
 
   for (bool continue_event_loop = true; continue_event_loop;)
     {
@@ -1075,7 +1101,8 @@ DebugAgentWorker::DebugAgentWorker ()
 
   m_write_pipe = pipefd[1];
 
-  m_worker_thread = std::thread (dbgapi_worker, pipefd[0], g_all_wavefronts);
+  m_worker_thread = std::thread (dbgapi_worker, pipefd[0], g_all_wavefronts,
+                                 g_precise_emmory);
 
   auto pthread_thread = m_worker_thread.native_handle ();
   if (pthread_setname_np (pthread_thread, "RocrDebugAgent") == -1)
@@ -1190,6 +1217,7 @@ OnLoad (void *table, uint64_t runtime_version, uint64_t failed_tool_count,
           { "log-level", required_argument, nullptr, 'l' },
           { "output", required_argument, nullptr, 'o' },
           { "save-code-objects", optional_argument, nullptr, 's' },
+          { "precise-memory", no_argument, nullptr, 'p' },
           { "help", no_argument, nullptr, 'h' },
           { 0 } };
 
@@ -1198,7 +1226,7 @@ OnLoad (void *table, uint64_t runtime_version, uint64_t failed_tool_count,
   int saved_optind = optind;
   optind = 1;
 
-  while (int c = getopt_long (argc, argv, ":as::o:dl:h", options, nullptr))
+  while (int c = getopt_long (argc, argv, ":as::o:dpl:h", options, nullptr))
     {
       if (c == -1)
         break;
@@ -1219,6 +1247,10 @@ OnLoad (void *table, uint64_t runtime_version, uint64_t failed_tool_count,
 
         case 'd': /* -d or --disable-linux-signals  */
           disable_sigquit = true;
+          break;
+
+        case 'p': /* -p or --precise-memory  */
+          g_precise_emmory = true;
           break;
 
         case 'l': /* -l or --log-level  */

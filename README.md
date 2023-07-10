@@ -173,6 +173,13 @@ The supported options are:
 
   If not specified, only wavefronts that have a triggering event are printed.
 
+- __``-p``, ``--precise-memory``__
+
+  Enable precise memory operations if supported by the devices.
+
+  When an exception occurs, precise memory ensures that the PC points to the
+  instruction immediately following the one that caused the exception.
+
 - __``-s [DIR]``, ``--save-code-objects[=DIR]``__
 
   Saves all loaded code objects.  If the directory is not specified, the code
