@@ -16,6 +16,7 @@ else:
     else:
         os.environ["LD_LIBRARY_PATH"] += ":" + agent_library_directory
     os.environ["HSA_TOOLS_LIB"] = "librocm-debug-agent.so.2"
+    os.environ["ROCM_DEBUG_AGENT_OPTIONS"] = "-p"
     os.chdir(test_binary_directory)
     # pre test to check if librocm-debug-agent.so.2 can be found
     p = Popen(['./rocm-debug-agent-test', '0'], stdout=PIPE, stderr=PIPE)
