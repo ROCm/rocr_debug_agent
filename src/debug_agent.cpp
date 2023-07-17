@@ -1114,7 +1114,11 @@ DebugAgentWorker::query_print_waves () const
 {
   agent_assert (m_write_pipe != -1);
   char msg = 'p';
-  write (m_write_pipe, &msg, 1);
+  ssize_t written = write (m_write_pipe, &msg, 1);
+  if (written == -1)
+    agent_error ("Failed to notify RocrDebugAgent thread (%s)",
+                 strerror (errno));
+  agent_assert (written == 1);
 }
 
 void
@@ -1134,7 +1138,11 @@ DebugAgentWorker::update_code_object_list () const
 
   /* Use the pipe to notify the thread a code object list is requested.  */
   char msg = 'b';
-  write (m_write_pipe, &msg, 1);
+  ssize_t written = write (m_write_pipe, &msg, 1);
+  if (written == -1)
+    agent_error ("Failed to notify RocrDebugAgent thread (%s)",
+                 strerror (errno));
+  agent_assert (written == 1);
 
   /* Wait for the worker thread to acknoledge code object update has proceded
      and reset the synch structure so it can be reused in a later call.  */
@@ -1148,7 +1156,11 @@ DebugAgentWorker::~DebugAgentWorker ()
   if (m_write_pipe != -1)
     {
       char msg = 'q';
-      write (m_write_pipe, &msg, 1);
+      ssize_t written = write (m_write_pipe, &msg, 1);
+      if (written == -1)
+        agent_error ("Failed to notify RocrDebugAgent thread (%s)",
+                     strerror (errno));
+      agent_assert (written == 1);
       m_worker_thread.join ();
       close (m_write_pipe);
     }
