@@ -1169,6 +1169,21 @@ DebugAgentWorker::~DebugAgentWorker ()
 std::optional<DebugAgentWorker> g_worker_thread;
 std::mutex g_worker_thread_mutex;
 
+/* Given how runtime works, it is possible for
+   debug_agent_hsa_executable_freeze / debug_agent_hsa_executable_destroy be
+   called called after g_worker_thread's dtor has been called.  The
+   G_DEBUG_AGENT_UNLOADED flag is a best effort to detect if
+   non-trivially-destructible
+
+   Reading true from G_DEBUG_AGENT_UNLOADED means that we need to assume
+   G_WORKER_THREAD and G_WORKER_THREAD_MUTEX have been destructed.  However,
+   reading false does not give much guarantee.  In theory, it is possible to
+   read false, and have the mutex's dtor called in another thread before we can
+   lock the said mutex.  This flag is really a best effort,  I am not sure
+   there is a full solution which can be implemented just in rocr_debug_agent.
+ */
+std::atomic<bool> g_debug_agent_unloaded = false;
+
 decltype (CoreApiTable::hsa_executable_freeze_fn)
     original_hsa_executable_freeze
     = {};
@@ -1183,6 +1198,9 @@ debug_agent_hsa_executable_freeze (hsa_executable_t executable,
 {
   auto v = original_hsa_executable_freeze (executable, options);
 
+  if (g_debug_agent_unloaded.load (std::memory_order::memory_order_relaxed))
+    return v;
+
   std::lock_guard<std::mutex> lock (g_worker_thread_mutex);
   if (g_worker_thread.has_value ())
     g_worker_thread->update_code_object_list ();
@@ -1194,6 +1212,9 @@ debug_agent_hsa_executable_destroy (hsa_executable_t executable)
 {
   auto v = original_hsa_executable_destroy (executable);
 
+  if (g_debug_agent_unloaded.load (std::memory_order::memory_order_relaxed))
+    return v;
+
   std::lock_guard<std::mutex> lock (g_worker_thread_mutex);
   if (g_worker_thread.has_value ())
     g_worker_thread->update_code_object_list ();
@@ -1202,6 +1223,7 @@ debug_agent_hsa_executable_destroy (hsa_executable_t executable)
 
 } /* namespace.  */
 
+extern "C" void __attribute__ ((visibility ("default"))) OnUnload ();
 extern "C" bool __attribute__ ((visibility ("default")))
 OnLoad (void *table, uint64_t runtime_version, uint64_t failed_tool_count,
         const char *const *failed_tool_names)
@@ -1341,6 +1363,10 @@ OnLoad (void *table, uint64_t runtime_version, uint64_t failed_tool_count,
     g_worker_thread.emplace ();
   }
 
+  /* OnUnload will clear g_worker_thread and signal that both
+     g_worker_thread_mutex and g_worker_thread should not be used anymore  */
+  std::atexit ([] () { OnUnload (); });
+
   if (!disable_sigquit)
     {
       struct sigaction sig_action;
@@ -1349,6 +1375,9 @@ OnLoad (void *table, uint64_t runtime_version, uint64_t failed_tool_count,
       sigemptyset (&sig_action.sa_mask);
 
       sig_action.sa_sigaction = [] (int signal, siginfo_t *, void *) {
+        if (g_debug_agent_unloaded.load (
+                std::memory_order::memory_order_relaxed))
+          return;
         std::lock_guard<std::mutex> lock (g_worker_thread_mutex);
         if (g_worker_thread.has_value ())
           {
@@ -1373,8 +1402,16 @@ OnLoad (void *table, uint64_t runtime_version, uint64_t failed_tool_count,
   return true;
 }
 
-extern "C" void __attribute__ ((visibility ("default"))) OnUnload ()
+void
+OnUnload ()
 {
+  /* See comment at the declaration of g_debug_agent_unloaded.  If rocr_agent
+     has already been unloaded, there is nothing more to do.  */
+  if (g_debug_agent_unloaded.exchange (
+          true, std::memory_order::memory_order_relaxed))
+    return;
+
   std::lock_guard<std::mutex> lock (g_worker_thread_mutex);
-  g_worker_thread.reset ();
+  if (g_worker_thread.has_value ())
+    g_worker_thread.reset ();
 }
