@@ -1124,6 +1124,7 @@ DebugAgentWorker::query_print_waves () const
 void
 DebugAgentWorker::update_code_object_list () const
 {
+  agent_assert (m_write_pipe != -1);
   /* It is OK to have this load removed if the assertion is not compiled in.
      It does not have a role in synchronization.  */
   agent_assert (
@@ -1163,6 +1164,7 @@ DebugAgentWorker::~DebugAgentWorker ()
       agent_assert (written == 1);
       m_worker_thread.join ();
       close (m_write_pipe);
+      m_write_pipe = -1;
     }
 }
 
