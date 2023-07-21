@@ -23,7 +23,14 @@ else:
     output, err = p.communicate()
     out_str = output.decode('utf-8')
     err_str = err.decode('utf-8')
-    if (err_str):
+
+    # Filter out some warnings from err_str as they are expected on some archs.
+    filtered_err_str = "\n".join([
+        line for line in err_str.split("\n")
+        if not "Precise memory not supported for all the agents" in line
+    ])
+
+    if (filtered_err_str):
         print (err_str)
         if ('\"librocm-debug-agent.so.2\" failed to load' in err_str):
             print("ERROR: Cannot find librocm-debug-agent.so.2, please set its location with environment variable LD_LIBRARY_PATH")
