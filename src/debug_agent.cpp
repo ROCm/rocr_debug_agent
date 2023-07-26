@@ -1168,23 +1168,84 @@ DebugAgentWorker::~DebugAgentWorker ()
     }
 }
 
-std::optional<DebugAgentWorker> g_worker_thread;
-std::mutex g_worker_thread_mutex;
+/* Forward declarations of the WorkerThreadAccess factory.  */
+class WorkerThreadAccess;
+static WorkerThreadAccess get_worker_thread ();
 
-/* Given how runtime works, it is possible for
-   debug_agent_hsa_executable_freeze / debug_agent_hsa_executable_destroy be
-   called called after g_worker_thread's dtor has been called.  The
-   G_DEBUG_AGENT_UNLOADED flag is a best effort to detect if
-   non-trivially-destructible
+/* Wraps an exclusive access (protected by a mutex) to the debug agent
+   worker thread.  */
+class WorkerThreadAccess
+{
+private:
+  WorkerThreadAccess (std::mutex &m, std::optional<DebugAgentWorker> &w)
+      : m_lock (m), m_worker (w)
+  {
+  }
 
-   Reading true from G_DEBUG_AGENT_UNLOADED means that we need to assume
-   G_WORKER_THREAD and G_WORKER_THREAD_MUTEX have been destructed.  However,
-   reading false does not give much guarantee.  In theory, it is possible to
-   read false, and have the mutex's dtor called in another thread before we can
-   lock the said mutex.  This flag is really a best effort,  I am not sure
-   there is a full solution which can be implemented just in rocr_debug_agent.
- */
-std::atomic<bool> g_debug_agent_unloaded = false;
+  friend WorkerThreadAccess get_worker_thread ();
+
+public:
+  WorkerThreadAccess () = delete;
+  WorkerThreadAccess (const WorkerThreadAccess &) = delete;
+  WorkerThreadAccess (WorkerThreadAccess &&) = delete;
+  ~WorkerThreadAccess () = default;
+
+  WorkerThreadAccess &operator= (const WorkerThreadAccess &) = delete;
+  WorkerThreadAccess &operator= (WorkerThreadAccess &&) = delete;
+
+  /* Start the worker thread, if not already started.  */
+  void start ()
+  {
+    if (!m_worker.has_value ())
+      m_worker.emplace ();
+  }
+
+  /* Terminate the worker thread.  */
+  void stop ()
+  {
+    if (m_worker.has_value ())
+      m_worker.reset ();
+  }
+
+  void update_code_object_list ()
+  {
+    if (m_worker.has_value ())
+      m_worker->update_code_object_list ();
+  }
+
+  void query_print_waves ()
+  {
+    if (m_worker.has_value ())
+      m_worker->query_print_waves ();
+  }
+
+private:
+  std::lock_guard<std::mutex> m_lock;
+  std::optional<DebugAgentWorker> &m_worker;
+};
+
+static WorkerThreadAccess
+get_worker_thread ()
+{
+  struct WorkerWrapper
+  {
+    std::optional<DebugAgentWorker> thread;
+    std::mutex mutex;
+  };
+  static WorkerWrapper *wp = [] () {
+    alignas (
+        WorkerWrapper) static char wrapper_storage[sizeof (WorkerWrapper)];
+    WorkerWrapper *wrapper = new (wrapper_storage) WorkerWrapper;
+
+    /* At exit we do not want to destruct the WorkerThreadAccess instance,
+       because it is possible that callbacks will try to use it after its dtor
+       would have been called.  Instead, we make sure to reset it, which will
+       stop the worker thread.  */
+    std::atexit ([] () { get_worker_thread ().stop (); });
+    return wrapper;
+  }();
+  return WorkerThreadAccess (wp->mutex, wp->thread);
+}
 
 decltype (CoreApiTable::hsa_executable_freeze_fn)
     original_hsa_executable_freeze
@@ -1200,12 +1261,7 @@ debug_agent_hsa_executable_freeze (hsa_executable_t executable,
 {
   auto v = original_hsa_executable_freeze (executable, options);
 
-  if (g_debug_agent_unloaded.load (std::memory_order::memory_order_relaxed))
-    return v;
-
-  std::lock_guard<std::mutex> lock (g_worker_thread_mutex);
-  if (g_worker_thread.has_value ())
-    g_worker_thread->update_code_object_list ();
+  get_worker_thread ().update_code_object_list ();
   return v;
 }
 
@@ -1214,12 +1270,7 @@ debug_agent_hsa_executable_destroy (hsa_executable_t executable)
 {
   auto v = original_hsa_executable_destroy (executable);
 
-  if (g_debug_agent_unloaded.load (std::memory_order::memory_order_relaxed))
-    return v;
-
-  std::lock_guard<std::mutex> lock (g_worker_thread_mutex);
-  if (g_worker_thread.has_value ())
-    g_worker_thread->update_code_object_list ();
+  get_worker_thread ().update_code_object_list ();
   return v;
 }
 
@@ -1359,15 +1410,7 @@ OnLoad (void *table, uint64_t runtime_version, uint64_t failed_tool_count,
       agent_out.basic_ios<char>::rdbuf (std::cerr.rdbuf ());
     }
 
-  {
-    std::lock_guard<std::mutex> lock (g_worker_thread_mutex);
-    /* Now, we can start the worker thread which will listen for events.  */
-    g_worker_thread.emplace ();
-  }
-
-  /* OnUnload will clear g_worker_thread and signal that both
-     g_worker_thread_mutex and g_worker_thread should not be used anymore  */
-  std::atexit ([] () { OnUnload (); });
+  get_worker_thread ().start ();
 
   if (!disable_sigquit)
     {
@@ -1377,15 +1420,8 @@ OnLoad (void *table, uint64_t runtime_version, uint64_t failed_tool_count,
       sigemptyset (&sig_action.sa_mask);
 
       sig_action.sa_sigaction = [] (int signal, siginfo_t *, void *) {
-        if (g_debug_agent_unloaded.load (
-                std::memory_order::memory_order_relaxed))
-          return;
-        std::lock_guard<std::mutex> lock (g_worker_thread_mutex);
-        if (g_worker_thread.has_value ())
-          {
-            agent_out << std::endl;
-            g_worker_thread->query_print_waves ();
-          }
+        agent_out << std::endl;
+        get_worker_thread ().query_print_waves ();
       };
 
       /* Install a SIGQUIT (Ctrl-\) handler.  */
@@ -1407,13 +1443,5 @@ OnLoad (void *table, uint64_t runtime_version, uint64_t failed_tool_count,
 void
 OnUnload ()
 {
-  /* See comment at the declaration of g_debug_agent_unloaded.  If rocr_agent
-     has already been unloaded, there is nothing more to do.  */
-  if (g_debug_agent_unloaded.exchange (
-          true, std::memory_order::memory_order_relaxed))
-    return;
-
-  std::lock_guard<std::mutex> lock (g_worker_thread_mutex);
-  if (g_worker_thread.has_value ())
-    g_worker_thread.reset ();
+  get_worker_thread ().stop ();
 }
