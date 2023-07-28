@@ -4,6 +4,15 @@ import sys
 import inspect
 from subprocess import Popen, PIPE
 
+
+def filter_warnings(err_str):
+    """ Filter out warnings wich are expected on some archs.  """
+    return "\n".join([
+        line for line in err_str.split("\n")
+        if not "Precise memory not supported for all the agents" in line
+    ])
+
+
 # set up
 if (len(sys.argv)  != 2):
     raise Exception("ERROR: Please specify test binary location. For example: $python3.6 run_test.py ./build")
@@ -24,13 +33,7 @@ else:
     out_str = output.decode('utf-8')
     err_str = err.decode('utf-8')
 
-    # Filter out some warnings from err_str as they are expected on some archs.
-    filtered_err_str = "\n".join([
-        line for line in err_str.split("\n")
-        if not "Precise memory not supported for all the agents" in line
-    ])
-
-    if (filtered_err_str):
+    if (filter_warnings(err_str)):
         print (err_str)
         if ('\"librocm-debug-agent.so.2\" failed to load' in err_str):
             print("ERROR: Cannot find librocm-debug-agent.so.2, please set its location with environment variable LD_LIBRARY_PATH")
@@ -45,7 +48,7 @@ def check_test_0():
     err_str = err.decode('utf-8')
 
 # Only print but not throw for err_str, since debug build has print out could be ignored
-    if (err_str):
+    if (filter_warnings(err_str)):
         print (err_str)
 
     return True
