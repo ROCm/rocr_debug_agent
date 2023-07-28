@@ -62,6 +62,7 @@ find_package(amd-dbgapi REQUIRED CONFIG
 find_package(ROCR REQUIRED)
 find_package(LibElf REQUIRED)
 find_package(LibDw REQUIRED)
+find_package(Threads REQUIRED)
 
 target_include_directories(rocm-debug-agent
   SYSTEM PRIVATE ${ROCR_INCLUDES} ${LIBELF_INCLUDES} ${LIBDW_INCLUDES})
@@ -108,7 +109,8 @@ if (HAVE_MEMFD_CREATE)
 endif()
 
 target_link_libraries(rocm-debug-agent
-  PRIVATE amd-dbgapi ${ROCR_LIBRARIES} ${LIBELF_LIBRARIES} ${LIBDW_LIBRARIES} ${CMAKE_DL_LIBS}
+  PRIVATE amd-dbgapi ${ROCR_LIBRARIES} ${LIBELF_LIBRARIES} ${LIBDW_LIBRARIES}
+  Threads::Threads ${CMAKE_DL_LIBS}
   -Wl,--version-script=${CMAKE_CURRENT_SOURCE_DIR}/src/exportmap -Wl,--no-undefined)
 
 target_compile_options(rocm-debug-agent
