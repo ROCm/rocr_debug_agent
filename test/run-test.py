@@ -9,7 +9,8 @@ def filter_warnings(err_str):
     """ Filter out warnings wich are expected on some archs.  """
     return "\n".join([
         line for line in err_str.split("\n")
-        if not "Precise memory not supported for all the agents" in line
+        if not ("Precise memory not supported for all the agents" in line
+                or "architecture not supported" in line)
     ])
 
 
