@@ -117,11 +117,15 @@ VectorAddMemoryFaultTest ()
   const unsigned threadsPerBlock = 64;
   hipLaunchKernelGGL (vector_add_memory_fault, dim3 (blocks),
                       dim3 (threadsPerBlock), 0, 0, M_IN0, M_IN1, nullptr);
-  hipDeviceSynchronize ();
+  err = hipDeviceSynchronize ();
+  TEST_ASSERT (err == hipSuccess, "hipDeviceSynchronize");
 
-  hipFree (M_IN0);
-  hipFree (M_IN1);
-  hipFree (M_RESULT_DEVICE);
+  err = hipFree (M_IN0);
+  TEST_ASSERT (err == hipSuccess, "hipFree");
+  err = hipFree (M_IN1);
+  TEST_ASSERT (err == hipSuccess, "hipFree");
+  err = hipFree (M_RESULT_DEVICE);
+  TEST_ASSERT (err == hipSuccess, "hipFree");
   free (M_IN0_HOST);
   free (M_IN1_HOST);
 }

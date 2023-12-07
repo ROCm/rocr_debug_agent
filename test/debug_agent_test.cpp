@@ -108,7 +108,8 @@ RunVectorAddNormalTest ()
 
       VectorAddNormalTest ();
 
-      hipDeviceReset ();
+      err = hipDeviceReset ();
+      TEST_ASSERT (err == hipSuccess, "hipDeviceReset");
     }
 
   PrintTestInfo ("VectorAddNormalTest end");
@@ -130,7 +131,8 @@ RunVectorAddDebugTrapTest ()
 
       VectorAddDebugTrapTest ();
 
-      hipDeviceReset ();
+      err = hipDeviceReset ();
+      TEST_ASSERT (err == hipSuccess, "hipDeviceReset");
     }
 
   PrintTestInfo ("VectorAddDebugTrapTest end");
@@ -152,7 +154,8 @@ RunVectorAddMemoryFaultTest ()
 
       VectorAddMemoryFaultTest ();
 
-      hipDeviceReset ();
+      err = hipDeviceReset ();
+      TEST_ASSERT (err == hipSuccess, "hipDeviceReset");
     }
 
   PrintTestInfo ("VectorAddMemoryFaultTest end");
