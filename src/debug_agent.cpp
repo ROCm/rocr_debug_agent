@@ -672,8 +672,8 @@ print_wavefronts (amd_dbgapi_process_id_t process_id, bool all_wavefronts)
                 return "TRAP";
               case AMD_DBGAPI_WAVE_STOP_REASON_MEMORY_VIOLATION:
                 return "MEMORY_VIOLATION";
-              case AMD_DBGAPI_WAVE_STOP_REASON_APERTURE_VIOLATION:
-                return "APERTURE_VIOLATION";
+              case AMD_DBGAPI_WAVE_STOP_REASON_ADDRESS_ERROR:
+                return "ADDRESS_ERROR";
               case AMD_DBGAPI_WAVE_STOP_REASON_ILLEGAL_INSTRUCTION:
                 return "ILLEGAL_INSTRUCTION";
               case AMD_DBGAPI_WAVE_STOP_REASON_ECC_ERROR:
@@ -934,9 +934,9 @@ process_dbgapi_events (amd_dbgapi_process_id_t process_id, bool all_wavefronts)
               resume_exceptions |= AMD_DBGAPI_EXCEPTION_WAVE_MEMORY_VIOLATION;
               break;
 
-            case AMD_DBGAPI_WAVE_STOP_REASON_APERTURE_VIOLATION:
+            case AMD_DBGAPI_WAVE_STOP_REASON_ADDRESS_ERROR:
               resume_exceptions
-                  |= AMD_DBGAPI_EXCEPTION_WAVE_APERTURE_VIOLATION;
+                  |= AMD_DBGAPI_EXCEPTION_WAVE_ADDRESS_ERROR;
               break;
 
             case AMD_DBGAPI_WAVE_STOP_REASON_ILLEGAL_INSTRUCTION:
