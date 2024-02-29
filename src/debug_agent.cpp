@@ -1060,9 +1060,10 @@ dbgapi_worker (int listen_fd, bool all_wavefronts, bool precise_memory)
   for (bool continue_event_loop = true; continue_event_loop;)
     {
       /* We can wait for events on at most 2 file descriptors.  */
-      epoll_event evs[2];
+      constexpr size_t max_events = 2;
+      epoll_event evs[max_events];
 
-      int nfd = epoll_wait (epoll_fd, evs, sizeof (evs), -1);
+      int nfd = epoll_wait (epoll_fd, evs, max_events, -1);
       if (nfd == -1 && errno == EINTR)
         continue;
 
