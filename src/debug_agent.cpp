@@ -991,7 +991,7 @@ dbgapi_worker (int listen_fd, bool all_wavefronts, bool precise_memory)
       &self_mem_fd, [] (int *fd) { close (*fd); });
 
   DBGAPI_CHECK (amd_dbgapi_process_attach (
-      reinterpret_cast<amd_dbgapi_client_process_id_t> (&process_id),
+      reinterpret_cast<amd_dbgapi_client_process_id_t> (&self_mem_fd),
       &process_id));
 
   /* Runtime has been activated just before tools are loaded.  We do expect
