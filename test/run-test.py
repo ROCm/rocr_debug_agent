@@ -10,7 +10,8 @@ def filter_warnings(err_str):
     return "\n".join([
         line for line in err_str.split("\n")
         if not ("Precise memory not supported for all the agents" in line
-                or "architecture not supported" in line)
+                or "architecture not supported" in line
+                or "Warning: Resource leak detected" in line)
     ])
 
 
