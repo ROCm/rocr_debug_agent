@@ -21,10 +21,10 @@ Prerequisites
 
 - Packages as per the OS.
 
-    - For Ubuntu 18.04 and Ubuntu 20.04:
+  - For Ubuntu 18.04 and Ubuntu 20.04:
         
-        .. code:: shell
-            apt install gcc g++ make cmake libelf-dev libdw-dev
+    .. code:: shell
+        apt install gcc g++ make cmake libelf-dev libdw-dev
 
     - For CentOS 8.1 and RHEL 8.1:
 
