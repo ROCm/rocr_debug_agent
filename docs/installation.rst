@@ -23,18 +23,21 @@ Prerequisites
 
   - For Ubuntu 18.04 and Ubuntu 20.04:
         
-    .. code:: shell
-        apt install gcc g++ make cmake libelf-dev libdw-dev
+  .. code:: shell
 
-    - For CentOS 8.1 and RHEL 8.1:
+    apt install gcc g++ make cmake libelf-dev libdw-dev
 
-        .. code:: shell
-            yum install gcc gcc-c++ make cmake elfutils-libelf-devel elfutils-devel
+  - For CentOS 8.1 and RHEL 8.1:
 
-    - For SLES 15 Service Pack 1:
+  .. code:: shell
 
-        .. code:: shell
-            zypper install gcc gcc-c++ make cmake libelf-devel libdw-devel
+    yum install gcc gcc-c++ make cmake elfutils-libelf-devel elfutils-devel
+
+  - For SLES 15 Service Pack 1:
+
+  .. code:: shell
+
+    zypper install gcc gcc-c++ make cmake libelf-devel libdw-devel
 
 - Python version 3.6 or later to run the tests.
 
