@@ -49,6 +49,7 @@ Build and install
 An example command-line to build and install the ROCdebug-agent library on Linux:
 
 .. code-block:: shell
+
     cd rocm-debug-agent
     mkdir build && cd build
     cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=../install ..
@@ -63,6 +64,7 @@ The built ROCdebug-agent library is placed in ``build/librocm-debug-agent.so.2*`
 To install the ROCdebug-agent library, use:
 
 .. code:: shell
+
     make install    
     
 The installed ROCdebug-agent library and tests are placed in:
@@ -78,11 +80,13 @@ Test
 To test the ROCdebug-agent library, use:
 
 .. code:: shell
+
     make test
 
 Output:
 
 .. code-block:: shell
+
     Running tests...
     Test project /rocm-debug-agent/build
     Start 1: rocm-debug-agent-test
@@ -94,6 +98,7 @@ Output:
 You can run the tests individually outside of the ``CTest`` harness as shown below:
 
 .. code-block:: shell
+    
     HSA_TOOLS_LIB=librocm-debug-agent.so.2 HSA_ENABLE_DEBUG=1 test/rocm-debug-agent-test 0
     HSA_TOOLS_LIB=librocm-debug-agent.so.2 HSA_ENABLE_DEBUG=1 test/rocm-debug-agent-test 1
     HSA_TOOLS_LIB=librocm-debug-agent.so.2 HSA_ENABLE_DEBUG=1 test/rocm-debug-agent-test 2
