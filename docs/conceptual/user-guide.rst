@@ -145,45 +145,26 @@ The following table lists the supported options:
 .. list-table:: ROCdebug-agent options
     :header-rows: 1
 
-    *   - Option
-        - Description
+    * - Option
+      - Description
 
-    *   - ``-a``, ``--all``
-        - Prints all wavefronts. If not specified, only wavefronts with a triggering event are printed.
+    * - ``-a``, ``--all``
+      - Prints all wavefronts. If not specified, only wavefronts with a triggering event are printed.
 
-    *   - ``-s [DIR]``, ``--save-code-objects[=DIR]``
-        - Saves all loaded code objects. If the directory is not specified, the code objects are saved in the current directory.
+    * - ``-s [DIR]``, ``--save-code-objects[=DIR]``
+      - Saves all loaded code objects. If the directory is not specified, the code objects are saved in the current directory.
         The file name in which the code object is saved is the same as the code object URI with special characters replaced by '_'. For example, the code object URI
         ``file:///rocm-debug-agent/rocm-debug-agent-test#offset=14309&size=31336`` is saved in a file with the name ``file____rocm-debug-agent_rocm-debug-agent-test_offset_14309_size_31336``.
 
-    *   - ``-o <file-path>``, ``--output=<file-path>``
-        - Saves the output produced by the ROCdebug-agent in the specified file. By default, the output is redirected to ``stderr``.
+    * - ``-o <file-path>``, ``--output=<file-path>``
+      - Saves the output produced by the ROCdebug-agent in the specified file. By default, the output is redirected to ``stderr``.
 
-    *   - ``-d``, ``--disable-linux-signals``
-        - Disables installation of ``SIGQUIT`` signal handler, so that the default Linux handler can dump a core file.
+    * - ``-d``, ``--disable-linux-signals``
+      - Disables installation of ``SIGQUIT`` signal handler, so that the default Linux handler can dump a core file.
         By default, the ROCdebug-agent installs a ``SIGQUIT`` handler to print the state of all wavefronts when a ``SIGQUIT`` signal is sent to the process.
 
-    *   - ``-l <log-level>``, ``--log-level=<log-level>``
-        - Changes the ROCdebug-agent and ROCdbgapi log level. The log level can be none, info, warning, or error. The default log level is none.
+    * - ``-l <log-level>``, ``--log-level=<log-level>``
+      - Changes the ROCdebug-agent and ROCdbgapi log level. The log level can be none, info, warning, or error. The default log level is none.
 
-    *   - ``-h``, ``--help``
-        - Displays the usage and aborts the process.
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+    * - ``-h``, ``--help``
+      - Displays the usage and aborts the process.
