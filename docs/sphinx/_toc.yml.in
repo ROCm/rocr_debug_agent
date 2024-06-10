@@ -2,6 +2,12 @@
 # These comments will also be removed.
 root: index
 subtrees:
+  - caption: Install
+    entries:
+    - file: install/installation
+  - caption: Conceptual
+    entries:
+    - file: conceptual/user-guide
   - caption: About
     entries:
     - file: license
