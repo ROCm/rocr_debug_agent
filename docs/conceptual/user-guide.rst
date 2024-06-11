@@ -5,7 +5,7 @@
 .. _user-guide:
 
 ===========================
-ROCdebug-agent user guide
+ROCR Debug Agent user guide
 ===========================
 
 To display the source text location with the machine code instructions around the wavefront's pc, compile the AMDGPU code objects with ``-ggdb``.  In addition, you can optionally user ``-O0`` to achieve a more intuitive display of the source text location

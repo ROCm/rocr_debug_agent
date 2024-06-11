@@ -8,7 +8,7 @@
 Installation
 ==================================
 
-This document provides information required to build and install ROCdebug-agent library.
+This document provides information required to build and install ROCR Debug Agent (ROCdebug-agent) library.
 
 Prerequisites
 ------------------
@@ -57,7 +57,7 @@ An example command-line to build and install the ROCdebug-agent library on Linux
 
 To specify the location for the installation, use ``CMAKE_INSTALL_PREFIX``. The default location is ``/usr``.
 
-To specify a list of paths separated by `;` that are used to locate the ``cmake`` modules, use ``CMAKE_MODULE_PATH``. It is used to locate the HIP ``cmake`` modules required to build the tests. The default is location is ``/opt/rocm/hip/cmake``.
+To specify a list of paths separated by `;` that are used to locate the ``cmake`` modules, use ``CMAKE_MODULE_PATH``. It is used to locate the HIP ``cmake`` modules required to build the tests. The default location is ``/opt/rocm/hip/cmake``.
 
 The built ROCdebug-agent library is placed in ``build/librocm-debug-agent.so.2*``.
 
