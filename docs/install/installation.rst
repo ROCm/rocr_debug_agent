@@ -39,7 +39,7 @@ Prerequisites
 
     zypper install gcc gcc-c++ make cmake libelf-devel libdw-devel
 
-- Python version 3.6 or later to run the tests.
+- Python 3.6 or later to run the tests.
 
 - ROCdbgapi library. This can be installed using the ROCdbgapi package as part of the ROCm release. See the instructions to install `ROCdbgapi library <https://rocm.docs.amd.com/projects/ROCdbgapi/en/latest/>`_.
 
