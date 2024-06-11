@@ -23,7 +23,7 @@ To use the ROCdebug-agent, set the ``HSA_TOOLS_LIB`` environment variable to the
 
 If the application encounters a triggering event, ROCdebug-agent prints the state of some or all AMDGPU wavefronts.
 
-See a sample print out:
+See a sample printout:
 
 .. code-block:: console
 
