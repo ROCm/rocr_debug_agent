@@ -102,7 +102,7 @@ The supported triggering events are:
 
 - **Memory fault**
 
-A memory fault occurs when an AMDGPU accesses an inaccessible page. This leads to printing information about the memory fault as shown below:
+A memory fault occurs when an AMDGPU accesses an inaccessible page. This leads to printing information about the memory fault, as shown below:
 
 .. code-block:: shell
 
