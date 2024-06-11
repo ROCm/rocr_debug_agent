@@ -8,8 +8,7 @@
 ROCdebug-agent user guide
 ===========================
 
-To display the source text location with the machine code instructions around the wavefront's pc, compile the AMDGPU code objects with ``-ggdb``.  In addition, you can optionally user ``-O0`` to achieve a more intuitive display of the source text location
-as higher optimization levels can help to reorder machine code instructions. When ``-ggdb`` is not used, the source line information is not available and only machine code instructions starting at the
+To display the source text location with the machine code instructions around the wavefront's pc, compile the AMDGPU code objects with ``-ggdb``.  In addition, you can optionally use ``-O0`` to achieve a more intuitive display of the source text location, as higher optimization levels can help to reorder machine code instructions. When ``-ggdb`` is not used, the source line information is unavailable, and only machine code instructions starting at the
 wavefront's pc are printed.
 
 .. code:: shell
