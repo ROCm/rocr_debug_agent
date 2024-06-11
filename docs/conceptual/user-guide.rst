@@ -1,6 +1,6 @@
 .. meta::
    :description: A library that can be loaded by ROCr to print the AMDGPU wavefront states
-   :keywords: ROCdebug-agent, ROCm, library, tool, rocr
+   :keywords: ROCdebug-agent, ROCm, library, tool, rocr, ROCm Debug Agent
 
 .. _user-guide:
 
@@ -8,8 +8,7 @@
 ROCR Debug Agent user guide
 ===========================
 
-To display the source text location with the machine code instructions around the wavefront's pc, compile the AMDGPU code objects with ``-ggdb``.  In addition, you can optionally user ``-O0`` to achieve a more intuitive display of the source text location
-as higher optimization levels can help to reorder machine code instructions. When ``-ggdb`` is not used, the source line information is not available and only machine code instructions starting at the
+To display the source text location with the machine code instructions around the wavefront's pc, compile the AMDGPU code objects with ``-ggdb``.  In addition, you can optionally use ``-O0`` to achieve a more intuitive display of the source text location, as higher optimization levels can help to reorder machine code instructions. When ``-ggdb`` is not used, the source line information is unavailable, and only machine code instructions starting at the
 wavefront's pc are printed.
 
 .. code:: shell
@@ -24,7 +23,7 @@ To use the ROCdebug-agent, set the ``HSA_TOOLS_LIB`` environment variable to the
 
 If the application encounters a triggering event, ROCdebug-agent prints the state of some or all AMDGPU wavefronts.
 
-See a sample print out:
+See a sample printout:
 
 .. code-block:: console
 
@@ -103,7 +102,7 @@ The supported triggering events are:
 
 - **Memory fault**
 
-A memory fault occurs when an AMDGPU accesses an inaccessible page. This leads to printing information about the memory fault as shown below:
+A memory fault occurs when an AMDGPU accesses an inaccessible page. This leads to printing information about the memory fault, as shown below:
 
 .. code-block:: shell
 
