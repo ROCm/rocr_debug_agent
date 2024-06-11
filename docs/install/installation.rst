@@ -46,7 +46,7 @@ Prerequisites
 Build and install
 -------------------
 
-An example command-line to build and install the ROCdebug-agent library on Linux:
+An example command line to build and install the ROCdebug-agent library on Linux:
 
 .. code-block:: shell
 
