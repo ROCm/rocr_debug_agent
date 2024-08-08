@@ -55,9 +55,6 @@ private:
   void load_symbol_map ();
   void load_debug_info ();
 
-  std::optional<symbol_info_t>
-  find_symbol (amd_dbgapi_global_address_t address);
-
 public:
   code_object_t (amd_dbgapi_code_object_id_t code_object_id);
   code_object_t (code_object_t &&rhs);
@@ -69,6 +66,9 @@ public:
 
   amd_dbgapi_global_address_t load_address () const { return m_load_address; }
   amd_dbgapi_size_t mem_size () const { return m_mem_size; }
+
+  std::optional<symbol_info_t>
+  find_symbol (amd_dbgapi_global_address_t address);
 
   void disassemble (amd_dbgapi_architecture_id_t architecture_id,
                     amd_dbgapi_global_address_t pc);

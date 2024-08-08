@@ -618,6 +618,33 @@ print_wavefronts (amd_dbgapi_process_id_t process_id, bool all_wavefronts)
       DBGAPI_CHECK (amd_dbgapi_wave_get_info (wave_id, AMD_DBGAPI_WAVE_INFO_PC,
                                               sizeof (pc), &pc));
 
+      std::optional<amd_dbgapi_global_address_t> kernel_entry;
+      amd_dbgapi_dispatch_id_t dispatch_id;
+      if (auto status
+          = amd_dbgapi_wave_get_info (wave_id, AMD_DBGAPI_WAVE_INFO_DISPATCH,
+                                      sizeof (dispatch_id), &dispatch_id);
+          status == AMD_DBGAPI_STATUS_SUCCESS)
+        {
+          DBGAPI_CHECK (amd_dbgapi_dispatch_get_info (
+              dispatch_id, AMD_DBGAPI_DISPATCH_INFO_KERNEL_CODE_ENTRY_ADDRESS,
+              sizeof (decltype (kernel_entry)::value_type),
+              &kernel_entry.emplace ()));
+        }
+      /* The only possible error is NOT_AVAILABLE if the ttmp registers weren't
+         initialized when the wave was created.  */
+      else if (status != AMD_DBGAPI_STATUS_ERROR_NOT_AVAILABLE)
+        {
+          agent_error ("amd_dbgapi_wave_get_info failed (rc=%d)", status);
+        }
+
+      /* Find the code object that contains this pc.  */
+      code_object_t *code_object_found{ nullptr };
+      if (auto it = code_object_map.upper_bound (pc);
+          it != code_object_map.begin ())
+        if (auto &&[load_address, code_object] = *std::prev (it);
+            (pc - load_address) <= code_object.mem_size ())
+          code_object_found = &code_object;
+
       if (i)
         agent_out << std::endl;
 
@@ -625,7 +652,20 @@ print_wavefronts (amd_dbgapi_process_id_t process_id, bool all_wavefronts)
                 << std::endl;
 
       agent_out << "wave_" << std::dec << wave_id.handle << ": pc=0x"
-                << std::hex << pc;
+                << std::hex << pc << " (kernel_code_entry=";
+
+      if (kernel_entry)
+        {
+          agent_out << "0x" << std::hex << *kernel_entry;
+
+          if (code_object_found)
+            if (auto symbol = code_object_found->find_symbol (*kernel_entry))
+              agent_out << " <" << symbol->m_name << ">";
+        }
+      else
+        agent_out << "not available";
+
+      agent_out << ")";
 
       std::string stop_reason_str;
       auto stop_reason_bits{ stop_reason };
@@ -699,15 +739,6 @@ print_wavefronts (amd_dbgapi_process_id_t process_id, bool all_wavefronts)
       print_registers (wave_id);
       print_local_memory (wave_id);
 
-      /* Find the code object that contains this pc, and disassemble
-         instructions around `pc`  */
-      code_object_t *code_object_found{ nullptr };
-      if (auto it = code_object_map.upper_bound (pc);
-          it != code_object_map.begin ())
-        if (auto &&[load_address, code_object] = *std::prev (it);
-            (pc - load_address) <= code_object.mem_size ())
-          code_object_found = &code_object;
-
       if (code_object_found)
         {
           amd_dbgapi_architecture_id_t architecture_id;
@@ -715,6 +746,7 @@ print_wavefronts (amd_dbgapi_process_id_t process_id, bool all_wavefronts)
               wave_id, AMD_DBGAPI_WAVE_INFO_ARCHITECTURE,
               sizeof (architecture_id), &architecture_id));
 
+          /* Disassemble instructions around `pc`  */
           code_object_found->disassemble (architecture_id, pc);
         }
       else
