@@ -159,7 +159,8 @@ def check_test_3():
 
     # If the code object was not properly loaded, we should not have any
     # disassembly in the output
-    if "Disassembly:" not in err_str:
+    if ("Disassembly:\n" not in err_str
+            and "Disassembly for function kernel_abort:\n" not in err_str):
         found_error = True
 
     if (found_error):
