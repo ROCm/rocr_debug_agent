@@ -7,10 +7,10 @@
 .. _installation:
 
 ==============================
-ROCR debug agent installation
+ROCR Debug Agent installation
 ==============================
 
-This document provides information required to build and install ROCR Debug Agent (ROCdebug-agent) library.
+This topic provides information required to build and install ROCR Debug Agent (ROCdebug-agent) library.
 
 Prerequisites
 --------------
