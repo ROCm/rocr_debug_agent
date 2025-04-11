@@ -23,11 +23,11 @@ The code is open source and hosted at https://github.com/ROCm/rocr_debug_agent
 
   .. grid-item-card:: Install
 
-    * :ref:`installation`
+    * :ref:`Installation <debug-agent-installation>`
 
   .. grid-item-card:: How to
 
-    * :ref:`user-guide`
+    * :ref:`User guide <debug-agent-user-guide>`
 
 To contribute to the documentation, refer to
 `Contributing to ROCm  <https://rocm.docs.amd.com/en/latest/contribute/contributing.html>`_.

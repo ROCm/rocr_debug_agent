@@ -4,7 +4,7 @@
     build ROCdebug-agent, build ROCR Debug Agent
 
 
-.. _installation:
+.. _debug-agent-installation:
 
 ==============================
 ROCR Debug Agent installation

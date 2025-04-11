@@ -3,7 +3,7 @@
    :keywords: ROCdebug-agent user guide, ROCR Debug Agent user guide, using ROCdebug-agent, using ROCR Debug Agent,
     ROCdebug-agent user manual, ROCR Debug Agent user manual
 
-.. _user-guide:
+.. _debug-agent-user-guide:
 
 ============================
 ROCR Debug Agent user guide
