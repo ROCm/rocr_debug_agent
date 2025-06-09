@@ -6,6 +6,8 @@ import tempfile
 import unittest.mock
 from subprocess import Popen, PIPE
 from glob import glob
+import time
+import signal
 
 
 def filter_warnings(err_str):
@@ -379,6 +381,42 @@ def check_test_9():
 
         return all_output_string_found
 
+# test 10 SIGQUIT
+def check_test_10():
+    print("Starting rocm-debug-agent test 10")
+
+    check_list = [
+                  's0:',
+                  'v0:',
+                  'Disassembly for function sigquit_kern\\(\\)'
+                  ]
+
+    p = Popen(['./rocm-debug-agent-test', '6'], stdout=PIPE, stderr=PIPE)
+    time.sleep(5)
+    os.kill(p.pid, signal.SIGQUIT)
+    time.sleep(5)
+    p.terminate()
+    output, err = p.communicate()
+    out_str = output.decode('utf-8')
+    err_str = err.decode('utf-8')
+
+
+    # check output string
+    all_output_string_found = True
+    for check_str in check_list:
+        pattern = re.compile(check_str)
+        if (not (pattern.search(err_str))):
+            all_output_string_found = False
+            print ("\"", check_str, "\" Not Found in dump.")
+
+    if (not all_output_string_found):
+        print("rocm-debug-agent test print out.")
+        print(out_str)
+        print("rocm-debug-agent test error message.")
+        print(err_str)
+
+
+    return all_output_string_found
 
 test_success = True
 
@@ -402,6 +440,7 @@ for deferred_loading in (None, "1", "0"):
         test_success &= check_test_7()
         test_success &= check_test_8()
         test_success &= check_test_9()
+        test_success &= check_test_10()
 
 if (test_success):
     print("rocm-debug-agent test Pass!")
