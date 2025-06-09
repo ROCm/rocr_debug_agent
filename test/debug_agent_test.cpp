@@ -37,6 +37,7 @@ extern void VectorAddDebugTrapTest ();
 extern void VectorAddMemoryFaultTest ();
 extern void SnapshotCodeObjOnLoadTest ();
 extern void SaveCodeObjectTest ();
+extern void PrintAllWavesTest ();
 
 static void PrintTestInfo (const char *header);
 static void RunVectorAddDebugTrapTest ();
@@ -44,6 +45,7 @@ static void RunVectorAddNormalTest ();
 static void RunVectorAddMemoryFaultTest ();
 static void RunSnapshotCodeObjOnLoadTest ();
 static void RunSaveCodeObjectTest ();
+static void RunPrintAllWavesTest ();
 
 int
 main (int argc, char *argv[])
@@ -87,6 +89,9 @@ main (int argc, char *argv[])
           break;
         case 4:
           RunSaveCodeObjectTest ();
+          break;
+        case 5:
+          RunPrintAllWavesTest ();
           break;
         default:
           std::cout << "  *** Invalid Test ID ***" << std::endl;
@@ -201,4 +206,24 @@ RunSaveCodeObjectTest ()
 {
   PrintTestInfo ("SaveCodeObjectTest start");
   SaveCodeObjectTest ();
+}
+
+static void
+RunPrintAllWavesTest ()
+{
+  PrintTestInfo ("PrintAllWaves start");
+  int deviceCount;
+  hipError_t err = hipGetDeviceCount (&deviceCount);
+  TEST_ASSERT (err == hipSuccess, "hipGetDeviceCount");
+  for (int i = 0; i < deviceCount; ++i)
+    {
+      err = hipSetDevice (i);
+      TEST_ASSERT (err == hipSuccess, "hipSetDevice");
+
+      PrintAllWavesTest ();
+
+      err = hipDeviceReset ();
+      TEST_ASSERT (err == hipSuccess, "hipDeviceReset");
+    }
+  PrintTestInfo ("PrintAllWaves end");
 }
