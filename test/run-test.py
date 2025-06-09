@@ -210,6 +210,42 @@ def check_test_4():
 
             return True
 
+# test 5
+def check_test_5():
+    print("Starting rocm-debug-agent test 5")
+
+
+    check_list = [
+                  's0:',
+                  'v0:',
+                  '0x0000: 22222222 11111111', # First uint64_t in LDS is '1111111122222222'
+                  'Disassembly for function vector_add_assert_trap\\(int\\*, int\\*, int\\*\\)'
+                  ]
+
+
+    with unittest.mock.patch.dict(os.environ, {"ROCM_DEBUG_AGENT_OPTIONS":
+                                                   f"-o output_log.txt"}):
+        # Start process without capturing output
+        p = Popen(['./rocm-debug-agent-test', '1'])
+        p.wait()  # Wait for the process to complete
+
+        # Read the output log
+        with open("output_log.txt", "r") as f:
+            log_contents = f.read()
+
+        all_output_string_found = True
+        for check_str in check_list:
+            pattern = re.compile(check_str)
+            if not pattern.search(log_contents):
+                all_output_string_found = False
+                print(f'"{check_str}" Not Found in output_log.txt.')
+
+        if not all_output_string_found:
+            print("Full output log contents:")
+            print(log_contents)
+
+        return all_output_string_found
+
 test_success = True
 
 for deferred_loading in (None, "1", "0"):
@@ -227,6 +263,7 @@ for deferred_loading in (None, "1", "0"):
         test_success &= check_test_2()
         test_success &= check_test_3()
         test_success &= check_test_4()
+        test_success &= check_test_5()
 
 if (test_success):
     print("rocm-debug-agent test Pass!")
