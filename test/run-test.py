@@ -5,6 +5,7 @@ import inspect
 import tempfile
 import unittest.mock
 from subprocess import Popen, PIPE
+from glob import glob
 
 
 def filter_warnings(err_str):
@@ -307,6 +308,39 @@ def check_test_7():
 
         return all_output_string_found
 
+# test 8
+def check_test_8():
+    print("Starting rocm-debug-agent test 8")
+
+    # Set up environment to save code objects in the current directory
+    with tempfile.TemporaryDirectory() as tmpdir:
+        with unittest.mock.patch.dict(os.environ, {"ROCM_DEBUG_AGENT_OPTIONS":
+                                                    f"-s {tmpdir}"}):
+
+            # Run the test binary
+            p = Popen(['./rocm-debug-agent-test', '1'], stdout=PIPE, stderr=PIPE)
+            output, err = p.communicate()
+
+            code_objects = os.listdir(tmpdir)
+            if (len(code_objects) == 0):
+                print(f"No code object found in {tmpdir}")
+                return False
+
+            code_obj_files = [os.path.join(tmpdir,co) for co in code_objects if "file___" in co]
+            if not code_obj_files:
+                print("No code object file was generated.")
+                return False
+
+            # Inspect each code object with objdump
+            for f in code_obj_files:
+                objdump = Popen(["objdump", "-h", f], stdout=PIPE, stderr=PIPE)
+                out, _ = objdump.communicate()
+                if b".debug_info" in out:
+                    return True
+
+            print("No .debug_info section found in any code object.")
+            return False
+
 test_success = True
 
 for deferred_loading in (None, "1", "0"):
@@ -327,6 +361,7 @@ for deferred_loading in (None, "1", "0"):
         test_success &= check_test_5()
         test_success &= check_test_6()
         test_success &= check_test_7()
+        test_success &= check_test_8()
 
 if (test_success):
     print("rocm-debug-agent test Pass!")
