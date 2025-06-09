@@ -54,7 +54,22 @@ set(CMAKE_HIP_ARCHITECTURES OFF)
 
 file(GLOB SOURCES "*.cpp")
 
+list(REMOVE_ITEM SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/vector_add_assert_trap_no_debug_info.cpp")
 set_source_files_properties(${SOURCES} PROPERTIES HIP_SOURCE_PROPERTY_FORMAT 1)
+
+set(NODEBUG_SRC   "${CMAKE_CURRENT_SOURCE_DIR}/vector_add_assert_trap_no_debug_info.cpp")
+set(NODEBUG_OBJ   "${CMAKE_CURRENT_BINARY_DIR}/vector_add_assert_trap_no_debug_info.o")
+
+add_custom_command(
+  OUTPUT ${NODEBUG_OBJ}
+  COMMAND ${HIP_HIPCC_EXECUTABLE}
+          -g0
+          -O0
+          -c ${NODEBUG_SRC}
+          -o ${NODEBUG_OBJ}
+  DEPENDS ${NODEBUG_SRC}
+  COMMENT "Compiling vector_add_assert_trap_no_debug_info.cpp without debug info"
+)
 
 add_custom_command(
   OUTPUT "snapshot_objfile_on_load.hipfb"
@@ -70,7 +85,7 @@ add_custom_command(
   COMMENT "Building save_code_objects.hipfb"
   VERBATIM)
 
-hip_add_executable(rocm-debug-agent-test ${SOURCES} CLANG_OPTIONS -ggdb)
+hip_add_executable(rocm-debug-agent-test ${SOURCES} ${NODEBUG_OBJ} CLANG_OPTIONS -ggdb)
 
 add_custom_target(snapshot_objfile_on_load-tgt DEPENDS snapshot_objfile_on_load.hipfb)
 add_custom_target(save_code_objects-tgt DEPENDS save_code_objects.hipfb)
