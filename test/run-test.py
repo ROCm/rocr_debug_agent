@@ -63,7 +63,6 @@ def check_test_0():
 def check_test_1():
     print("Starting rocm-debug-agent test 1")
 
-    #TODO: use regular expressions instead of strings
     check_list = ['HSA_STATUS_ERROR_EXCEPTION: An HSAIL operation resulted in a hardware exception\\.',
                   '\\(stopped, reason: ASSERT_TRAP\\)',
                    'exec: (00000000)?00000001',
@@ -105,7 +104,6 @@ def check_test_1():
 def check_test_2():
     print("Starting rocm-debug-agent test 2")
 
-    #TODO: use regular expressions instead of strings
     check_list = [
 #                  'System event \(HSA_AMD_GPU_MEMORY_FAULT_EVENT\)',
 #                  'Faulting page: 0x',
@@ -175,7 +173,7 @@ def check_test_3():
 
     return not found_error
 
-# test 3: save code object on disk
+# test 4: save code object on disk
 def check_test_4():
     print("Starting rocm-debug-agent test 4")
 
@@ -464,18 +462,28 @@ for deferred_loading in (None, "1", "0"):
             print(f"### Testing with HIP_ENABLE_DEFERRED_LOADING={deferred_loading}")
             os.environ["HIP_ENABLE_DEFERRED_LOADING"] = deferred_loading
 
-        test_success &= check_test_0()
-        test_success &= check_test_1()
-        test_success &= check_test_2()
-        test_success &= check_test_3()
-        test_success &= check_test_4()
-        test_success &= check_test_5()
-        test_success &= check_test_6()
-        test_success &= check_test_7()
-        test_success &= check_test_8()
-        test_success &= check_test_9()
-        test_success &= check_test_10()
-        test_success &= check_test_11()
+        test_list = [
+            check_test_0,
+            check_test_1,
+            check_test_2,
+            check_test_3,
+            check_test_4,
+            check_test_5,
+            check_test_6,
+            check_test_7,
+            check_test_8,
+            check_test_9,
+            check_test_10,
+            check_test_11,
+            ]
+
+        for i, test in enumerate(test_list, start=0):
+            result = test()
+            test_success &= result
+            if result:
+                print(f"Test {i} PASS")
+            else:
+                print(f"Test {i} FAIL")
 
 if (test_success):
     print("rocm-debug-agent test Pass!")
