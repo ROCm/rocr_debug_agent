@@ -38,7 +38,21 @@ project(rocm-debug-agent VERSION 2.1.0)
 
 include(GNUInstallDirs)
 
-file(GLOB SOURCES "src/*.cpp")
+#file(GLOB SOURCES "src/*.cpp")
+set(SOURCES
+  "src/code_object.cpp"
+  "src/debug_agent.cpp"
+  "src/logging.cpp"
+)
+
+set(UTIL_SOURCES
+  "src/stop_reason_util.cpp")
+
+add_library(stop_reason_util STATIC ${UTIL_SOURCES})
+target_include_directories(stop_reason_util PUBLIC src)
+set_target_properties(stop_reason_util PROPERTIES POSITION_INDEPENDENT_CODE ON)
+
+
 add_library(rocm-debug-agent SHARED ${SOURCES})
 
 set_target_properties(rocm-debug-agent PROPERTIES
@@ -108,8 +122,9 @@ if (HAVE_MEMFD_CREATE)
   add_definitions(-DHAVE_MEMFD_CREATE)
 endif()
 
+target_link_libraries(stop_reason_util PRIVATE amd-dbgapi)
 target_link_libraries(rocm-debug-agent
-  PRIVATE amd-dbgapi ${ROCR_LIBRARIES} ${LIBELF_LIBRARIES} ${LIBDW_LIBRARIES}
+  PRIVATE stop_reason_util amd-dbgapi ${ROCR_LIBRARIES} ${LIBELF_LIBRARIES} ${LIBDW_LIBRARIES}
   Threads::Threads ${CMAKE_DL_LIBS}
   -Wl,--version-script=${CMAKE_CURRENT_SOURCE_DIR}/src/exportmap -Wl,--no-undefined)
 
@@ -134,6 +149,11 @@ install(TARGETS rocm-debug-agent
     NAMELINK_SKIP
     DESTINATION ${CMAKE_INSTALL_LIBDIR}
   COMPONENT asan)
+
+install(TARGETS stop_reason_util
+  ARCHIVE 
+  DESTINATION ${CMAKE_INSTALL_LIBDIR}
+COMPONENT runtime)
 
 install(FILES LICENSE.txt
   DESTINATION ${CMAKE_INSTALL_DOCDIR}-asan
@@ -173,8 +193,8 @@ endif()
 set(CPACK_RPM_COMPONENT_INSTALL ON)
 set(CPACK_RPM_FILE_NAME "RPM-DEFAULT")
 set(CPACK_RPM_RUNTIME_PACKAGE_NAME "rocm-debug-agent")
-set(CPACK_RPM_RUNTIME_PACKAGE_REQUIRES "rocm-dbgapi, rocm-core")
-set(CPACK_RPM_TESTS_PACKAGE_REQUIRES "rocm-debug-agent, rocm-core")
+set(CPACK_RPM_RUNTIME_PACKAGE_REQUIRES "rocm-dbgapi, hsa-rocr, rocm-core")
+set(CPACK_RPM_TESTS_PACKAGE_REQUIRES "rocm-debug-agent, rocm-core, gtest-devel, rocm-dbgapi")
 
 # RPM package specific variable for ASAN
 set(CPACK_RPM_ASAN_PACKAGE_NAME "rocm-debug-agent-asan")
@@ -189,8 +209,8 @@ message("Using CPACK_DEBIAN_PACKAGE_RELEASE ${CPACK_DEBIAN_PACKAGE_RELEASE}")
 set(CPACK_DEB_COMPONENT_INSTALL ON)
 set(CPACK_DEBIAN_FILE_NAME "DEB-DEFAULT")
 set(CPACK_DEBIAN_RUNTIME_PACKAGE_NAME "rocm-debug-agent")
-set(CPACK_DEBIAN_RUNTIME_PACKAGE_DEPENDS "rocm-dbgapi, rocm-core")
-set(CPACK_DEBIAN_TESTS_PACKAGE_DEPENDS "rocm-debug-agent, rocm-core")
+set(CPACK_DEBIAN_RUNTIME_PACKAGE_DEPENDS "rocm-dbgapi, hsa-rocr, rocm-core")
+set(CPACK_DEBIAN_TESTS_PACKAGE_DEPENDS "rocm-debug-agent, rocm-core, libgtest-dev, rocm-dbgapi")
 
 # Debian package specific variable for ASAN
 set(CPACK_DEBIAN_ASAN_PACKAGE_NAME "rocm-debug-agent-asan")

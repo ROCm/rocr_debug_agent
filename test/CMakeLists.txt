@@ -86,3 +86,5 @@ install(FILES CMakeLists.txt run-test.py ${SOURCES} ${HEADERS}
 enable_testing()
 add_test(NAME rocm-debug-agent-test
   COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/run-test.py ${CMAKE_CURRENT_BINARY_DIR})
+
+add_subdirectory(unit)
