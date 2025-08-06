@@ -52,7 +52,18 @@ endif()
 
 set(CMAKE_HIP_ARCHITECTURES OFF)
 
-file(GLOB SOURCES "*.cpp")
+set(MAIN_SOURCES
+	debug_agent_test.cpp
+	vector_add_assert_trap.cpp
+	sigquit.cpp
+	print_all_waves.cpp
+	snapshot_objfile_on_load.cpp
+	vector_add_normal.cpp
+	vector_add_memory_fault.cpp
+	save_code_objects.cpp)
+set(NO_DEBUG_SOURCES
+	vector_add_assert_trap_no_debug_info.cpp)
+set(SOURCES ${MAIN_SOURCES} ${NO_DEBUG_SOURCES})
 
 set_source_files_properties(${SOURCES} PROPERTIES HIP_SOURCE_PROPERTY_FORMAT 1)
 
@@ -70,7 +81,10 @@ add_custom_command(
   COMMENT "Building save_code_objects.hipfb"
   VERBATIM)
 
-hip_add_executable(rocm-debug-agent-test ${SOURCES} CLANG_OPTIONS -ggdb)
+hip_add_library(rocm-debug-agent-no-dbgapifo ${NO_DEBUG_SOURCES})
+
+hip_add_executable(rocm-debug-agent-test ${MAIN_SOURCES} ${NODEBUG_OBJ} CLANG_OPTIONS -ggdb)
+target_link_libraries(rocm-debug-agent-test rocm-debug-agent-no-dbgapifo)
 
 add_custom_target(snapshot_objfile_on_load-tgt DEPENDS snapshot_objfile_on_load.hipfb)
 add_custom_target(save_code_objects-tgt DEPENDS save_code_objects.hipfb)

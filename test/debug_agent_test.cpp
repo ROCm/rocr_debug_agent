@@ -37,6 +37,9 @@ extern void VectorAddDebugTrapTest ();
 extern void VectorAddMemoryFaultTest ();
 extern void SnapshotCodeObjOnLoadTest ();
 extern void SaveCodeObjectTest ();
+extern void PrintAllWavesTest ();
+extern void SigquitTest ();
+extern void VectorAddDebugTrapTestNoDebug ();
 
 static void PrintTestInfo (const char *header);
 static void RunVectorAddDebugTrapTest ();
@@ -44,6 +47,9 @@ static void RunVectorAddNormalTest ();
 static void RunVectorAddMemoryFaultTest ();
 static void RunSnapshotCodeObjOnLoadTest ();
 static void RunSaveCodeObjectTest ();
+static void RunPrintAllWavesTest ();
+static void RunSigquitTest ();
+static void RunVectorAddDebugTrapTestNoDebug ();
 
 int
 main (int argc, char *argv[])
@@ -87,6 +93,15 @@ main (int argc, char *argv[])
           break;
         case 4:
           RunSaveCodeObjectTest ();
+          break;
+        case 5:
+          RunPrintAllWavesTest ();
+          break;
+        case 6:
+          RunSigquitTest ();
+          break;
+        case 7:
+          RunVectorAddDebugTrapTestNoDebug ();
           break;
         default:
           std::cout << "  *** Invalid Test ID ***" << std::endl;
@@ -201,4 +216,65 @@ RunSaveCodeObjectTest ()
 {
   PrintTestInfo ("SaveCodeObjectTest start");
   SaveCodeObjectTest ();
+}
+
+static void
+RunPrintAllWavesTest ()
+{
+  PrintTestInfo ("PrintAllWaves start");
+  int deviceCount;
+  hipError_t err = hipGetDeviceCount (&deviceCount);
+  TEST_ASSERT (err == hipSuccess, "hipGetDeviceCount");
+  for (int i = 0; i < deviceCount; ++i)
+    {
+      err = hipSetDevice (i);
+      TEST_ASSERT (err == hipSuccess, "hipSetDevice");
+
+      PrintAllWavesTest ();
+
+      err = hipDeviceReset ();
+      TEST_ASSERT (err == hipSuccess, "hipDeviceReset");
+    }
+  PrintTestInfo ("PrintAllWaves end");
+}
+
+static void
+RunSigquitTest ()
+{
+  PrintTestInfo ("Sigquit start");
+  int deviceCount;
+  hipError_t err = hipGetDeviceCount (&deviceCount);
+  TEST_ASSERT (err == hipSuccess, "hipGetDeviceCount");
+  for (int i = 0; i < deviceCount; ++i)
+    {
+      err = hipSetDevice (i);
+      TEST_ASSERT (err == hipSuccess, "hipSetDevice");
+
+      SigquitTest ();
+
+      err = hipDeviceReset ();
+      TEST_ASSERT (err == hipSuccess, "hipDeviceReset");
+    }
+  PrintTestInfo ("Sigquit end");
+}
+
+static void
+RunVectorAddDebugTrapTestNoDebug ()
+{
+  PrintTestInfo ("No debug info start");
+  int deviceCount;
+  hipError_t err = hipGetDeviceCount (&deviceCount);
+  TEST_ASSERT (err == hipSuccess, "hipGetDeviceCount");
+
+  for (int i = 0; i < deviceCount; ++i)
+    {
+      err = hipSetDevice (i);
+      TEST_ASSERT (err == hipSuccess, "hipSetDevice");
+
+      VectorAddDebugTrapTestNoDebug ();
+
+      err = hipDeviceReset ();
+      TEST_ASSERT (err == hipSuccess, "hipDeviceReset");
+    }
+  PrintTestInfo ("No debug info end");
 }

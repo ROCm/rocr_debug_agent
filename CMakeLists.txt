@@ -198,7 +198,7 @@ set(CPACK_RPM_TESTS_PACKAGE_REQUIRES "rocm-debug-agent, rocm-core, gtest-devel, 
 
 # RPM package specific variable for ASAN
 set(CPACK_RPM_ASAN_PACKAGE_NAME "rocm-debug-agent-asan")
-set(CPACK_RPM_ASAN_PACKAGE_REQUIRES "rocm-dbgapi-asan, rocm-core-asan")
+set(CPACK_RPM_ASAN_PACKAGE_REQUIRES "rocm-dbgapi-asan, hsa-rocr-asan, rocm-core-asan")
 # Debian package specific variables
 if(DEFINED ENV{CPACK_DEBIAN_PACKAGE_RELEASE})
   set(CPACK_DEBIAN_PACKAGE_RELEASE $ENV{CPACK_DEBIAN_PACKAGE_RELEASE})
@@ -214,7 +214,7 @@ set(CPACK_DEBIAN_TESTS_PACKAGE_DEPENDS "rocm-debug-agent, rocm-core, libgtest-de
 
 # Debian package specific variable for ASAN
 set(CPACK_DEBIAN_ASAN_PACKAGE_NAME "rocm-debug-agent-asan")
-set(CPACK_DEBIAN_ASAN_PACKAGE_DEPENDS "rocm-dbgapi-asan, rocm-core-asan")
+set(CPACK_DEBIAN_ASAN_PACKAGE_DEPENDS "rocm-dbgapi-asan, hsa-rocr-asan, rocm-core-asan")
 # Remove dependency on rocm-core if -DROCM_DEP_ROCMCORE=ON not given to cmake
 if(NOT ROCM_DEP_ROCMCORE)
     string(REGEX REPLACE ",? ?rocm-core" "" CPACK_RPM_RUNTIME_PACKAGE_REQUIRES ${CPACK_RPM_RUNTIME_PACKAGE_REQUIRES})
