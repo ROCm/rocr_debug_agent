@@ -23,19 +23,22 @@ Prerequisites
 
   - For Ubuntu 18.04 and Ubuntu 20.04:
 
-  .. code:: shell
+  .. tab-item:: Ubuntu
+    :sync: ubuntu
 
     apt install gcc g++ make cmake libelf-dev libdw-dev
 
   - For CentOS 8.1 and RHEL 8.1:
 
-  .. code:: shell
+  .. tab-item:: RHEL
+    :sync: rhel
 
     yum install gcc gcc-c++ make cmake elfutils-libelf-devel elfutils-devel
 
   - For SLES 15 Service Pack 1:
 
-  .. code:: shell
+  .. tab-item:: SLES
+    :sync: sles
 
     zypper install gcc gcc-c++ make cmake libelf-devel libdw-devel
 
