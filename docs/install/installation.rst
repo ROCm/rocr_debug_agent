@@ -28,15 +28,21 @@ Prerequisites
   .. tab-item:: Ubuntu
     :sync: ubuntu
 
+    .. code-block:: shell
+
       apt install gcc g++ make cmake libelf-dev libdw-dev
 
   .. tab-item:: RHEL
     :sync: rhel
 
+    .. code-block:: shell
+
       yum install gcc gcc-c++ make cmake elfutils-libelf-devel elfutils-devel
 
   .. tab-item:: SLES
     :sync: sles
+
+    .. code-block:: shell
 
       zypper install gcc gcc-c++ make cmake libelf-devel libdw-devel
 
