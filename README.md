@@ -1,6 +1,16 @@
 AMD ROCm Debug Agent Library (ROCdebug-agent)
 =============================================
 
+> [!NOTE]
+> The published documentation is available at [ROCR Debug
+> Agent](https://rocm.docs.amd.com/projects/rocr_debug_agent/en/latest/index.html)
+> in an organized, easy-to-read format, with search and a table of contents.
+> The documentation source files reside in the `rocr_debug_agent/docs` folder
+> of this repository.  As with all ROCm projects, the documentation is open
+> source.  For more information on contributing to the documentation, see
+> [Contribute to ROCm
+> documentation](https://rocm.docs.amd.com/en/latest/contribute/contributing.html).
+
 Introduction
 ------------
 
@@ -174,10 +184,18 @@ The supported options are:
 
 - __``-p``, ``--precise-memory``__
 
-  Enable precise memory operations if supported by the devices.
+  Enables precise memory operations if supported by the devices.
 
   When an exception occurs, precise memory ensures that the PC points to the
-  instruction immediately following the one that caused the exception.
+  instruction immediately following the one causing the exception.
+
+- __``-e``, ``--precise-alu-exceptions``__
+
+  Enables precise ALU exceptions reporting if supported by the devices.
+
+  When an exception occurs, precise ALU exceptions reporting ensures that the
+  PC points to the instruction immediately following the one causing the
+  exception.
 
 - __``-s [DIR]``, ``--save-code-objects[=DIR]``__
 
@@ -185,15 +203,15 @@ The supported options are:
   objects are saved in the current directory.
 
   The file name in which the code object is saved is the same as the code
-  object URI with special characters replaced by ``'_'``.  For example, the
-  code object URI:
+  object URI with special characters replaced by ``'_'``, prefixed with a
+  unique code object ID.  For example, the code object URI:
 
   ````
   file:///rocm-debug-agent/rocm-debug-agent-test#offset=14309&size=31336
   ````
   is saved in a file with the name:
   ````
-  file____rocm-debug-agent_rocm-debug-agent-test_offset_14309_size_31336
+  1_file____rocm-debug-agent_rocm-debug-agent-test_offset_14309_size_31336
   ````
 
 - __``-o <file-path>``, ``--output=<file-path>``__
@@ -234,19 +252,19 @@ Building the ROCdebug-agent library has the following prerequisites:
 2. The AMD ROCm software stack which can be installed as part of the AMD ROCm
    release by the ``rocm-dev`` package.
 
-3. For Ubuntu 18.04 and Ubuntu 20.04 the following adds the needed packages:
+3. For Ubuntu 22.04 and Ubuntu 24.04 the following adds the needed packages:
 
    ````shell
    apt install gcc g++ make cmake libelf-dev libdw-dev
    ````
 
-4. For CentOS 8.1 and RHEL 8.1 the following adds the needed packages:
+4. For CentOS 8 and RHEL 8/9 the following adds the needed packages:
 
    ````shell
    yum install gcc gcc-c++ make cmake elfutils-libelf-devel elfutils-devel
    ````
 
-5. For SLES 15 Service Pack 1 the following adds the needed packages:
+5. For SLES 15 the following adds the needed packages:
 
    ````shell
    zypper install gcc gcc-c++ make cmake libelf-devel libdw-devel
@@ -331,7 +349,7 @@ Known Limitations and Restrictions
   correlation and surrounding context if the ``libdw.so`` library included with
   the distribution supports the DWARF present in the code object. Otherwise,
   the disassembly may only shows the instructions immediately after the
-  faulting PC.  Ubuntu 18.04 is known to have issues in supporting DWARF 5.
+  faulting PC.
 
 Disclaimer
 ----------

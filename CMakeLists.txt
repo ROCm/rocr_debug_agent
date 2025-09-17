@@ -32,9 +32,9 @@
 ##
 ################################################################################
 
-cmake_minimum_required(VERSION 3.8.0)
+cmake_minimum_required(VERSION 3.10)
 
-project(rocm-debug-agent VERSION 2.0.4)
+project(rocm-debug-agent VERSION 2.1.0)
 
 include(GNUInstallDirs)
 
@@ -173,12 +173,12 @@ endif()
 set(CPACK_RPM_COMPONENT_INSTALL ON)
 set(CPACK_RPM_FILE_NAME "RPM-DEFAULT")
 set(CPACK_RPM_RUNTIME_PACKAGE_NAME "rocm-debug-agent")
-set(CPACK_RPM_RUNTIME_PACKAGE_REQUIRES "rocm-dbgapi, rocm-core")
+set(CPACK_RPM_RUNTIME_PACKAGE_REQUIRES "rocm-dbgapi, hsa-rocr, rocm-core")
 set(CPACK_RPM_TESTS_PACKAGE_REQUIRES "rocm-debug-agent, rocm-core")
 
 # RPM package specific variable for ASAN
 set(CPACK_RPM_ASAN_PACKAGE_NAME "rocm-debug-agent-asan")
-set(CPACK_RPM_ASAN_PACKAGE_REQUIRES "rocm-dbgapi-asan, rocm-core-asan")
+set(CPACK_RPM_ASAN_PACKAGE_REQUIRES "rocm-dbgapi-asan, hsa-rocr-asan, rocm-core-asan")
 # Debian package specific variables
 if(DEFINED ENV{CPACK_DEBIAN_PACKAGE_RELEASE})
   set(CPACK_DEBIAN_PACKAGE_RELEASE $ENV{CPACK_DEBIAN_PACKAGE_RELEASE})
@@ -189,12 +189,12 @@ message("Using CPACK_DEBIAN_PACKAGE_RELEASE ${CPACK_DEBIAN_PACKAGE_RELEASE}")
 set(CPACK_DEB_COMPONENT_INSTALL ON)
 set(CPACK_DEBIAN_FILE_NAME "DEB-DEFAULT")
 set(CPACK_DEBIAN_RUNTIME_PACKAGE_NAME "rocm-debug-agent")
-set(CPACK_DEBIAN_RUNTIME_PACKAGE_DEPENDS "rocm-dbgapi, rocm-core")
+set(CPACK_DEBIAN_RUNTIME_PACKAGE_DEPENDS "rocm-dbgapi, hsa-rocr, rocm-core")
 set(CPACK_DEBIAN_TESTS_PACKAGE_DEPENDS "rocm-debug-agent, rocm-core")
 
 # Debian package specific variable for ASAN
 set(CPACK_DEBIAN_ASAN_PACKAGE_NAME "rocm-debug-agent-asan")
-set(CPACK_DEBIAN_ASAN_PACKAGE_DEPENDS "rocm-dbgapi-asan, rocm-core-asan")
+set(CPACK_DEBIAN_ASAN_PACKAGE_DEPENDS "rocm-dbgapi-asan, hsa-rocr-asan, rocm-core-asan")
 # Remove dependency on rocm-core if -DROCM_DEP_ROCMCORE=ON not given to cmake
 if(NOT ROCM_DEP_ROCMCORE)
     string(REGEX REPLACE ",? ?rocm-core" "" CPACK_RPM_RUNTIME_PACKAGE_REQUIRES ${CPACK_RPM_RUNTIME_PACKAGE_REQUIRES})

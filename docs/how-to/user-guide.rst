@@ -1,29 +1,30 @@
 .. meta::
    :description: A library that can be loaded by ROCr to print the AMDGPU wavefront states
-   :keywords: ROCdebug-agent, ROCm, library, tool, rocr, ROCm Debug Agent
+   :keywords: ROCdebug-agent user guide, ROCR Debug Agent user guide, using ROCdebug-agent, using ROCR Debug Agent,
+    ROCdebug-agent user manual, ROCR Debug Agent user manual
 
-.. _user-guide:
+.. _debug-agent-user-guide:
 
-===========================
+============================
 ROCR Debug Agent user guide
-===========================
+============================
 
-To display the source text location with the machine code instructions around the wavefront's pc, compile the AMDGPU code objects with ``-ggdb``.  In addition, you can optionally use ``-O0`` to achieve a more intuitive display of the source text location, as higher optimization levels can help to reorder machine code instructions. When ``-ggdb`` is not used, the source line information is unavailable, and only machine code instructions starting at the
-wavefront's pc are printed.
+To display the source text location with the machine code instructions around the wavefront's Program Counter (PC), compile the AMD GPU code objects with ``-ggdb``.  In addition, you can optionally use ``-O0`` to achieve a more intuitive display of the source text location, as higher optimization levels can help to reorder machine code instructions. When ``-ggdb`` isn't used, the source line information is unavailable, and only machine code instructions starting at the
+wavefront's PC are printed.
 
 .. code:: shell
 
     /opt/rocm/bin/hipcc -O0 -ggdb -o my_program my_program.cpp
 
-To use the ROCdebug-agent, set the ``HSA_TOOLS_LIB`` environment variable to the file name or path of the library and the ``HSA_ENABLE_DEBUG`` environment variable to ``1``.
+To use the ROCdebug-agent, set the ``HSA_TOOLS_LIB`` environment variable to the file name or path of the library:
 
 .. code:: shell
 
-    HSA_TOOLS_LIB=/opt/rocm/lib/librocm-debug-agent.so.2 HSA_ENABLE_DEBUG=1 ./my_program
+    HSA_TOOLS_LIB=/opt/rocm/lib/librocm-debug-agent.so.2 ./my_program
 
 If the application encounters a triggering event, ROCdebug-agent prints the state of some or all AMDGPU wavefronts.
 
-See a sample printout:
+Here is a sample printout:
 
 .. code-block:: console
 
@@ -132,12 +133,12 @@ A SIGQUIT signal can be sent to a process with the ``kill -s SIGQUIT <pid>`` com
 Options
 -----------
 
-Options are passed using the ROCM_DEBUG_AGENT_OPTIONS environment variable as shown:
+To pass options, use the ``ROCM_DEBUG_AGENT_OPTIONS`` environment variable:
 
 .. code-block:: shell
 
     ROCM_DEBUG_AGENT_OPTIONS="--all --save-code-objects" \
-    HSA_TOOLS_LIB=librocm-debug-agent.so.2 HSA_ENABLE_DEBUG=1 ./my_program
+    HSA_TOOLS_LIB=librocm-debug-agent.so.2 ./my_program
 
 The following table lists the supported options:
 
@@ -150,10 +151,25 @@ The following table lists the supported options:
     * - ``-a``, ``--all``
       - Prints all wavefronts. If not specified, only wavefronts with a triggering event are printed.
 
+    * __``-p``, ``--precise-memory``__
+
+      - Enables precise memory operations if supported by the devices.
+
+      When an exception occurs, precise memory ensures that the PC points to
+      the instruction immediately following the one causing the exception.
+
+    *  __``-e``, ``--precise-alu-exceptions``__
+
+      Enables precise ALU exceptions reporting if supported by the devices.
+
+      When an exception occurs, precise ALU exceptions reporting ensures that
+      the PC points to the instruction immediately following the one causing
+      the exception.
+
     * - ``-s [DIR]``, ``--save-code-objects[=DIR]``
       - Saves all loaded code objects. If the directory is not specified, the code objects are saved in the current directory.
-        The file name in which the code object is saved is the same as the code object URI with special characters replaced by '_'. For example, the code object URI
-        ``file:///rocm-debug-agent/rocm-debug-agent-test#offset=14309&size=31336`` is saved in a file with the name ``file____rocm-debug-agent_rocm-debug-agent-test_offset_14309_size_31336``.
+        The file name in which the code object is saved is the same as the code object URI with special characters replaced by '_', prefixed with a unique code object ID. For example, the code object URI
+        ``file:///rocm-debug-agent/rocm-debug-agent-test#offset=14309&size=31336`` is saved in a file with the name ``1_file____rocm-debug-agent_rocm-debug-agent-test_offset_14309_size_31336``.
 
     * - ``-o <file-path>``, ``--output=<file-path>``
       - Saves the output produced by the ROCdebug-agent in the specified file. By default, the output is redirected to ``stderr``.
@@ -167,3 +183,10 @@ The following table lists the supported options:
 
     * - ``-h``, ``--help``
       - Displays the usage and aborts the process.
+
+Known limitations
+------------------
+
+- A disassembly of the wavefront faulting PC is only provided if it is within a code object.
+
+- A disassembly of the wavefront faulting PC only includes source text correlation and surrounding context if the ``libdw.so`` library included with the distribution supports the DWARF present in the code object. Otherwise, the disassembly might show only the instructions immediately after the faulting PC.

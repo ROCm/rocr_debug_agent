@@ -1,6 +1,6 @@
 .. meta::
    :description: A library that can be loaded by ROCr to print the AMDGPU wavefront states
-   :keywords: ROCdebug-agent, ROCm, library, tool, rocr
+   :keywords: ROCdebug-agent documentation, ROCR Debug Agent documentation, rocr, ROCR
 
 .. _index:
 
@@ -8,28 +8,26 @@
 ROCR Debug Agent documentation
 ===============================
 
-The ROCR Debug Agent (ROCdebug-agent) is a library that can be loaded by the ROCm software runtime `(ROCR) <https://rocm.docs.amd.com/projects/ROCR-Runtime/en/latest/>`_ to provide the following functionalities:
+The ROCR Debug Agent (ROCdebug-agent) is a library that can be loaded by the ROCm software runtime :doc:`(ROCR) <rocr-runtime:index>` to provide the following functionality:
 
-- Print the state of all AMDGPU wavefronts that cause a queue error (such as, a memory violation, executing a ``s_trap 2``, or executing an illegal instruction).
+- Print the state of all AMD GPU wavefronts that cause a queue error (such as a memory violation, executing a ``s_trap 2``, or executing an illegal instruction).
 
-- Print the state of all AMDGPU wavefronts by sending a SIGQUIT signal to the process using ``kill -s SIGQUIT <pid>`` command or by pressing ``Ctrl-\``, while the program is executing.
+- Print the state of all AMD GPU wavefronts by sending a SIGQUIT signal to the process using ``kill -s SIGQUIT <pid>`` command or by pressing ``Ctrl-\``, while the program is executing.
 
-This functionality is provided for all AMDGPUs supported by the ROCm Debugger API Library `(ROCdbgapi) <https://rocm.docs.amd.com/projects/ROCdbgapi/en/latest/>`_.
+This functionality is provided for all AMD GPUs supported by the ROCm Debugger API Library :doc:`(ROCdbgapi) <rocdbgapi:index>`.
 
-You can access ROCdebug-agent code on our `GitHub repository <https://github.com/ROCm/rocr_debug_agent>`_.
-
-The documentation is structured as follows:
+The code is open source and hosted at https://github.com/ROCm/rocr_debug_agent
 
 .. grid:: 2
   :gutter: 3
 
   .. grid-item-card:: Install
 
-    * :ref:`installation`
+    * :ref:`Installation <debug-agent-installation>`
 
-  .. grid-item-card:: Conceptual
+  .. grid-item-card:: How to
 
-    * :ref:`user-guide`
+    * :ref:`User guide <debug-agent-user-guide>`
 
 To contribute to the documentation, refer to
 `Contributing to ROCm  <https://rocm.docs.amd.com/en/latest/contribute/contributing.html>`_.

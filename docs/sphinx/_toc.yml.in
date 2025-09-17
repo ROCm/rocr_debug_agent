@@ -5,9 +5,11 @@ subtrees:
   - caption: Install
     entries:
     - file: install/installation
-  - caption: Conceptual
+      title: Installation
+  - caption: How to
     entries:
-    - file: conceptual/user-guide
+    - file: how-to/user-guide
+      title: User guide
   - caption: About
     entries:
     - file: license

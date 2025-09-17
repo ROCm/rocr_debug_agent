@@ -32,19 +32,50 @@
 ##
 ################################################################################
 
-cmake_minimum_required(VERSION 3.8.0)
+cmake_minimum_required(VERSION 3.12)
 
 project(rocm-debug-agent-test)
 
-set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "/opt/rocm/lib/cmake/hip")
-find_package(HIP REQUIRED MODULE)
+find_package(Python3 REQUIRED COMPONENTS Interpreter)
+
+# CMAKE_MODULE_PATH set to default
+set(CMAKE_MODULE_PATH "/opt/rocm/lib/cmake/hip" CACHE STRING "HIP CMAKE Module Path")
+find_package(HIP MODULE QUIET)
+# Mandate correct CMAKE_MODULE_PATH to be provided if Module not found in default
+if( NOT HIP_FOUND )
+  message(FATAL_ERROR
+          "HIP Module not found in Module Path ${CMAKE_MODULE_PATH}, \
+           Please pass the correct Module search Path \
+           'cmake -DCMAKE_MODULE_PATH=/opt/rocm-<version>/lib/cmake/hip'")
+  return()
+endif()
+
 set(CMAKE_HIP_ARCHITECTURES OFF)
 
 file(GLOB SOURCES "*.cpp")
 
 set_source_files_properties(${SOURCES} PROPERTIES HIP_SOURCE_PROPERTY_FORMAT 1)
-hip_add_executable(rocm-debug-agent-test ${SOURCES}
-  CLANG_OPTIONS -ggdb)
+
+add_custom_command(
+  OUTPUT "snapshot_objfile_on_load.hipfb"
+  COMMAND ${HIP_HIPCC_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/snapshot_objfile_on_load.cpp --genco -o snapshot_objfile_on_load.hipfb
+  DEPENDS "snapshot_objfile_on_load.cpp"
+  COMMENT "Building snapshot_objfile_on_load.hipfb"
+  VERBATIM)
+
+add_custom_command(
+  OUTPUT "save_code_objects.hipfb"
+  COMMAND ${HIP_HIPCC_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/save_code_objects.cpp --genco -o save_code_objects.hipfb
+  DEPENDS "save_code_objects.cpp"
+  COMMENT "Building save_code_objects.hipfb"
+  VERBATIM)
+
+hip_add_executable(rocm-debug-agent-test ${SOURCES} CLANG_OPTIONS -ggdb)
+
+add_custom_target(snapshot_objfile_on_load-tgt DEPENDS snapshot_objfile_on_load.hipfb)
+add_custom_target(save_code_objects-tgt DEPENDS save_code_objects.hipfb)
+
+add_dependencies(rocm-debug-agent-test snapshot_objfile_on_load-tgt save_code_objects-tgt)
 
 file(GLOB HEADERS "*.h")
 
@@ -54,4 +85,4 @@ install(FILES CMakeLists.txt run-test.py ${SOURCES} ${HEADERS}
 
 enable_testing()
 add_test(NAME rocm-debug-agent-test
-  COMMAND python ${CMAKE_CURRENT_SOURCE_DIR}/run-test.py ${CMAKE_CURRENT_BINARY_DIR})
+  COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/run-test.py ${CMAKE_CURRENT_BINARY_DIR})

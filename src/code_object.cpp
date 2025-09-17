@@ -762,7 +762,7 @@ code_object_t::save (const std::string &directory) const
 {
   agent_assert (is_open () && "code object is not opened");
 
-  std::string name{ m_uri };
+  std::string name{ std::to_string (m_code_object_id.handle) + "_" + m_uri };
 
   size_t pos{};
   while ((pos = name.find_first_of (":/#?&="), pos) != std::string::npos)

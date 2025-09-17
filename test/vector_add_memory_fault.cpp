@@ -42,7 +42,9 @@
 #define M_GET(M, I, J) M[I * M_ORDER + J]
 #define M_SET(M, I, J, V) M[I * M_ORDER + J] = V
 
-__global__ void
+/* Use optnone to be sure the compiler does not use
+   "s_sendmsg msg(MSG_DEALLOC_VGPRS)".  */
+__global__ void __attribute__((optnone))
 vector_add_memory_fault (int *a, int *b, int *c)
 {
   int gid = hipBlockIdx_x * hipBlockDim_x + hipThreadIdx_x;
