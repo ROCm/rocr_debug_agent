@@ -12,8 +12,8 @@ ROCR Debug Agent installation
 
 This topic provides information required to build and install ROCR Debug Agent (ROCdebug-agent) library.
 
-Prerequisites
---------------
+System requirements
+-------------------
 
 - A system supporting ROCm. See the `supported operating systems <https://rocm.docs.amd.com/projects/install-on-linux/en/latest/reference/system-requirements.html#supported-operating-systems>`_.
 
@@ -49,6 +49,10 @@ Prerequisites
 - Python 3.6 or later to run the tests.
 
 - :doc:`ROCdbgapi library <rocdbgapi:index>`. This can be installed using the ROCdbgapi package as part of the ROCm release. See the instructions to install :doc:`ROCdbgapi library <rocdbgapi:install/build>`.
+
+.. note::
+
+  ROCdebug-agent might become unresponsive in SELinux-enabled distributions. To learn more about this issue, see `installation troubleshooting <https://rocm.docs.amd.com/projects/install-on-linux/en/latest/reference/install-faq.html#issue-10-rocm-debugging-tools-might-become-unresponsive-in-selinux-enabled-distributions>`_.
 
 Build and install
 -------------------
