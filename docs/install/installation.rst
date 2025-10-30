@@ -25,21 +25,21 @@ Prerequisites
 
 .. tab-set::
 
-  .. tab-item:: Ubuntu 22.04 and Ubuntu 24.04
+  .. tab-item:: Ubuntu
     :sync: ubuntu
 
     .. code-block:: shell
 
       apt install gcc g++ make cmake libelf-dev libdw-dev
 
-  .. tab-item:: CentOS 8 and RHEL 8/9
+  .. tab-item:: RHEL
     :sync: rhel
 
     .. code-block:: shell
 
       yum install gcc gcc-c++ make cmake elfutils-libelf-devel elfutils-devel
 
-  .. tab-item:: SLES 15
+  .. tab-item:: SLES
     :sync: sles
 
     .. code-block:: shell
