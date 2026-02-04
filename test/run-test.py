@@ -601,6 +601,43 @@ def check_test_10():
     return found_in_debug and not found_in_no_debug
 
 
+# Test debug trap.
+# By default, debugtrap should not print anything.  When given the "-t" flag
+# we should see a wave dump printed.
+def test_debugtrap_test():
+    print("Start __builtin_debugtrap test")
+    out_str, err_str, success = run_and_communicate(
+        test_name="8: debugtrap, noarg", args="8"
+    )
+
+    if not success:
+        return False
+
+    if "wave_" in err_str:
+        # We expected no output.  This is an error.
+        print("Unexpected debug agent output")
+        print("rocm-debug-agent test print out.")
+        print(out_str)
+        print("rocm-debug-agent test error message.")
+        print(err_str)
+
+    # Now, test with the "-t" / "--print-debugtrap" option
+    for opt in ("-t", "--print-debugtrap"):
+        out_str, err_str, success = run_and_communicate(
+            test_name=f"8: debugtrap, {opt}", args="8", debug_agent_options=opt
+        )
+
+        if not success:
+            return False
+
+        if not check_errors(
+            [re.compile(m) for m in ("wave_", "DEBUG_TRAP")], out_str, err_str
+        ):
+            return False
+
+    return True
+
+
 test_success = True
 unsupported_tests = []
 
@@ -626,6 +663,7 @@ for deferred_loading in (None, "1", "0"):
             check_test_8,
             check_test_9,
             check_test_10,
+            test_debugtrap_test,
         ]
 
         for i, test in enumerate(test_list, start=0):

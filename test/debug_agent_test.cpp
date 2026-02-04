@@ -40,6 +40,7 @@ extern void SaveCodeObjectTest ();
 extern void PrintAllWavesTest ();
 extern void SigquitTest ();
 extern void VectorAddDebugTrapTestNoDebug ();
+extern void DebugTrapTest ();
 
 static void PrintTestInfo (const char *header);
 static void RunVectorAddDebugTrapTest ();
@@ -50,6 +51,7 @@ static void RunSaveCodeObjectTest ();
 static void RunPrintAllWavesTest ();
 static void RunSigquitTest ();
 static void RunVectorAddDebugTrapTestNoDebug ();
+static void RunDebugTrapTest ();
 
 int
 main (int argc, char *argv[])
@@ -102,6 +104,9 @@ main (int argc, char *argv[])
           break;
         case 7:
           RunVectorAddDebugTrapTestNoDebug ();
+          break;
+        case 8:
+          RunDebugTrapTest ();
           break;
         default:
           std::cout << "  *** Invalid Test ID ***" << std::endl;
@@ -277,4 +282,25 @@ RunVectorAddDebugTrapTestNoDebug ()
       TEST_ASSERT (err == hipSuccess, "hipDeviceReset");
     }
   PrintTestInfo ("No debug info end");
+}
+
+static void
+RunDebugTrapTest ()
+{
+  PrintTestInfo ("Debug trap test start");
+  int deviceCount;
+  hipError_t err = hipGetDeviceCount (&deviceCount);
+  TEST_ASSERT (err == hipSuccess, "hipGetDeviceCount");
+
+  for (int i = 0; i < deviceCount; ++i)
+    {
+      err = hipSetDevice (i);
+      TEST_ASSERT (err == hipSuccess, "hipSetDevice");
+
+      DebugTrapTest ();
+
+      err = hipDeviceReset ();
+      TEST_ASSERT (err == hipSuccess, "hipDeviceReset");
+    }
+  PrintTestInfo ("Debug trap test end");
 }

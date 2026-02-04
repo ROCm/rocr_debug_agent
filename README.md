@@ -153,6 +153,14 @@ The supported triggering events are:
   ``__builtin_trap()`` language builtin, or ``llvm.trap`` LLVM IR instruction,
   can be used to generate this AMD GPU instruction.
 
+- __Debug trap__
+
+  This occurs when an ``s_trap 3`` instruction is executed.  The
+  ``__builtin_debugtrap()`` language builtin, or ``llvm.debugtrap`` LLVM IR
+  instruction, can be used to generate this AMD GPU instruction.  By default,
+  the debug agent ignores this trigger, unless given the ``--print-debugtrap``
+  option.
+
 - __Illegal instruction__
 
   This occurs when the hardware detects an illegal instruction.
@@ -234,6 +242,12 @@ The supported options are:
   `none`, `info`, `warning`, or `error`.
 
   The default log level is ``none``.
+
+- __``-t``, ``--print-debugtrap``__
+
+  Make the debug trap (``__builtin_debugtrap``) a trigging event which causes
+  waves to be printed by the debug agent.  Wave execution is resumed after the
+  wave state has been printed.
 
 - __``-h``, ``--help``__
 

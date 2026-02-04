@@ -110,6 +110,7 @@ std::optional<std::string> g_code_objects_dir;
 bool g_all_wavefronts{ false };
 bool g_precise_emmory{ false };
 bool g_precise_alu_exceptions{ false };
+bool g_print_debugtrap{ false };
 
 /* Global state accessed by the dbgapi callbacks.  */
 std::optional<amd_dbgapi_breakpoint_id_t> g_rbrk_breakpoint_id;
@@ -819,7 +820,8 @@ print_usage ()
 
 void
 process_dbgapi_events (amd_dbgapi_process_id_t process_id, bool all_wavefronts,
-                       code_object_map_t &code_object_map)
+                       code_object_map_t &code_object_map,
+                       bool print_debugtrap)
 {
   /* Consume all events available in the queue.  */
   bool need_print_waves = false;
@@ -854,6 +856,7 @@ process_dbgapi_events (amd_dbgapi_process_id_t process_id, bool all_wavefronts,
                 /* This wave will be silently resumed at the end of this
                    procedure.  */
                 wave_need_resume = true;
+                need_print_waves |= print_debugtrap;
               }
             else
               need_print_waves = true;
@@ -1046,7 +1049,7 @@ process_dbgapi_events (amd_dbgapi_process_id_t process_id, bool all_wavefronts,
    to instruct the worker thread to stop.  */
 void
 dbgapi_worker (int listen_fd, bool all_wavefronts, bool precise_memory,
-               bool precise_alu_exceptions)
+               bool precise_alu_exceptions, bool print_debugtrap)
 {
   amd_dbgapi_process_id_t process_id;
   amd_dbgapi_event_id_t event_id;
@@ -1211,7 +1214,8 @@ dbgapi_worker (int listen_fd, bool all_wavefronts, bool precise_memory,
                            promise, which will cause the thread that modified
                            the code object list to resume.  */
                         process_dbgapi_events (process_id, all_wavefronts,
-                                               code_object_map);
+                                               code_object_map,
+                                               print_debugtrap);
                       }
 
                     g_rbrk_sync.promise->set_value ();
@@ -1229,7 +1233,7 @@ dbgapi_worker (int listen_fd, bool all_wavefronts, bool precise_memory,
                   r = read (evs[i].data.fd, &buf, 1);
               } while (r >= 0 || (r == -1 && errno == EINTR));
               process_dbgapi_events (process_id, all_wavefronts,
-                                     code_object_map);
+                                     code_object_map, print_debugtrap);
             }
           else
             agent_error ("Unknown file descriptor %d", evs[i].data.fd);
@@ -1278,7 +1282,8 @@ DebugAgentWorker::DebugAgentWorker ()
   m_write_pipe = pipefd[1];
 
   m_worker_thread = std::thread (dbgapi_worker, pipefd[0], g_all_wavefronts,
-                                 g_precise_emmory, g_precise_alu_exceptions);
+                                 g_precise_emmory, g_precise_alu_exceptions,
+                                 g_print_debugtrap);
 
   /* Wait for the worker thread to have setup dbgapi.  */
   init_future.wait ();
@@ -1485,6 +1490,7 @@ OnLoad (void *table, uint64_t runtime_version, uint64_t failed_tool_count,
           { "log-level", required_argument, nullptr, 'l' },
           { "output", required_argument, nullptr, 'o' },
           { "save-code-objects", optional_argument, nullptr, 's' },
+          { "print-debugtrap", no_argument, nullptr, 't' },
           { "precise-memory", no_argument, nullptr, 'p' },
           { "precise-alu-exceptions", no_argument, nullptr, 'e' },
           { "help", no_argument, nullptr, 'h' },
@@ -1495,7 +1501,7 @@ OnLoad (void *table, uint64_t runtime_version, uint64_t failed_tool_count,
   int saved_optind = optind;
   optind = 1;
 
-  while (int c = getopt_long (argc, argv, ":as::o:dpel:h", options, nullptr))
+  while (int c = getopt_long (argc, argv, ":as::o:dpel:ht", options, nullptr))
     {
       if (c == -1)
         break;
@@ -1563,6 +1569,10 @@ OnLoad (void *table, uint64_t runtime_version, uint64_t failed_tool_count,
             {
               g_code_objects_dir = ".";
             }
+          break;
+
+        case 't': /* -t or --print-debugtrap  */
+          g_print_debugtrap = true;
           break;
 
         case 'o': /* -o or --output  */

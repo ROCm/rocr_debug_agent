@@ -60,7 +60,8 @@ set(MAIN_SOURCES
 	snapshot_objfile_on_load.cpp
 	vector_add_normal.cpp
 	vector_add_memory_fault.cpp
-	save_code_objects.cpp)
+	save_code_objects.cpp
+	debugtrap.cpp)
 set(NO_DEBUG_SOURCES
 	vector_add_assert_trap_no_debug_info.cpp)
 set(SOURCES ${MAIN_SOURCES} ${NO_DEBUG_SOURCES})
